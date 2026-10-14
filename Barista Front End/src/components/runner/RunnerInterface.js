@@ -55,6 +55,7 @@ import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
+import ReleaseFreezeCard from './ReleaseFreezeCard';
 import TwoStepCard from './TwoStepCard';
 import PhoneWordingTab from './PhoneWordingTab';
 import NoticeComposer from './NoticeComposer';
@@ -194,7 +195,7 @@ const RunnerInterface = () => {
       {activeSection === 'system' && activeTab === 'fleet' && <FleetBoard />}
 
       {activeSection === 'eventsair' && <EventsAirTab />}
-      {activeSection === 'settings' && <EventDataManagement />}
+      {activeSection === 'settings' && (<><ReleaseFreezeCard /><EventDataManagement /></>)}
       {activeSection === 'emergency' && <EmergencyTab />}
       {activeSection === 'help' && (
         <HelpCenter article={helpArticle} onArticle={setHelpArticle}

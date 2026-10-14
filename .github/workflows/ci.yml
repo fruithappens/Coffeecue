@@ -108,6 +108,27 @@ jobs:
           SECRET_KEY: ci-only-not-a-secret
         run: python scripts/check_route_shadowing.py
 
+  event-freeze:
+    name: Event freeze
+    # Fails while cupq.app is serving an event or the organiser has frozen
+    # updates (Runner > Settings), so nothing new goes live mid-event
+    # (roadmap S1-4). Emergency fix: label the PR freeze-override.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Is cupq.app frozen?
+        env:
+          OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'freeze-override') }}
+        run: |
+          code=$(curl -s -o freeze.json -w '%{http_code}' -A CupQ-CI https://cupq.app/api/public/release-freeze || echo 000)
+          echo "HTTP $code: $(cat freeze.json 2>/dev/null)"
+          if [ "$code" = "404" ]; then echo "cupq.app predates the freeze check; not blocking."; exit 0; fi
+          frozen=$(python3 -c "import json;print(json.load(open('freeze.json')).get('frozen', True))" 2>/dev/null || echo True)
+          if [ "$frozen" = "False" ]; then echo "Not frozen."; exit 0; fi
+          if [ "$OVERRIDE" = "true" ]; then echo "::warning::Frozen, but the PR is labelled freeze-override."; exit 0; fi
+          echo "::error::cupq.app is frozen for an event. Wait until it's over, or label the PR freeze-override for an emergency fix."
+          exit 1
+
   consistency:
     name: Consistency checks
     runs-on: ubuntu-latest

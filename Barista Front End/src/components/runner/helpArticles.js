@@ -217,6 +217,7 @@ export const SECTION_HELP = {
       'Retire this event: erases attendees\' names, phone numbers and notes, keeps the counts for the report. It backs up first.',
       'Automatic erase: set a number of days and attendee details are erased that long after each order.',
       'Plan: which CupQ plan this event is on, and its text allowance.',
+      'Freeze updates: no new version of CupQ goes live while frozen. It also freezes by itself while orders are coming in.',
     ],
     open: { section: 'settings' },
   },

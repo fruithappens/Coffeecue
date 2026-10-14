@@ -751,6 +751,15 @@ def create_app():
     except Exception as cw_err:
         logger.error(f"Customer wording routes failed to register: {cw_err}")
 
+    # Event freeze: no updates while an event is served (S1-4).
+    try:
+        from routes.release_freeze_routes import bp as release_freeze_bp, public_bp as release_freeze_public_bp
+        app.register_blueprint(release_freeze_bp)
+        app.register_blueprint(release_freeze_public_bp)
+        logger.info("Release freeze routes registered")
+    except Exception as rf_err:
+        logger.error(f"Release freeze routes failed to register: {rf_err}")
+
     # Help requests from the ? button: /api/support-requests (U4-5).
     try:
         from routes.support_request_routes import bp as support_requests_bp
