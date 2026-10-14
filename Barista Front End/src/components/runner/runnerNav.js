@@ -73,6 +73,10 @@ export const TABS = {
     { id: 'meter',     label: 'Text meter', Icon: Gauge },
     { id: 'blocked',   label: 'Blocked numbers', Icon: Ban },
   ],
+  report: [
+    { id: 'summary', label: 'Event report', Icon: BarChart3 },
+    { id: 'ledger',  label: 'Ledger',       Icon: FileText },
+  ],
   system: [
     { id: 'health',      label: 'Health',      Icon: Heart },
     { id: 'diagnostics', label: 'Diagnostics', Icon: Terminal },

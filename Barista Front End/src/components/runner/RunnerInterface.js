@@ -56,6 +56,7 @@ import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
 import ReleaseFreezeCard from './ReleaseFreezeCard';
+import LedgerTab from './LedgerTab';
 import TwoStepCard from './TwoStepCard';
 import PhoneWordingTab from './PhoneWordingTab';
 import NoticeComposer from './NoticeComposer';
@@ -185,7 +186,8 @@ const RunnerInterface = () => {
       {activeSection === 'screens' && <div className="cq"><DisplaySelector embedded /></div>}
       {activeSection === 'printers' && <PrintersTab />}
 
-      {activeSection === 'report' && <ReportTab />}
+      {activeSection === 'report' && activeTab === 'summary' && <ReportTab />}
+      {activeSection === 'report' && activeTab === 'ledger' && <LedgerTab />}
 
       {activeSection === 'system' && activeTab === 'health' && <SystemHealthTab />}
       {/* Diagnostics already lists the frontend crashes; a separate
