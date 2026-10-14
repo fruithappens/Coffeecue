@@ -1982,6 +1982,13 @@ def create_app():
             close_connection(coffee_system.db)
             logger.info("Database connection closed")
     
+    try:
+        from security_middleware import size_public_reads_for_venue
+
+        size_public_reads_for_venue(app)
+    except Exception as _venue_err:
+        logger.warning(f"venue-sized read limits not applied: {_venue_err}")
+
     return app, socketio
 
 # Main execution
