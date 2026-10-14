@@ -802,6 +802,16 @@ def _m028_message_tables(cur):
     """)
 
 
+def _m029_users_two_step_login(cur):
+    """Authenticator-app codes for admin logins (roadmap X7-3).
+
+    totp_secret is set when someone starts setting it up; totp_enabled only
+    once they have typed a correct code, so a half-finished setup never
+    locks anyone out."""
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+
+
 def _m019_station_stats_twin_columns(cur):
     """Bring station_stats' twin columns into line.
 
@@ -924,6 +934,7 @@ MIGRATIONS: list[Migration] = [
     Migration(26, 'personal_pins',            _m026_personal_pins),
     Migration(27, 'support_requests',         _m027_support_requests),
     Migration(28, 'message_tables',           _m028_message_tables),
+    Migration(29, 'users_two_step_login',     _m029_users_two_step_login),
 ]
 
 

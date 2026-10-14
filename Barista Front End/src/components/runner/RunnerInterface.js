@@ -55,6 +55,7 @@ import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
+import TwoStepCard from './TwoStepCard';
 import NoticeComposer from './NoticeComposer';
 import ReportTab from './ReportTab';
 
@@ -151,7 +152,10 @@ const RunnerInterface = () => {
       {activeSection === 'schedule' && <EnhancedScheduleManagement />}
 
       {activeSection === 'users' && activeTab === 'people' && (
-        <div className="bg-cq-milk rounded-cq-md shadow p-6"><UserManagementTab /></div>
+        <>
+          <TwoStepCard />
+          <div className="bg-cq-milk rounded-cq-md shadow p-6"><UserManagementTab /></div>
+        </>
       )}
       {activeSection === 'users' && activeTab === 'access' && <UsersAccessTab />}
 

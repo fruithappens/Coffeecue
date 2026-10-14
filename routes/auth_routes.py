@@ -54,6 +54,20 @@ def api_login():
             'message': 'Invalid username or password'
         }), 401
     
+    # Two-step login (X7-3): once someone has turned it on, the password
+    # alone is not enough. Same answer shape as a wrong password, plus
+    # needs_code so the login screen shows the code box.
+    from routes.two_step_routes import login_check
+
+    refusal = login_check(user_data.get('id'), data.get('code'))
+    if refusal:
+        logger.warning(f"Login for {username} stopped at the two-step code")
+        return jsonify({
+            'status': 'error',
+            'needs_code': True,
+            'message': refusal
+        }), 401
+
     logger.info(f"User {username} logged in successfully via API")
     
     # Generate tokens

@@ -1,5 +1,6 @@
 // src/components/auth/LoginPage.jsx
 import React, { useState, useEffect } from 'react';
+import { productName } from '../../utils/productName';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
 import OfflineDataHelper from '../../utils/offlineDataHelper';
@@ -13,6 +14,10 @@ const LoginPage = ({ onLoginSuccess }) => {
   // audit). Dev convenience is not worth shipping a master key.
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // Two-step login (X7-3): shown once the server says the password was right
+  // and it wants the authenticator code.
+  const [needCode, setNeedCode] = useState(false);
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showFallbackOption, setShowFallbackOption] = useState(false);
@@ -92,7 +97,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         setBrandingSettings({
           systemName: 'CupQ',
           event_name: 'Coffee Event',
-          organization_name: 'Coffee Cue'
+          organization_name: 'CupQ'
         });
       }
     };
@@ -113,7 +118,7 @@ const LoginPage = ({ onLoginSuccess }) => {
     setLoading(true);
     
     try {
-      await AuthService.login(username, password);
+      await AuthService.login(username, password, needCode ? code : undefined);
       
       // Call the onLoginSuccess callback if provided
       if (onLoginSuccess) {
@@ -130,6 +135,11 @@ const LoginPage = ({ onLoginSuccess }) => {
       // Check if this is a token-related error
       const errorMessage = err.message || 'Login failed. Please check your credentials.';
       setError(errorMessage);
+      if (err.needsCode) {
+        setNeedCode(true);
+        setCode('');
+        return;
+      }
       
       // If error message suggests token issues, show fallback option
       if (
@@ -155,7 +165,7 @@ const LoginPage = ({ onLoginSuccess }) => {
           {logo
             ? <img src={logo} alt="" className="login-logo" />
             : <div className="login-logo-fallback" aria-hidden="true">☕</div>}
-          <h2>{brandingSettings?.systemName || brandingSettings?.organization_name || 'CupQ'}</h2>
+          <h2>{productName(brandingSettings?.systemName || brandingSettings?.organization_name)}</h2>
           <p>{brandingSettings?.event_name || 'Coffee Event'}</p>
         </div>
         
@@ -207,6 +217,25 @@ const LoginPage = ({ onLoginSuccess }) => {
               />
             </div>
             
+            {needCode && (
+              <div className="form-group">
+                <label htmlFor="code">Code from your authenticator app</label>
+                <input
+                  id="code"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9 ]*"
+                  maxLength={7}
+                  placeholder="123 456"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
             <div className="form-actions">
               <button
                 type="submit"

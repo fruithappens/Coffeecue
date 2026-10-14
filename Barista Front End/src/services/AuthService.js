@@ -78,7 +78,7 @@ class AuthService {
    * @param {string} password - Password
    * @returns {Promise<Object>} - Login result with user info
    */
-  async login(username, password) {
+  async login(username, password, code) {
     try {
       // Use ConfigService for API URL
       const response = await fetch(ConfigService.getApiUrl('auth/login'), {
@@ -87,7 +87,8 @@ class AuthService {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ username, password }),
+        // code: the authenticator-app code, once two-step login is on (X7-3).
+        body: JSON.stringify(code ? { username, password, code } : { username, password }),
         mode: 'cors'
         // Don't include credentials to avoid CORS issues with wildcard origin
       });
@@ -99,7 +100,10 @@ class AuthService {
         } catch (e) {
           errorData = { message: 'Invalid username or password' };
         }
-        throw new Error(errorData.message || 'Login failed');
+        const err = new Error(errorData.message || 'Login failed');
+        // The password was right; the server wants the 6-digit code.
+        err.needsCode = !!errorData.needs_code;
+        throw err;
       }
 
       const data = await response.json();
