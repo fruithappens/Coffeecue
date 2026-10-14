@@ -48,6 +48,7 @@ export const TABS = {
     { id: 'sponsors', label: 'Sponsors',     Icon: ImageIcon },
     { id: 'labels',   label: 'Labels',       Icon: Tag },
     { id: 'milk',     label: 'Milk colours', Icon: Droplet },
+    { id: 'wording',  label: 'Phone wording', Icon: MessageSquare },
   ],
   users: [
     { id: 'people', label: 'People',       Icon: Users },

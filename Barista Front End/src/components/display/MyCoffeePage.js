@@ -28,7 +28,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
 import { fetchEventAccess, urlCodeMatches, normalizeCode,
          stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
-import { CUSTOMER_STATUS } from '../../constants/customerStatus';
+import { CUSTOMER_STATUS, customerStatusFor } from '../../constants/customerStatus';
 import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 import useNotices from '../shared/useNotices';
 import NoticeBanner from '../shared/NoticeBanner';
@@ -1322,7 +1322,7 @@ const MyCoffeePage = () => {
     const waitingMinutes = typeof active.seconds_in_status === 'number'
       ? Math.floor(active.seconds_in_status / 60)
       : null;
-    const copy = STATUS[active.status] || { title: 'One moment…', tone: 'bg-cq-ink-3' };
+    const copy = customerStatusFor(active.status, brand.wording) || { title: 'One moment…', tone: 'bg-cq-ink-3' };
     const ready = active.status === 'completed';
     return (
       <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"

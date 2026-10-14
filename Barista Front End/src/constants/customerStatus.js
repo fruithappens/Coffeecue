@@ -22,6 +22,18 @@ export function customerStatus(status) {
   return CUSTOMER_STATUS[s] || null;
 }
 
+// The customer's words with the organiser's own wording on top (Runner >
+// Branding > Phone wording, X7-5). `wording` is {stage: "text"} from the
+// public display config; anything missing or blank falls back to ours. The
+// colour always stays ours: it carries the meaning.
+export function customerStatusFor(status, wording) {
+  const base = customerStatus(status);
+  if (!base) return null;
+  const key = Object.keys(CUSTOMER_STATUS).find((k) => CUSTOMER_STATUS[k] === base);
+  const own = wording && typeof wording[key] === 'string' ? wording[key].trim() : '';
+  return own ? { ...base, title: own } : base;
+}
+
 // The STAFF words for the same states -- shorter, for a barista's card or a
 // runner's list. Same keys, same order of life: queued, making, ready,
 // collected, cancelled. Tone names map to design tokens (design/tokens.css).

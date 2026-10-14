@@ -56,6 +56,7 @@ import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
 import TwoStepCard from './TwoStepCard';
+import PhoneWordingTab from './PhoneWordingTab';
 import NoticeComposer from './NoticeComposer';
 import ReportTab from './ReportTab';
 
@@ -148,6 +149,7 @@ const RunnerInterface = () => {
       {activeSection === 'branding' && activeTab === 'sponsors' && <SponsorsPanel />}
       {activeSection === 'branding' && activeTab === 'labels' && <LabelsTab />}
       {activeSection === 'branding' && activeTab === 'milk' && <MilkColorSettings />}
+      {activeSection === 'branding' && activeTab === 'wording' && <PhoneWordingTab />}
 
       {activeSection === 'schedule' && <EnhancedScheduleManagement />}
 

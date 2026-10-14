@@ -743,6 +743,13 @@ def create_app():
         logger.info("Two-step login routes registered")
     except Exception as ts_err:
         logger.error(f"Two-step login routes failed to register: {ts_err}")
+    # The customer's phone wording, editable (X7-5).
+    try:
+        from routes.customer_wording_routes import bp as customer_wording_bp
+        app.register_blueprint(customer_wording_bp)
+        logger.info("Customer wording routes registered")
+    except Exception as cw_err:
+        logger.error(f"Customer wording routes failed to register: {cw_err}")
 
     # Help requests from the ? button: /api/support-requests (U4-5).
     try:
