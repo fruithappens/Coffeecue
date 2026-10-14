@@ -767,6 +767,41 @@ def _m027_support_requests(cur):
     """)
 
 
+def _m028_message_tables(cur):
+    """The two SMS tables, created up front like every other table.
+
+    sms_messages (texts in) and order_messages (texts out per order) were
+    only ever created lazily by the code that first writes to them. A
+    brand-new copy has neither until its first text, and everything that
+    READS them fails until then: the minute-by-minute service watch, SMS
+    health, the Messages log and the event report. Found on demo.cupq.app
+    (13 Oct 2026), which logged two "relation does not exist" errors a
+    minute. Same columns as the lazy creators, so on a copy that already
+    has them (cupq.app) this changes nothing."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sms_messages (
+            id SERIAL PRIMARY KEY,
+            phone_number VARCHAR(20) NOT NULL,
+            message_body TEXT NOT NULL,
+            sender_name VARCHAR(100),
+            station_id INTEGER,
+            received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            processed BOOLEAN DEFAULT FALSE,
+            response_sent TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS order_messages (
+            id SERIAL PRIMARY KEY,
+            order_number VARCHAR(50) NOT NULL,
+            phone VARCHAR(50) NOT NULL,
+            message TEXT NOT NULL,
+            message_sid VARCHAR(100),
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
 def _m019_station_stats_twin_columns(cur):
     """Bring station_stats' twin columns into line.
 
@@ -888,6 +923,7 @@ MIGRATIONS: list[Migration] = [
     Migration(25, 'demo_requests',            _m025_demo_requests),
     Migration(26, 'personal_pins',            _m026_personal_pins),
     Migration(27, 'support_requests',         _m027_support_requests),
+    Migration(28, 'message_tables',           _m028_message_tables),
 ]
 
 
