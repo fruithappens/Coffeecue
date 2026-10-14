@@ -292,6 +292,53 @@ auth_limiter = limiter.limit("5 per minute")
 api_limiter = limiter.limit("100 per minute")
 sms_limiter = limiter.limit("10 per minute")
 
+# The public attendee pages a whole venue polls from ONE address.
+#
+# At a venue everyone on the wifi shares one public IP. A phone following
+# its order polls every 8 seconds (450 an hour), so the 5,000/hour default
+# cut the room off after about a dozen phones, and the TV board with it:
+# "429 Too Many Requests" for the rest of the hour (found by the 1,000-phone
+# load test, 13 Oct 2026; reproduced locally). These reads get a cap sized
+# for a full room instead of none: 12,000 a minute from one address is
+# ~1,600 phones. Everything else keeps the default, and every explicit
+# limit (login, device PIN, the demo form) is unchanged.
+PUBLIC_POLL_READS = (
+    "/api/orders/<order_id>/track",
+    "/api/display/orders",
+    "/api/display/menu",
+    "/api/display/config",
+    "/api/display/bg-video",
+    "/api/sponsors",
+    "/api/notices/active",
+    "/api/ea/me",
+    "/api/public/status",
+    "/api/event-access/public",
+    "/api/health",
+)
+_venue_read_limit = os.getenv('RATELIMIT_VENUE_READS', '12000 per minute')
+
+
+def size_public_reads_for_venue(app):
+    """Give PUBLIC_POLL_READS the venue-sized cap. Call after every
+    blueprint is registered. Returns the paths it found, so a renamed
+    route shows up as missing in the unit test rather than silently
+    falling back to the 5,000/hour default."""
+    found = []
+    for rule in app.url_map.iter_rules():
+        if rule.rule in PUBLIC_POLL_READS and "GET" in (rule.methods or ()):
+            view = app.view_functions.get(rule.endpoint)
+            if view is not None and not getattr(view, "_cupq_venue_sized", False):
+                # The limit is checked INSIDE the wrapper limit() returns,
+                # so it has to replace the view. Decorating and discarding
+                # the wrapper takes the route off the default limit and
+                # checks nothing (seen locally: no cap at all).
+                wrapped = limiter.limit(_venue_read_limit, key_func=_client_ip, methods=["GET"])(view)
+                wrapped._cupq_venue_sized = True
+                app.view_functions[rule.endpoint] = wrapped
+                found.append(rule.rule)
+    return sorted(set(found))
+
+
 def init_security(app):
     """Initialize security features for the Flask app"""
     # Initialize rate limiter
