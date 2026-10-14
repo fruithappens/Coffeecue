@@ -64,7 +64,16 @@ _state = {
     "outbound_last_at": None,
     "outbound_failed": 0,
     "outbound_failed_last_at": None,
+    # Failures since the last send that got out. The totals above run from
+    # boot, so they can't see an outage that starts after the first good
+    # text of the day.
+    "outbound_fail_streak": 0,
 }
+
+# Consecutive failures that mean "texts are down" once at least one text
+# has got out since boot. Higher than the boot rule's 2, so two bad numbers
+# in a row mid-event don't page anyone.
+FAIL_STREAK_DOWN = 3
 
 
 def _now_iso():
@@ -94,9 +103,16 @@ def _outbound_is_down():
     # Sends are being attempted and NONE are getting out. Two-plus failures
     # with zero successes = systemic (the 2026-09-05 eventlet-DNS outage was
     # exactly this), not one bad number. Drives the barista banner + the
-    # admin email alert (fired from the /api/sms/health route, which has the
-    # DB + config context this low-level module deliberately does not).
-    return _state["outbound_failed"] >= 2 and _state["outbound_ok"] == 0
+    # admin alert (service_watch and the /api/sms/health route).
+    #
+    # The first rule only works from a fresh boot: the 5 Sep outage began
+    # right after a redeploy. An outage that starts after the first good
+    # text of the day left outbound_ok > 0 and was never flagged (found in
+    # the failure drills, 15 Oct 2026). So also: FAIL_STREAK_DOWN failures
+    # in a row since the last text that got out.
+    if _state["outbound_failed"] >= 2 and _state["outbound_ok"] == 0:
+        return True
+    return _state["outbound_fail_streak"] >= FAIL_STREAK_DOWN
 
 
 def note_outbound(ok: bool = True):
@@ -106,9 +122,11 @@ def note_outbound(ok: bool = True):
             if ok:
                 _state["outbound_ok"] += 1
                 _state["outbound_last_at"] = _now_iso()
+                _state["outbound_fail_streak"] = 0
             else:
                 _state["outbound_failed"] += 1
                 _state["outbound_failed_last_at"] = _now_iso()
+                _state["outbound_fail_streak"] += 1
     except Exception:
         pass
 
@@ -213,11 +231,15 @@ def snapshot(db=None, messaging_service=None):
     # boolean so the barista banner can trip on it without parsing prose.
     outbound_down = _outbound_is_down()
     if outbound_down:
+        if s["outbound_ok"] == 0:
+            what = f"{s['outbound_failed']} attempts since restart, 0 delivered"
+        else:
+            what = (f"the last {s['outbound_fail_streak']} attempts failed "
+                    f"(last good text {_minutes_since(s['outbound_last_at'])} min ago)")
         problems.insert(
             0,
-            f"SMS SENDING IS FAILING — {s['outbound_failed']} attempts since "
-            "restart, 0 delivered. Anyone who asked for a text is NOT getting "
-            "it. Call names / point people to the board.",
+            f"SMS SENDING IS FAILING — {what}. Anyone who asked for a text is "
+            "NOT getting it. Call names / point people to the board.",
         )
 
     if problems:
@@ -255,6 +277,7 @@ def snapshot(db=None, messaging_service=None):
             "last_minutes_ago": _minutes_since(s["outbound_last_at"]),
             "failed_since_boot": s["outbound_failed"],
             "failed_last_at": s["outbound_failed_last_at"],
+            "failed_in_a_row": s["outbound_fail_streak"],
         },
         "public_url": os.getenv("RAILWAY_PUBLIC_DOMAIN")
         or os.getenv("PUBLIC_URL")
