@@ -11,6 +11,7 @@
 // They keep the tab open (or re-scan later; the number is in the URL).
 // A phone number remains OPTIONAL for anyone who does want the text.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { pollDelayMs } from '../../utils/pollPace';
 import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
 import { remember, recall, forget } from '../../utils/deviceMemory';
@@ -184,11 +185,45 @@ const MobileOrderPage = () => {
     }
   }, [trackNumber]);
 
+  // Paced by need (utils/pollPace): 8 s when being made or near the
+  // front, 20 s far back in line, 30 s hidden, and stopped once collected
+  // or cancelled. It used to be a flat 8 s forever, even for a coffee
+  // already in hand. Like /my, it refreshes the moment the page is looked
+  // at again (iOS suspends timers in a hidden tab, and restores from the
+  // back/forward cache with pageshow, not visibilitychange).
+  const [hidden, setHidden] = useState(
+    typeof document !== 'undefined' && document.visibilityState === 'hidden');
+  const delay = pollDelayMs({
+    status: collected ? 'picked_up' : track?.status,
+    position: track?.position,
+    hidden,
+  });
   useEffect(() => {
-    if (!trackNumber) return;
+    if (!trackNumber) return undefined;
     poll();
-    const t = setInterval(poll, 8000);
+    // Only on a new order number; the pace effect below keeps it going.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackNumber]);
+  useEffect(() => {
+    if (!trackNumber || delay == null) return undefined;
+    const t = setInterval(poll, delay);
     return () => clearInterval(t);
+  }, [trackNumber, poll, delay]);
+  useEffect(() => {
+    if (!trackNumber) return undefined;
+    const onVisible = () => {
+      const isHidden = document.visibilityState === 'hidden';
+      setHidden(isHidden);
+      if (!isHidden) poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    window.addEventListener('online', poll);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+      window.removeEventListener('online', poll);
+    };
   }, [trackNumber, poll]);
 
   // Drives the "checked 12s ago" counter. Only while the order is still

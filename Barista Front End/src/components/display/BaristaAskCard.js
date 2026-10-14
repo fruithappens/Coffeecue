@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { pollDelayMs, QUEUED_MS } from '../../utils/pollPace';
 
 // The barista-to-this-customer message, on the customer's own phone.
 //
@@ -15,23 +16,48 @@ export default function BaristaAskCard({ orderNumber, ask: askProp, headerColor 
   const [text, setText] = useState('');
   const mounted = useRef(true);
 
-  // If the parent didn't hand us the ask, poll /track for it ourselves.
+  // Poll /track ourselves ONLY when the parent isn't passing the ask at
+  // all (undefined). A parent that passes null is already polling /track
+  // and is saying "no question right now"; treating null as "poll it
+  // yourself" doubled every tracking phone's checks (found by the
+  // 1,000-phone load test). Our own polling follows the shared pace and
+  // stops when the order is finished.
   useEffect(() => {
     mounted.current = true;
-    if (askProp !== undefined && askProp !== null) { setAsk(askProp); return undefined; }
-    if (askProp === null) { setAsk(null); }
+    if (askProp !== undefined) { setAsk(askProp); return undefined; }
     if (!orderNumber) return undefined;
     let cancelled = false;
+    let timer = null;
     const poll = async () => {
+      let delay = QUEUED_MS;
       try {
         const r = await fetch(`/api/orders/${encodeURIComponent(orderNumber)}/track`);
         const b = r.ok ? await r.json() : null;
-        if (!cancelled && b && b.success) setAsk(b.barista_ask || null);
+        if (!cancelled && b && b.success) {
+          setAsk(b.barista_ask || null);
+          delay = pollDelayMs({
+            status: b.status,
+            position: b.position,
+            hidden: typeof document !== 'undefined' && document.visibilityState === 'hidden',
+          });
+        }
       } catch (e) { /* keep last */ }
+      if (!cancelled && delay != null) timer = setTimeout(poll, delay);
     };
+    // Looked at again: check now (a question is waiting on this person).
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || cancelled) return;
+      if (timer) clearTimeout(timer);
+      poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     poll();
-    const t = setInterval(poll, 8000);
-    return () => { cancelled = true; clearInterval(t); mounted.current = false; };
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      mounted.current = false;
+    };
   }, [orderNumber, askProp]);
 
   useEffect(() => { if (askProp !== undefined) setAsk(askProp); }, [askProp]);

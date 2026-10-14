@@ -15,6 +15,7 @@
 // Anyone we don't recognise falls through to the normal ordering flow, so
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { pollDelayMs } from '../../utils/pollPace';
 import { contactIdFromSearch } from '../../utils/contactId';
 import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
@@ -596,11 +597,22 @@ const MyCoffeePage = () => {
   // is newly parsed on every poll, so the old dep tore the interval down
   // and rebuilt it eight seconds at a time, resetting its own clock.
   const activeNumber = me?.active_order?.order_number;
+  // Paced by need (utils/pollPace): 8 s once it's being made or ready,
+  // 15 s while queued, 30 s while the page is hidden. The visibility
+  // refresh below means nobody looking at the page waits on that pace.
+  const [pageHidden, setPageHidden] = useState(
+    typeof document !== 'undefined' && document.visibilityState === 'hidden');
+  const pace = pollDelayMs({ status: me?.active_order?.status, hidden: pageHidden });
+  useEffect(() => {
+    if (!cid || !activeNumber || pace == null) return undefined;
+    const t = setInterval(() => load(cid, { quiet: true }), pace);
+    return () => clearInterval(t);
+  }, [cid, activeNumber, load, pace]);
   useEffect(() => {
     if (!cid || !activeNumber) return undefined;
     const refresh = () => load(cid, { quiet: true });
-    const t = setInterval(refresh, 8000);
     const onVisible = () => {
+      setPageHidden(document.visibilityState === 'hidden');
       if (document.visibilityState !== 'visible') return;
       refresh();
       // iOS suspends the audio context while the page is hidden. Resume
@@ -612,7 +624,6 @@ const MyCoffeePage = () => {
     window.addEventListener('pageshow', onVisible);
     window.addEventListener('online', refresh);
     return () => {
-      clearInterval(t);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pageshow', onVisible);
       window.removeEventListener('online', refresh);
