@@ -33,6 +33,85 @@ const sinceWords = (sec) => {
   return `${Math.round(n / 86400)} days ago`;
 };
 
+// Pairing (roadmap C3-10): a new printer registers itself switched off on
+// its first check-in. This puts it front and centre: choose its station,
+// press Pair, and it's switched on, named and prints a test label. With
+// several new printers, type the last 4 of the code on the sticker
+// underneath to pick the right one.
+const PairPrinterCard = ({ printers, stations, refresh }) => {
+  const pending = printers.filter(p => !p.enabled);
+  const [code, setCode] = useState('');
+  const [stationFor, setStationFor] = useState({});
+  const [busy, setBusy] = useState(null);
+  const shown = pending.filter(p => !code.trim()
+    || String(p.mac_address || '').replace(/[^0-9a-z]/gi, '').toLowerCase().endsWith(code.replace(/[^0-9a-z]/gi, '').toLowerCase()));
+  const url = `${window.location.origin}/cloudprnt`;
+
+  const pair = async (p) => {
+    const sid = stationFor[p.id] || (stations[0] && stations[0].id);
+    if (!sid) { showToast('Add a station first (Runner > Stations)', 'warning'); return; }
+    const st = stations.find(s => String(s.id) === String(sid));
+    setBusy(p.id);
+    try {
+      const r = await printService.updatePrinter(p.id, {
+        enabled: true, station_id: parseInt(sid, 10),
+        name: `${(st && st.name) || `Station ${sid}`} label printer`,
+      });
+      if (!r?.success) { showToast(`Couldn't pair: ${r?.message || 'unknown'}`, 'error'); return; }
+      const t = await printService.testPrint(p.id);
+      showToast(t?.success ? 'Paired. A test label is on its way: check it came out.' : 'Paired, but the test label failed to queue.',
+        t?.success ? 'success' : 'warning');
+      refresh();
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 border-2 border-cq-caramel">
+      <h2 className="text-xl font-bold text-cq-roast">Pair a printer</h2>
+      {pending.length === 0 ? (
+        <ol className="mt-2 list-decimal pl-6 text-sm text-cq-ink-2 space-y-1">
+          <li>Plug the printer into power and the venue network, and turn it on.</li>
+          <li>Its CloudPRNT address must be <code className="bg-cq-wash px-1 rounded select-all">{url}</code>{' '}
+            <button type="button" className="text-cq-caramel-deep underline text-xs"
+              onClick={() => { try { navigator.clipboard.writeText(url); showToast('Address copied', 'success'); } catch (e) { /* no clipboard */ } }}>copy</button>
+            {' '}(set once on the printer's own setup page).</li>
+          <li>Within a minute it appears here with a Pair button.</li>
+        </ol>
+      ) : (
+        <>
+          <p className="text-sm text-cq-ink-2 mt-1">
+            {pending.length === 1 ? 'A new printer has checked in.' : `${pending.length} new printers have checked in.`}
+            {' '}Choose its station and press Pair: it's switched on and prints a test label.
+          </p>
+          {pending.length > 1 && (
+            <input value={code} onChange={e => setCode(e.target.value)} maxLength={4}
+              placeholder="Last 4 of the code on its sticker"
+              className="mt-3 w-64 px-3 py-2 rounded-cq-md border-2 border-cq-line bg-white text-cq-roast" />
+          )}
+          <div className="mt-3 space-y-2">
+            {shown.map(p => (
+              <div key={p.id} className="flex flex-wrap items-center gap-3 bg-cq-wash rounded-cq-md px-3 py-2">
+                <span className="font-mono font-bold text-cq-roast">…{String(p.mac_address || '').slice(-4)}</span>
+                <span className={`text-xs ${p.online ? 'text-cq-ready' : 'text-cq-ink-3'}`}>{p.online ? 'checking in now' : 'not heard from lately'}</span>
+                <select value={stationFor[p.id] || (stations[0] && stations[0].id) || ''}
+                  onChange={e => setStationFor(m => ({ ...m, [p.id]: e.target.value }))}
+                  className="border-2 border-cq-line rounded-cq-md bg-white px-2 py-1">
+                  {stations.map(st => <option key={st.id} value={st.id}>{st.name || `Station ${st.id}`}</option>)}
+                </select>
+                <button type="button" disabled={busy === p.id} onClick={() => pair(p)}
+                  className="h-10 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-bold disabled:opacity-50">
+                  {busy === p.id ? 'Pairing…' : 'Pair and print a test label'}
+                </button>
+              </div>
+            ))}
+            {shown.length === 0 && <p className="text-sm text-cq-ink-3">No new printer ends in "{code}".</p>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 const PrintersTab = () => {
   const [printers, setPrinters] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -103,6 +182,8 @@ const PrintersTab = () => {
         <a href="/organiser#branding/labels" className="font-semibold underline">Branding → Labels</a>.
         This page is the printers themselves: connection, roll width, offset and the print queue.
       </div>
+
+      {!loading && <PairPrinterCard printers={printers} stations={stations} refresh={refresh} />}
 
       {/* Printer fleet */}
       <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
