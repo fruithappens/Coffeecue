@@ -178,7 +178,7 @@ def get_branding_settings():
                 'logo_url': '',
                 'custom_css': '',
                 'event_name': 'Coffee Event',
-                'organization_name': 'Coffee Cue'
+                'organization_name': 'CupQ'
             }
         
         return jsonify({

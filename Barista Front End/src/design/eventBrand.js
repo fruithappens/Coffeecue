@@ -94,7 +94,10 @@ export function PoweredBy({ brand, className = '' }) {
   if (b.poweredBy === false) return null;
   return (
     <div className={`text-xs text-cq-ink-3 ${className}`}>
-      powered by <span className="font-semibold text-cq-ink-3">{b.systemName || 'CupQ'}</span>
+      {/* Always CupQ: this line is our mark, not the event's name. A copy
+          with an old saved name showed "powered by Coffee Cue". White-label
+          plans hide the line instead (poweredBy false). */}
+      powered by <span className="font-semibold text-cq-ink-3">CupQ</span>
       <span className="mx-1.5">·</span>
       <span className="italic">Cue the cups.</span>
     </div>

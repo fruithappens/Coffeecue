@@ -617,6 +617,11 @@ const DisplayScreen = () => {
       setTimeout(() => setSoundNeedsTap(false), 20000);
     }
     const arm = () => {
+      // Once is enough. This used to run on EVERY tap and key press, so
+      // the kiosk (which lives on this page) chimed on every letter of a
+      // customer's name (Steve, Virgin demo, 15 Oct 2026). Only the first
+      // tap unlocks audio, and only a later refusal needs another.
+      if (speechArmedRef.current && !voiceBlockedRef.current) return;
       speechArmedRef.current = true;
       voiceBlockedRef.current = false;
       setSoundNeedsTap(false);

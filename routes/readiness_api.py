@@ -715,11 +715,11 @@ def send_test_sms():
         # Default to a recognisable test message that mimics the welcome
         # SMS shape — operator sees what a real customer would see.
         coffee_system = current_app.config.get('coffee_system')
-        event_name = 'Coffee Cue'
+        event_name = 'CupQ'
         if coffee_system and coffee_system.db:
             try:
-                got = _kv_get(coffee_system.db, 'event_name', default='Coffee Cue')
-                event_name = got or 'Coffee Cue'
+                got = _kv_get(coffee_system.db, 'event_name', default='CupQ')
+                event_name = got or 'CupQ'
             except Exception:
                 pass
         message = (f"[TEST] Welcome to {event_name}! "
