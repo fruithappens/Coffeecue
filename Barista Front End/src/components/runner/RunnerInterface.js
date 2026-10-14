@@ -10,7 +10,7 @@
 // rendered inside `.cq-legacy` so they wear the palette until each is rebuilt
 // in its own phase. Nothing was dropped in the merge.
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Shuffle, LogOut, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Menu, X, Shuffle, LogOut, PanelLeftClose, PanelLeft, HelpCircle } from 'lucide-react';
 import { AreaMark, SidebarNav, TabBar, Button } from '../../design';
 import { NAV, TABS, DEFAULT_TAB, TITLES, SECTIONS, readHash } from './runnerNav';
 import useStations from '../../hooks/useStations';
@@ -54,7 +54,7 @@ import FleetBoard from '../support-tabs/FleetBoard';
 import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
-import SmsFlowReference from '../organiser/SmsFlowReference';
+import HelpCenter from './HelpCenter';
 import NoticeComposer from './NoticeComposer';
 import ReportTab from './ReportTab';
 
@@ -66,21 +66,32 @@ const RunnerInterface = () => {
     const h = readHash();
     return { ...DEFAULT_TAB, ...(h && h.tab ? { [h.section]: h.tab } : {}) };
   });
+  // Which help page is open (#help/<page>); the header's Help button sets
+  // it to the section you were on.
+  const [helpArticle, setHelpArticle] = useState(() => {
+    const raw = (window.location.hash || '').replace(/^#/, '').split('/');
+    return raw[0] === 'help' && raw[1] ? raw[1] : null;
+  });
   const activeTab = tabBySection[activeSection];
   const setActiveTab = (id) => setTabBySection((t) => ({ ...t, [activeSection]: id }));
 
   // Deep links: #section/tab, so a link into Branding → Labels still works
   // (and the old organiser/support hashes are mapped in runnerNav.ALIASES).
   useEffect(() => {
-    const want = TABS[activeSection] ? `#${activeSection}/${tabBySection[activeSection]}` : `#${activeSection}`;
+    const want = TABS[activeSection] ? `#${activeSection}/${tabBySection[activeSection]}`
+      : (activeSection === 'help' && helpArticle ? `#help/${helpArticle}` : `#${activeSection}`);
     if (window.location.hash !== want) window.history.replaceState(null, '', want);
-  }, [activeSection, tabBySection]);
+  }, [activeSection, tabBySection, helpArticle]);
   useEffect(() => {
     const onHash = () => {
       const h = readHash();
       if (!h) return;
       setActiveSection(h.section);
       if (h.tab) setTabBySection((t) => ({ ...t, [h.section]: h.tab }));
+      if (h.section === 'help') {
+        const page = (window.location.hash || '').replace(/^#/, '').split('/')[1];
+        setHelpArticle(page || null);
+      }
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -179,7 +190,10 @@ const RunnerInterface = () => {
       {activeSection === 'eventsair' && <EventsAirTab />}
       {activeSection === 'settings' && <EventDataManagement />}
       {activeSection === 'emergency' && <EmergencyTab />}
-      {activeSection === 'help' && <SmsFlowReference />}
+      {activeSection === 'help' && (
+        <HelpCenter article={helpArticle} onArticle={setHelpArticle}
+          onOpen={({ section, tab }) => { go(section); if (tab) setTabBySection((t) => ({ ...t, [section]: tab })); }} />
+      )}
 
       {/* A whitelist, so a section added to NAV without a panel here shows
           this rather than a silently blank page. */}
@@ -239,6 +253,13 @@ const RunnerInterface = () => {
             onClick={() => setMobileNavOpen(true)} aria-label="Open the menu"><Menu size={22} /></button>
           <h1 className="text-2xl font-extrabold truncate">{title}</h1>
           <div className="flex-1" />
+          {activeSection !== 'help' && (
+            <button type="button" onClick={() => { setHelpArticle(activeSection); go('help'); }}
+              aria-label={`Help with ${title}`}
+              className="h-10 px-3 inline-flex items-center gap-2 rounded-cq-md bg-cq-milk/10 hover:bg-cq-milk/20 font-bold text-sm">
+              <HelpCircle size={16} /> <span className="hidden sm:inline">Help</span>
+            </button>
+          )}
           <div className="relative">
             <button type="button" onClick={() => setAccountOpen((v) => !v)}
               className="h-10 px-3 inline-flex items-center gap-2 rounded-cq-md bg-cq-milk/10 hover:bg-cq-milk/20 font-bold text-sm">
