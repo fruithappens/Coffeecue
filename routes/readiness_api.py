@@ -562,6 +562,26 @@ def _check_device_pin(db):
     return {'status': 'ok', 'detail': 'The unlock PIN has been changed.'}
 
 
+def _check_two_step(db):
+    """Admins sign in with a password AND an authenticator code (X7-3).
+    A warning, not a failure: it's on each admin to set it up for themselves
+    (Runner > People, at the top)."""
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    cur = db.cursor()
+    cur.execute("SELECT username FROM users WHERE LOWER(role) = 'admin' "
+                "AND COALESCE(is_active, TRUE) AND NOT COALESCE(totp_enabled, FALSE) ORDER BY username")
+    without = [(r[0] if not isinstance(r, dict) else list(r.values())[0]) for r in cur.fetchall()]
+    db.rollback()
+    if not without:
+        return {'status': 'ok', 'detail': 'Every admin signs in with a code from their phone.'}
+    names = ', '.join(without[:4]) + (f' and {len(without) - 4} more' if len(without) > 4 else '')
+    return {'status': 'warn',
+            'detail': f'Admins without two-step login: {names}. Each turns it on under People.'}
+
+
 def _check_plan_tier(db):
     """Plan limits and the included texts do nothing until a tier is set."""
     tier = str(_kv_get(db, 'plan_tier', default='') or '').strip().lower()
@@ -607,6 +627,7 @@ FIX_LINKS = {
     'inventory': ('Event stock', 'menu/stock'),
     'quick_setup': ('Quick Setup', 'quickSetup'),
     'device_pin': ('Unlock PINs', 'users/people'),
+    'two_step': ('Two-step login', 'users/people'),
     'plan_tier': ('Plan', 'settings'),
     'test_order': ('Orders', 'orders'),
 }
@@ -665,6 +686,7 @@ def get_readiness():
         _safe_check('branding', 'Logo and colours', lambda: _check_branding(db)),
         _safe_check('quick_picks', 'Quick picks', lambda: _check_quick_picks(db)),
         _safe_check('device_pin', 'Unlock PIN changed', lambda: _check_device_pin(db)),
+        _safe_check('two_step', 'Admins use two-step login', lambda: _check_two_step(db)),
         _safe_check('plan_tier', 'Plan chosen', lambda: _check_plan_tier(db)),
         _safe_check('test_order', 'A test order went end to end', lambda: _check_test_order(db)),
     ]

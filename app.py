@@ -736,6 +736,14 @@ def create_app():
     except Exception as plan_err:
         logger.error(f"Plan routes failed to register: {plan_err}")
 
+    # Two-step login with an authenticator app: /api/auth/two-step (X7-3).
+    try:
+        from routes.two_step_routes import bp as two_step_bp
+        app.register_blueprint(two_step_bp)
+        logger.info("Two-step login routes registered")
+    except Exception as ts_err:
+        logger.error(f"Two-step login routes failed to register: {ts_err}")
+
     # Help requests from the ? button: /api/support-requests (U4-5).
     try:
         from routes.support_request_routes import bp as support_requests_bp

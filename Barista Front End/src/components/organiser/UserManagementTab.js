@@ -253,6 +253,22 @@ const UserManagementTab = () => {
     }
   };
 
+  // Two-step login (X7-3): someone lost the phone with their authenticator
+  // app. An admin switches it off so they can sign in with the password and
+  // set it up again on the new phone.
+  const handleResetTwoStep = async (user) => {
+    if (!(await askConfirm({ title: `Turn off two-step login for ${user.username}?`,
+      message: 'For a lost or replaced phone. They sign in with just their password, then set it up again under People.',
+      confirmLabel: 'Turn off' }))) return;
+    try {
+      const r = await apiService.post(`/auth/two-step/reset/${user.id}`, {});
+      if (r && r.success === false) throw new Error(r.message || 'Not allowed');
+      showToast(`Two-step login is off for ${user.username}`, 'success');
+    } catch (err) {
+      setError(`Could not turn off two-step login: ${err.message || err}`);
+    }
+  };
+
   const handleDeleteUser = async (userId) => {
     if (!(await askConfirm({ title: 'Delete this user?', message: 'They will not be able to sign in again. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return;
     const target = users.find(u => u.id === userId);
@@ -768,6 +784,12 @@ const UserManagementTab = () => {
                 {/* Expanded Details */}
                 {expandedUser === user.id && (
                   <div className="mt-4 pt-4 border-t">
+                    <div className="mb-4">
+                      <button type="button" onClick={() => handleResetTwoStep(user)}
+                        className="text-sm font-semibold text-cq-caramel-deep hover:underline">
+                        Lost their phone? Turn off two-step login
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <h5 className="font-medium mb-2">Skills</h5>
