@@ -77,6 +77,9 @@ def call(base, path, method="GET", body=None, token=None, timeout=30, ok_codes=(
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
+    # Cloudflare refuses Python's default user agent (error 1010, HTTP 403)
+    # on the cupq.app addresses, so say who we are.
+    req.add_header("User-Agent", "CupQ-loadtest/1.0")
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     t0 = time.time()
@@ -146,8 +149,14 @@ def take_backup(base, token):
     # as a fresh copy of the same bytes. The gate aborted a siege on
     # this the day the volume dedupe landed -- demanding a new FILE
     # when the guarantee we need is a current SNAPSHOT.
-    if isinstance(body, dict) and body.get("status") == "success" and not body.get("wrote"):
-        print(f"  backup current ({ms/1000:.1f}s): server says no data change since last one")
+    if (
+        isinstance(body, dict)
+        and body.get("status") == "success"
+        and not body.get("wrote")
+    ):
+        print(
+            f"  backup current ({ms/1000:.1f}s): server says no data change since last one"
+        )
         return True
     after = count_backups(base, token)
     if after is None or before is None:
@@ -218,6 +227,13 @@ def main():
     ap.add_argument(
         "--tag", default=None, help="run tag (default: today's date + time)"
     )
+    ap.add_argument(
+        "--public",
+        action="store_true",
+        help="no staff login: order the way a phone does (/api/display/order) "
+        "and prove each order landed through its own tracking page. No "
+        "backup and no order counts, so only for a copy you can lose.",
+    )
     args = ap.parse_args()
 
     base = args.base.rstrip("/")
@@ -231,6 +247,9 @@ def main():
         print("Pass --yes-this-is-production when you actually mean it, and")
         print("pick a time when nobody is queuing.")
         return 2
+
+    if args.public:
+        return public_siege(base, args)
 
     if not args.password:
         print("No password. Pass --password or set SIEGE_PASSWORD in the")
@@ -418,6 +437,149 @@ def main():
     print("  a fresh backup first and refuses if the backup fails (#370).")
     print("  Until then they will appear in the event report and the tallies.")
     return 0
+
+
+def public_siege(base, args):
+    """The customer's-eye version: no login anywhere.
+
+    Orders go in through /api/display/order exactly as the phone page
+    sends them; phones that have ordered then poll their own tracking
+    page every 8 seconds (MyCoffeePage), and the rest poll /api/ea/me
+    like a page left open before ordering. "Did it survive" is answered
+    order by order: every order the server said yes to must be readable
+    on its tracking page afterwards.
+    """
+    tag = args.tag or f"SIEGE-{datetime.now().strftime('%m%d-%H%M')}"
+    print(f"target : {base}  (public, no login)")
+    print(f"tag    : {tag}")
+    print(
+        f"{args.delegates} phones polling every {POLL_SECONDS:.0f}s "
+        f"= ~{args.delegates / POLL_SECONDS:.0f} requests/second, for {args.seconds}s"
+    )
+    print(f"{args.orders} orders placed during it, all on {BENCH_PREFIX}... numbers")
+    print()
+    tracks = {
+        "menu": Track("menu (first load)"),
+        "poll": Track("phone poll"),
+        "order": Track("order placed"),
+        "board": Track("display board"),
+    }
+    stop = threading.Event()
+    created = []
+    lock = threading.Lock()
+
+    def poller(i):
+        phone = f"{BENCH_PREFIX}{i:04d}"
+        time.sleep((i % int(POLL_SECONDS)) + (i % 100) / 100.0)
+        while not stop.is_set():
+            with lock:
+                mine = created[i % len(created)] if created and i % 2 == 0 else None
+            if mine:
+                ms, _, err = call(base, f"/api/orders/{mine}/track", timeout=25)
+            else:
+                ms, _, err = call(
+                    base,
+                    f"/api/ea/me?phone={urllib.parse.quote(phone)}",
+                    timeout=25,
+                    ok_codes=(404,),
+                )
+            tracks["poll"].record(ms, err)
+            stop.wait(POLL_SECONDS)
+
+    def orderer():
+        gap = max(0.4, args.seconds / max(1, args.orders))
+        for n in range(args.orders):
+            if stop.is_set():
+                break
+            ms, body, err = call(
+                base,
+                "/api/display/order",
+                "POST",
+                {
+                    "name": f"{tag}-{n:03d}",
+                    "coffee_type": "Cappuccino",
+                    "milk": "Full Cream",
+                    "size": "Regular",
+                    "sugar": "No sugar",
+                    "phone": f"{BENCH_PREFIX}{9000 + n:04d}",
+                },
+                timeout=40,
+            )
+            tracks["order"].record(ms, err)
+            if not err and isinstance(body, dict):
+                d = body.get("data") or body.get("order") or {}
+                num = body.get("order_number") or (
+                    d.get("order_number") if isinstance(d, dict) else None
+                )
+                if num:
+                    with lock:
+                        created.append(str(num))
+                elif n == 0:
+                    print(f"  first order answered without a number: {str(body)[:200]}")
+            elif n == 0:
+                print(f"  first order failed: {err}")
+            stop.wait(gap)
+
+    def boarder():
+        while not stop.is_set():
+            ms, _, err = call(base, "/api/display/orders", timeout=25)
+            tracks["board"].record(ms, err)
+            stop.wait(5)
+
+    ms, _, err = call(base, "/api/display/menu", timeout=30)
+    tracks["menu"].record(ms, err)
+    threads = [
+        threading.Thread(target=poller, args=(i,), daemon=True)
+        for i in range(args.delegates)
+    ]
+    threads += [
+        threading.Thread(target=orderer, daemon=True),
+        threading.Thread(target=boarder, daemon=True),
+    ]
+    for t in threads:
+        t.start()
+    t0 = time.time()
+    try:
+        while time.time() - t0 < args.seconds:
+            time.sleep(10)
+            p = tracks["poll"]
+            with p.lock:
+                srt = sorted(p.ms)
+                errs = p.errors
+            p95 = srt[int(len(srt) * 0.95)] if len(srt) > 1 else 0
+            print(
+                f"  {int(time.time() - t0):5}s  {len(srt):6} polls  p95 {p95:6.0f}ms  "
+                f"errors {errs}  orders {len(created)}"
+            )
+    except KeyboardInterrupt:
+        print("\ninterrupted")
+    stop.set()
+    for t in threads:
+        t.join(timeout=15)
+
+    print()
+    print("=" * 78)
+    for t in tracks.values():
+        if t.ms or t.errors:
+            print(t.line())
+    print("=" * 78)
+    print()
+    print("Did it survive?")
+    lost = [
+        num for num in created if call(base, f"/api/orders/{num}/track", timeout=30)[2]
+    ]
+    print(
+        f"  orders accepted       : {len(created)} of {tracks['order'].errors + len(tracks['order'].ms)} tried"
+    )
+    print(
+        f"  readable afterwards   : {len(created) - len(lost)}"
+        + (f"  LOST: {', '.join(lost[:10])}" if lost else "")
+    )
+    ms, _, err = call(base, "/api/health", timeout=30)
+    print(f"  health after the storm: {'ok' if not err else err} ({ms:.0f}ms)")
+    print(f"  {len(created)} orders named {tag}-000 onwards were left behind;")
+    print("  Demo Room > Wipe clears them.")
+    return 0 if not lost else 1
 
 
 def leftovers(base, token, tag):
