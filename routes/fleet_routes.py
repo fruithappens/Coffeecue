@@ -28,6 +28,13 @@ from routes.support_api_routes import support_role_required
 
 logger = logging.getLogger("expresso.routes.fleet")
 
+
+def _build_commit():
+    from utils.build_info import commit
+
+    return commit()
+
+
 bp = Blueprint("fleet_api", __name__, url_prefix="/api/fleet")
 
 ALLOWED_HOST = re.compile(r"^([a-z0-9-]+\.)*(cupq\.app|up\.railway\.app)$")
@@ -82,7 +89,7 @@ def self_status():
     """This copy's numbers. Each part fails soft: a broken one reads None."""
     db = _db()
     out = {
-        "commit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7] or None,
+        "commit": (_build_commit() or "")[:7] or None,
         "event_name": None,
         "orders_last_hour": None,
         "orders_open": None,

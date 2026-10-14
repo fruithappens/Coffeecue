@@ -59,6 +59,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend application code
 COPY . .
 
+# The commit this image was built from, kept inside the image so a rolled-
+# back deployment still knows what it is (Railway only sets
+# RAILWAY_GIT_COMMIT_SHA at runtime on a normal deploy). utils/build_info.py.
+ARG RAILWAY_GIT_COMMIT_SHA=""
+RUN echo "${RAILWAY_GIT_COMMIT_SHA}" > /app/BUILD_COMMIT
+
 # Copy built frontend from the previous stage
 COPY --from=frontend-builder /app/frontend/build ./static
 

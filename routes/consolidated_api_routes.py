@@ -6616,6 +6616,12 @@ def sms_health():
         }), 200
 
 
+def _build_commit():
+    from utils.build_info import commit
+
+    return commit()
+
+
 @bp.route('/app-version', methods=['GET'])
 def app_version():
     """Which build is currently being served.
@@ -6649,7 +6655,7 @@ def app_version():
         # match what was merged, so a deploy Railway silently skipped shows
         # up as a red check instead of a mystery.
         return jsonify({'success': True, 'bundle': m.group(1) if m else None,
-                        'commit': os.environ.get('RAILWAY_GIT_COMMIT_SHA') or None})
+                        'commit': _build_commit()})
     except Exception as e:
         # Never 500 a version check. A page that cannot tell whether it is
         # stale should carry on quietly, not show an error to a barista.
