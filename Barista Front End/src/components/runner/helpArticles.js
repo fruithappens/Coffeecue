@@ -98,6 +98,7 @@ export const SECTION_HELP = {
       'Sponsors: logos that scroll along the bottom of the board and phone page.',
       'Labels: what is printed on each cup label.',
       'Milk colours: the colour each milk shows on barista screens and labels, so oat never gets mixed up with full cream.',
+      'Phone wording: the big line on a customer\'s phone at each stage ("In the queue", "READY — come and get it"). Leave a line empty to keep ours.',
     ],
     open: { section: 'branding' },
   },

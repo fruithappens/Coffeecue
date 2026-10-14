@@ -5184,6 +5184,9 @@ def get_display_config():
                     "image": branding.get('customerHeaderImage') or '',
                     "color": branding.get('customerHeaderColor') or '',
                 },
+                # The organiser's own words for each stage on the phone
+                # (Runner > Branding > Phone wording, X7-5). Empty = CupQ's.
+                "customer_wording": _customer_wording_for_display(coffee_system.db),
                 "stations": stations,
                 "app_version": config.get('APP_VERSION', '1.0.0'),
             }
@@ -5194,6 +5197,12 @@ def get_display_config():
             "success": False,
             "error": str(e)
         })
+
+
+def _customer_wording_for_display(db):
+    from routes.customer_wording_routes import for_display
+
+    return for_display(db)
 
 
 def _station_eta_minutes(db, station_id):

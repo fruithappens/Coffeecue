@@ -19,7 +19,7 @@ import { useSearchParams, Navigate } from 'react-router-dom';
 import useReadyChime, { SoundToggleButton } from './useReadyChime';
 import SponsorTicker from './SponsorTicker';
 import { event as logEvent } from '../../services/logging';
-import { CUSTOMER_STATUS } from '../../constants/customerStatus';
+import { CUSTOMER_STATUS, customerStatusFor } from '../../constants/customerStatus';
 import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 
 // Customer-facing status words live in ONE place (constants/customerStatus).
@@ -250,7 +250,7 @@ const MobileOrderPage = () => {
   }, [trackNumber]);
 
   if (trackNumber) {
-    const copy = STATUS_COPY[track?.status] || { title: 'Checking…', tone: 'bg-cq-ink-3' };
+    const copy = customerStatusFor(track?.status, brand.wording) || { title: 'Checking…', tone: 'bg-cq-ink-3' };
     const ready = track?.status === 'completed';
     return (
       <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"

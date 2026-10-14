@@ -9,7 +9,7 @@
 import React, { useEffect, useState } from 'react';
 
 const FALLBACK = { eventName: '', logo: '', accent: '#B8764A', systemName: 'CupQ', sponsor: null, poweredBy: true,
-                   header: { mode: 'logo_name', image: '', color: '' }, loaded: false };
+                   header: { mode: 'logo_name', image: '', color: '' }, wording: {}, loaded: false };
 
 let cached = null;      // the resolved brand
 let inFlight = null;    // the shared promise
@@ -38,6 +38,8 @@ export function loadEventBrand() {
           image: (c.customer_header && c.customer_header.image) || '',
           color: (c.customer_header && c.customer_header.color) || '',
         },
+        // The organiser's wording for each stage on the phone (X7-5).
+        wording: (c.customer_wording && typeof c.customer_wording === 'object') ? c.customer_wording : {},
         loaded: true,
       };
       return cached;
