@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 PRINTER_SILENT_S = int(os.getenv("PRINTER_ALERT_AFTER_S", "180"))
 SERVICE_WINDOW_MIN = 30
 
+# Printers we've said are offline: id -> name. When one checks in again the
+# admin gets "it's back", so they don't have to go and look (failure drill,
+# 15 Oct 2026: the offline text came, nothing ever said it was fixed).
+_offline_alerted = {}
+
 
 def _connect():
     import psycopg2
@@ -52,6 +57,18 @@ def silent_printers(cur):
     return [(r[0], r[1], int(r[2] or 0)) for r in cur.fetchall()]
 
 
+def back_online(cur, ids):
+    """Of these printer ids, the ones that have checked in within
+    PRINTER_SILENT_S seconds."""
+    if not ids:
+        return []
+    cur.execute(
+        "SELECT id FROM printers WHERE id = ANY(%s) AND last_poll_at IS NOT NULL "
+        "AND last_poll_at >= NOW() - (%s || ' seconds')::interval",
+        (list(ids), str(PRINTER_SILENT_S)))
+    return [r[0] for r in cur.fetchall()]
+
+
 def check_once(app=None, alert=None):
     """One pass. Returns a list of (code, message) it alerted on (for tests
     and logs). `alert` defaults to send_admin_alert."""
@@ -65,13 +82,32 @@ def check_once(app=None, alert=None):
             return raised
         cur = conn.cursor()
         # Printers only during service: one switched off overnight is fine.
-        for pid, name, secs in (silent_printers(cur) if in_service(cur) else []):
+        silent = silent_printers(cur) if in_service(cur) else []
+        for pid, name, secs in silent:
             mins = max(1, secs // 60)
             msg = (f"CupQ: label printer '{name}' hasn't checked in for {mins} min during "
                    "service. Labels won't print until it's back. Check its power, paper "
                    "and network (it should be on the Nighthawk).")
             alert(f"PRINTER_OFFLINE_{pid}", "critical", msg)
             raised.append((f"PRINTER_OFFLINE_{pid}", msg))
+            _offline_alerted[pid] = name
+        still_silent = {pid for pid, _n, _s in silent}
+        for pid in back_online(cur, [p for p in _offline_alerted if p not in still_silent]):
+            name = _offline_alerted.pop(pid, None) or f"printer {pid}"
+            msg = f"CupQ: label printer '{name}' is back and printing again."
+            # Same severity as the offline text, so whoever got that gets
+            # this (the admin alert threshold defaults to critical).
+            alert(f"PRINTER_BACK_{pid}", "critical", msg)
+            raised.append((f"PRINTER_BACK_{pid}", msg))
+            # A fresh outage later should text straight away, not wait out
+            # the offline alert's cooldown.
+            try:
+                from services.admin_alerts import _last_sent
+
+                _last_sent.pop(f"PRINTER_OFFLINE_{pid}", None)
+                _last_sent.pop(f"PRINTER_BACK_{pid}", None)
+            except Exception:
+                pass
         conn.rollback()
     except Exception as e:
         logger.warning("[service-watch] printer check failed: %s", e)

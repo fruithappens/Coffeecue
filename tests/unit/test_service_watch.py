@@ -6,7 +6,16 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
+import pytest  # noqa: E402
+
 import services.service_watch as sw  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_printers_remembered():
+    sw._offline_alerted.clear()
+    yield
+    sw._offline_alerted.clear()
 
 
 def _conn(in_service, printers):
@@ -48,3 +57,17 @@ def test_texts_down_alerts_when_live():
 def test_texts_ignored_in_testing_mode():
     ms = MagicMock(testing_mode=True)
     assert _run(_conn(False, []), ms=ms, snap={"outbound_down": True}) == []
+
+
+def test_printer_back_after_an_outage_says_so_once():
+    sw._offline_alerted.clear()
+    _run(_conn(True, [(3, "Station 1 printer", 420)]))
+    assert sw._offline_alerted == {3: "Station 1 printer"}
+    # Next pass: no longer silent, and it has checked in recently.
+    conn = MagicMock()
+    cur = conn.cursor.return_value
+    cur.fetchone.return_value = (1,)
+    cur.fetchall.side_effect = [[], [(3,)]]  # silent_printers, back_online
+    sent = _run(conn)
+    assert [(c, s) for c, s, _ in sent] == [("PRINTER_BACK_3", "critical")]
+    assert "back" in sent[0][2] and sw._offline_alerted == {}
