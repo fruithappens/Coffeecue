@@ -38,10 +38,9 @@ Everything still answering is public by design and listed here.
 
 ## Still worth doing
 
-- **Route shadowing** is how the inventory reads slipped through: two
-  files registered the same address and the unguarded one won. A CI
-  check that fails when two handlers share a method and path would stop
-  the next one.
+- ~~Route shadowing~~ Done (X7-10): all 36 shadowed addresses are down to
+  one handler, and CI (`scripts/check_route_shadowing.py`) fails if a
+  second handler is ever added for an existing method and address.
 - `/api/status` and `/api/test` give away a little (event name, database
   type). Harmless today; could move behind the login with the health
   check kept public.

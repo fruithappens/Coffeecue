@@ -26,7 +26,7 @@ bp = Blueprint('chat_api', __name__, url_prefix='/api/chat')
 # Set up logging
 logger = logging.getLogger("expresso.routes.chat_api")
 
-@bp.route('/messages', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/chat/messages is served by consolidated_api.get_chat_messages.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def get_chat_messages():
@@ -108,7 +108,7 @@ def get_chat_messages():
             'error': str(e)
         })
 
-@bp.route('/messages', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/chat/messages is served by consolidated_api.create_chat_message.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def send_chat_message():
@@ -201,7 +201,7 @@ def delete_chat_message(message_id):
             'error': str(e)
         })
 
-@bp.route('/stations', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/chat/stations is served by consolidated_api.get_chat_stations.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def get_stations():

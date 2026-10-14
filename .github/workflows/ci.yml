@@ -76,6 +76,38 @@ jobs:
           TESTING_MODE: "True"
         run: python -m pytest -q tests/unit
 
+  routes:
+    name: One handler per address
+    # Builds the real app against a throwaway Postgres and fails if two
+    # handlers share a method and address (roadmap X7-10).
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Check
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          TESTING_MODE: "True"
+          JWT_SECRET_KEY: ci-only-not-a-secret
+          SECRET_KEY: ci-only-not-a-secret
+        run: python scripts/check_route_shadowing.py
+
   consistency:
     name: Consistency checks
     runs-on: ubuntu-latest

@@ -261,7 +261,7 @@ def test_api():
 # AUTHENTICATION ENDPOINTS
 # ============================================================================
 
-@bp.route('/auth/login', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/auth/login is served by auth.api_login.
 def auth_login():
     """Login endpoint that returns JWT tokens"""
     try:
@@ -310,7 +310,7 @@ def auth_login():
             'message': f'Internal server error: {str(e)}'
         }), 500
 
-@bp.route('/auth/refresh', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/auth/refresh is served by auth.refresh_token.
 def auth_refresh():
     """Refresh access token using a refresh token"""
     try:
@@ -8033,7 +8033,7 @@ def update_wait_time():
 # STATION ENDPOINTS
 # ============================================================================
 
-@bp.route('/stations', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/stations is served by station_api.get_stations.
 @jwt_required_with_demo()
 def get_stations():
     """Get all coffee stations"""
@@ -8457,7 +8457,7 @@ def get_station_stats(station_id):
             'message': f"Error fetching station statistics: {str(e)}"
         }), 500
 
-@bp.route('/stations', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/stations is served by station_api.create_station.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def create_station():
@@ -8576,7 +8576,7 @@ def ensure_inventory_management_tables(db):
         logger.error(f"Error creating inventory management tables: {str(e)}")
         return False
 
-@bp.route('/inventory', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/inventory is served by inventory.get_inventory.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def get_inventory_items():
@@ -8751,7 +8751,7 @@ def get_inventory_items():
             'message': f"Error fetching inventory items: {str(e)}"
         }), 500
 
-@bp.route('/inventory/categories', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/inventory/categories is served by inventory.get_categories.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def get_inventory_categories():
@@ -8792,7 +8792,7 @@ def get_inventory_categories():
             'message': f"Error fetching inventory categories: {str(e)}"
         }), 500
 
-@bp.route('/inventory/low-stock', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/inventory/low-stock is served by inventory.get_low_stock.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def get_low_stock_items():
@@ -9324,7 +9324,7 @@ def report_low_stock(item_id):
             'message': f"Error reporting low stock: {str(e)}"
         }), 500
 
-@bp.route('/inventory/restock-request', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/inventory/restock-request is served by inventory.create_restock_request.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def create_restock_request():
@@ -9426,7 +9426,7 @@ def create_restock_request():
             'message': f"Error creating restock request: {str(e)}"
         }), 500
 
-@bp.route('/inventory/restock-requests', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/inventory/restock-requests is served by inventory.get_restock_requests.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def get_restock_requests():
@@ -10261,7 +10261,7 @@ def get_chat_stations():
 # SCHEDULE ENDPOINTS
 # ============================================================================
 
-@bp.route('/schedule/today', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/schedule/today is served by station_api.get_todays_schedule.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def get_today_schedule():
@@ -10596,7 +10596,7 @@ def get_barista_schedule(barista_id):
             'message': f"Error fetching barista schedule: {str(e)}"
         }), 500
 
-@bp.route('/schedule/shifts', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/schedule/shifts is served by station_api.add_shift.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def add_shift():
@@ -10757,7 +10757,7 @@ def delete_shift(shift_id):
             'message': f"Error deleting shift: {str(e)}"
         }), 500
 
-@bp.route('/schedule/breaks', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/schedule/breaks is served by station_api.add_break.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def add_break():
@@ -10918,7 +10918,7 @@ def delete_break(break_id):
             'message': f"Error deleting break: {str(e)}"
         }), 500
 
-@bp.route('/schedule/rush-periods', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/schedule/rush-periods is served by station_api.add_rush_period.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def add_rush_period():

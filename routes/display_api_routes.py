@@ -14,7 +14,7 @@ bp = Blueprint('display_api', __name__, url_prefix='/api/display')
 # Set up logging
 logger = logging.getLogger("expresso.routes.display_api")
 
-@bp.route('/config', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/display/config is served by consolidated_api.get_display_config.
 def get_display_config():
     """Get display screen configuration including event details, sponsor info, and SMS details"""
     try:
@@ -125,7 +125,7 @@ def get_display_config():
             "error": str(e)
         })
 
-@bp.route('/orders', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/display/orders is served by consolidated_api.get_display_orders.
 def get_display_orders():
     """Get orders for the display screen"""
     try:
