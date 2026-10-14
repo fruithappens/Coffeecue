@@ -185,6 +185,7 @@ export const SECTION_HELP = {
     points: [
       'Pick a day or a range. Times are in the event\'s own time zone.',
       'Download it to send to the client.',
+      'Ledger: what the event was (days, orders, stations, texts, read from the data) and what to charge. Add hardware, hours and travel, then Print for the invoice.',
     ],
     open: { section: 'report' },
   },
