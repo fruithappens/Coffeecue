@@ -27,16 +27,29 @@ _DEMO_TOKEN_SUFFIX = 'valid_signature_for_offline_demo_mode'
 
 
 def _demo_mode_enabled():
-    """Return True iff demo-token bypass is allowed in this process.
+    """Return True iff demo-token bypass is allowed for THIS request.
 
-    Demo tokens skip signature verification entirely, so they MUST NOT
-    be honoured in production. This is gated solely by the app's
-    TESTING_MODE config (defaults to False in config.py).
+    Demo tokens skip signature verification entirely: anyone can write one
+    claiming to be an admin. So they are honoured only when BOTH
+      - ALLOW_UNSIGNED_DEMO_TOKENS=true is set on purpose, and
+      - the request comes to localhost (a laptop copy).
+
+    It used to hang on app.config['TESTING_MODE'], which the app never sets
+    (config.TESTING_MODE lives elsewhere), so it happened to be closed
+    everywhere. But demo.cupq.app and other test copies run with
+    TESTING_MODE=True on the public internet, and the day someone "fixed"
+    that config key they would all have accepted forged admin tokens
+    (found 15 Oct 2026).
     """
+    import os
+
+    if os.getenv('ALLOW_UNSIGNED_DEMO_TOKENS', 'false').lower() != 'true':
+        return False
     try:
-        return bool(current_app.config.get('TESTING_MODE', False))
+        host = (request.host or '').split(':')[0].lower()
+        return host in ('localhost', '127.0.0.1', '::1')
     except Exception:
-        # Outside an app context (e.g. unit tests) — fail closed.
+        # Outside a request (e.g. unit tests) -- fail closed.
         return False
 
 def init_app(app):
