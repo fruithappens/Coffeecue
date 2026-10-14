@@ -453,9 +453,10 @@ def create_app():
 
     @app.after_request
     def after_request(response):
-        # Only log CORS headers for non-OPTIONS requests to reduce log noise
+        # Debug only: at info this was one line per request (a third of all
+        # log volume under load) and said nothing the access log doesn't.
         if request.method != 'OPTIONS':
-            logger.info(f"Added CORS headers to response for: {request.path}")
+            logger.debug(f"Added CORS headers to response for: {request.path}")
         return response
     
     # Handle OPTIONS requests explicitly for CORS preflight

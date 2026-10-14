@@ -8,6 +8,7 @@ from flask import request, g, current_app
 from flask_jwt_extended import get_jwt_identity, get_jwt
 from functools import wraps
 import hashlib
+import time
 import os
 
 # Configure security audit logger
@@ -45,12 +46,30 @@ _SECRET_QUERY_KEYS = (
 )
 
 
+# Personal values: kept to their last 3 characters. /api/ea/me?phone=...
+# is polled by every phone at an event, and the full number was going into
+# Railway's log and logs/api_access.log on every poll.
+_PERSONAL_QUERY_KEYS = ('phone', 'mobile', 'email', 'lookup')
+
+
+def _mask_personal(v):
+    v = str(v or '')
+    return ('*' * max(0, len(v) - 3)) + v[-3:] if len(v) > 3 else '***'
+
+
 def _safe_query_params(args):
-    """dict(request.args) with any secret-looking VALUE replaced by ***."""
+    """dict(request.args) with any secret-looking VALUE replaced by ***
+    and personal values (phone, email) masked to their last 3 characters."""
     out = {}
     try:
         for k, v in args.items():
-            out[k] = '***' if any(w in k.lower() for w in _SECRET_QUERY_KEYS) else v
+            kl = k.lower()
+            if any(w in kl for w in _SECRET_QUERY_KEYS):
+                out[k] = '***'
+            elif any(w in kl for w in _PERSONAL_QUERY_KEYS):
+                out[k] = _mask_personal(v)
+            else:
+                out[k] = v
     except Exception:
         return {}
     return out
@@ -195,8 +214,16 @@ class APIRequestLogger:
                 user_id, request.path, request.method, sensitive=True
             )
         
-        api_logger.info(json.dumps(log_entry))
-    
+        # Written once, with the response (log_api_response). Two lines per
+        # request plus a CORS line was ~375 lines a second at a 1,000-phone
+        # event: Railway started dropping log lines, and every write is
+        # blocking I/O on eventlet's single hub.
+        try:
+            g._api_log_entry = log_entry
+            g._api_log_t0 = time.monotonic()
+        except Exception:
+            api_logger.info(json.dumps(log_entry))
+
     @staticmethod
     def log_api_response(response):
         """Log API responses with security context"""
@@ -206,14 +233,21 @@ class APIRequestLogger:
         except:
             pass
         
-        log_entry = {
+        log_entry = dict(getattr(g, '_api_log_entry', None) or {
             'timestamp': datetime.utcnow().isoformat(),
-            'status_code': response.status_code,
-            'user_id': user_id,
-            'ip_address': request.remote_addr,
+            'method': request.method,
             'path': request.path,
-            'response_size': len(response.get_data()),
-        }
+            'ip_address': request.remote_addr,
+        })
+        t0 = getattr(g, '_api_log_t0', None)
+        if t0 is not None:
+            log_entry['duration_ms'] = round((time.monotonic() - t0) * 1000, 1)
+        log_entry['status_code'] = response.status_code
+        if user_id and not log_entry.get('user_id'):
+            log_entry['user_id'] = user_id
+        # The header, not get_data(): that copied every response body (34 KB
+        # for /display/config) just to measure it, and breaks on streams.
+        log_entry['response_size'] = response.content_length
         
         # Log error responses for security analysis
         if response.status_code >= 400:
