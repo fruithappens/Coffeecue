@@ -1031,10 +1031,10 @@ def create_app():
         # Get settings from database
         cursor = db.cursor()
         
-        # System name (default to 'Coffee Cue')
+        # System name (default to 'CupQ')
         cursor.execute("SELECT value FROM settings WHERE key = %s", ('system_name',))
         system_name_result = cursor.fetchone()
-        system_name = system_name_result[0] if system_name_result else 'Coffee Cue'
+        system_name = system_name_result[0] if system_name_result else 'CupQ'
         
         # Event name
         cursor.execute("SELECT value FROM settings WHERE key = %s", ('event_name',))

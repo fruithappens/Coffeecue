@@ -213,7 +213,7 @@ def get_system_status():
         # Get system settings
         cursor.execute("SELECT value FROM settings WHERE key = 'system_name'")
         system_name_result = cursor.fetchone()
-        system_name = system_name_result[0] if system_name_result else 'Coffee Cue'
+        system_name = system_name_result[0] if system_name_result else 'CupQ'
         
         cursor.execute("SELECT value FROM settings WHERE key = 'event_name'")
         event_name_result = cursor.fetchone()
@@ -4997,8 +4997,11 @@ def get_display_config():
         system_name = (
             branding.get('systemName')
             or branding.get('system_name')
-            or 'Coffee Cue'
+            or 'CupQ'
         )
+        from services.coffee_system import is_old_product_name
+        if is_old_product_name(system_name):
+            system_name = 'CupQ'
 
         # Sponsor block — operator may not have set this; default off.
         sponsor = {
@@ -14108,16 +14111,16 @@ def _render_event_summary_html(is_post_event: bool = False):
         if not data.get('success'):
             return None, data.get('error', 'unknown')
 
-        # Pull branding for the header. Falls back to "Coffee Cue" so
+        # Pull branding for the header. Falls back to "CupQ" so
         # an event with no name set still renders sensibly.
         try:
             branding = _kv_get(db, 'branding_settings', default={}) or {}
             event_name = (branding.get('event_name')
-                          or _kv_get(db, 'event_name', default='Coffee Cue')
-                          or 'Coffee Cue')
+                          or _kv_get(db, 'event_name', default='CupQ')
+                          or 'CupQ')
             logo = branding.get('logo') or branding.get('clientLogo') or ''
         except Exception:
-            event_name = 'Coffee Cue'
+            event_name = 'CupQ'
             logo = ''
 
         # Build the HTML. Inline CSS so the operator can open the file
@@ -14332,10 +14335,10 @@ def email_post_event_summary():
             coffee_system = current_app.config.get('coffee_system')
             branding = _kv_get(coffee_system.db, 'branding_settings', default={}) or {}
             event_name = (branding.get('event_name')
-                          or _kv_get(coffee_system.db, 'event_name', default='Coffee Cue')
-                          or 'Coffee Cue')
+                          or _kv_get(coffee_system.db, 'event_name', default='CupQ')
+                          or 'CupQ')
         except Exception:
-            event_name = 'Coffee Cue'
+            event_name = 'CupQ'
 
         subject = (body.get('subject') or '').strip() or \
             f"{event_name} — event summary"
@@ -14432,11 +14435,11 @@ def order_receipt(order_number):
             branding = _kv_get(db, 'branding_settings', default={}) or {}
             event_name = (branding.get('event_name')
                           or branding.get('eventName')
-                          or _kv_get(db, 'event_name', default='Coffee Cue')
-                          or 'Coffee Cue')
+                          or _kv_get(db, 'event_name', default='CupQ')
+                          or 'CupQ')
             logo = branding.get('logo') or branding.get('clientLogo') or ''
         except Exception:
-            event_name = 'Coffee Cue'
+            event_name = 'CupQ'
             logo = ''
 
         # Build a human drink description from order_details.

@@ -43,6 +43,17 @@ def _unique_milk_keys(names):
     return out
 
 
+
+# What the product used to be called. A copy that saved one of these (an
+# older Branding default) is still "CupQ": no client picks these, and
+# demo.cupq.app showed "powered by Coffee Cue" because of one.
+OLD_PRODUCT_NAMES = {"coffee cue", "coffee cue ordering system", "expresso coffee system",
+                     "expresso", "coffeecue"}
+
+
+def is_old_product_name(name):
+    return str(name or "").strip().lower() in OLD_PRODUCT_NAMES
+
 class CoffeeOrderSystem:
     """Main service class for Coffee Ordering System"""
 
@@ -187,7 +198,7 @@ class CoffeeOrderSystem:
                     blob = json.loads(blob)
                 if isinstance(blob, dict):
                     candidate = blob.get("systemName") or blob.get("system_name")
-                    if candidate:
+                    if candidate and not is_old_product_name(candidate):
                         name = candidate
         except Exception:
             try:
