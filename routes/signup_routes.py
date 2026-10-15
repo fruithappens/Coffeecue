@@ -180,6 +180,43 @@ def to_event(f):
     }
 
 
+def suggest_tier(attendees):
+    """The plan a headcount fits (the website quote tool's rule)."""
+    pax = int("".join(ch for ch in str(attendees or "") if ch.isdigit())[:7] or 0)
+    if pax <= 0:
+        return "standard"
+    for tier, cap in (("lite", 150), ("standard", 400), ("pro", 1000)):
+        if pax <= cap:
+            return tier
+    return "urn"
+
+
+def quote_for(r):
+    """A starting quote for a sign-up (roadmap C3-16): their plan, or the one
+    their headcount fits, for each day from start to end, at the ledger's
+    prices (utils/pricing). Software only: hardware and crew are extras."""
+    from utils import pricing
+
+    tier = r.get("plan") if r.get("plan") in pricing.TIERS else suggest_tier(r.get("attendees"))
+    try:
+        days = (date.fromisoformat(r["ends"]) - date.fromisoformat(r["starts"])).days + 1
+    except (KeyError, TypeError, ValueError):
+        days = 1
+    days = max(1, min(days, 14))
+    q = pricing.build(tier, days)
+    return {
+        "tier": tier,
+        "tier_name": pricing.TIERS[tier]["name"],
+        "suggested": r.get("plan") not in pricing.TIERS,
+        "days": days,
+        "lines": q["lines"],
+        "subtotal": q["subtotal"],
+        "gst": q["gst"],
+        "total": q["total"],
+        "quoted_separately": pricing.TIERS[tier]["first_day"] is None,
+    }
+
+
 def _notify(rid, f):
     try:
         from services.admin_alerts import send_admin_alert
@@ -281,6 +318,11 @@ def list_signups():
     finally:
         _release(conn)
     for r in rows:
+        try:
+            r["quote"] = quote_for(r)
+        except Exception as e:  # a quote is a convenience; never break the list
+            logger.warning("sign-up #%s: quote failed: %s", r.get("id"), e)
+            r["quote"] = None
         # Only the slug goes in: it's checked against SLUG_RE, so nothing a
         # stranger typed can reach the shell this gets pasted into. The event
         # name travels inside the event file.

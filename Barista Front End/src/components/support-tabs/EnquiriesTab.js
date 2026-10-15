@@ -185,6 +185,28 @@ function Signups() {
                 <Field label="Sizes">{((r.answers && r.answers.sizes) || []).join(', ')}</Field>
                 <Field label="Texts">{r.texts ? 'yes' : 'no'}</Field>
                 <Field label="Plan">{r.plan}</Field>
+                {r.quote && (
+                  <div className="mt-3 rounded-cq-md bg-cq-wash p-3 text-sm">
+                    <div className="font-bold text-cq-roast">
+                      Starting quote: {r.quote.tier_name}{r.quote.suggested ? ' (fits their headcount)' : ''}, {r.quote.days} day{r.quote.days === 1 ? '' : 's'}
+                    </div>
+                    {r.quote.quoted_separately ? (
+                      <div className="text-cq-ink-2 mt-1">The Urn is quoted by stations and days.</div>
+                    ) : (
+                      <>
+                        {r.quote.lines.map((l, i) => (
+                          <div key={i} className="flex justify-between text-cq-ink-2 mt-1">
+                            <span>{l.what}{l.qty > 1 ? ` × ${l.qty}` : ''}</span><span className="tabular-nums">${l.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between font-bold text-cq-roast mt-1 pt-1 border-t border-cq-line">
+                          <span>Total ex GST</span><span className="tabular-nums">${r.quote.subtotal.toLocaleString()}</span>
+                        </div>
+                        <div className="text-xs text-cq-ink-3 mt-1">${r.quote.total.toLocaleString()} incl. GST. Software only: add hardware, crew or EventsAir in the reply if they want them.</div>
+                      </>
+                    )}
+                  </div>
+                )}
                 {r.notes ? <p className="text-sm text-cq-ink-2 mt-2 whitespace-pre-wrap">{r.notes}</p> : null}
                 {r.status === 'approved' && (
                   <div className="mt-3">
