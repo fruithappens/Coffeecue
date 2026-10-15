@@ -1600,6 +1600,15 @@ const EventTemplatesSection = ({ config, setConfig }) => {
       if (blob) extras.event_inventory = blob;
     } catch (e) { /* saved without the event inventory */ }
     try {
+      // The sponsor wall rides along too, so recalling an event swaps sponsors.
+      const sp = await fetch('/api/sponsors', { cache: 'no-cache' });
+      const sj = sp.ok ? await sp.json() : null;
+      if (sj && Array.isArray(sj.sponsors)) {
+        const { success, ...wall } = sj; // eslint-disable-line no-unused-vars
+        extras.sponsors = wall;
+      }
+    } catch (e) { /* saved without sponsors */ }
+    try {
       const q = await api.request('/quick-picks', { method: 'GET' });
       if (Array.isArray(q?.quick_picks)) extras.quick_picks = q.quick_picks;
     } catch (e) { /* saved without picks */ }
@@ -1682,7 +1691,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
         // template being loaded -- never left over from a previous one.
         setConfig(prev => {
           // eslint-disable-next-line no-unused-vars
-          const { branding, quick_picks, sugar_self_serve, active_stations, event_inventory, ...rest } = prev;
+          const { branding, quick_picks, sugar_self_serve, active_stations, event_inventory, sponsors, ...rest } = prev;
           // _saved_event: Apply replaces the look with this event's (and
           // resets it to plain if it has none) -- see applyEventPreset.
           return { ...rest, ...resp.template.payload, _saved_event: true };
