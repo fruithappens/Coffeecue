@@ -6,7 +6,7 @@
 // that had expired bounced cupq.app/start (and /my, /order) to /login with
 // "Your session has expired", on a page that never needed a login.
 export const PUBLIC_SCREEN_PATHS = [
-  '/display', '/displays', '/order', '/my', '/track', '/sponsors', '/status', '/setup', '/start',
+  '/display', '/displays', '/order', '/my', '/track', '/sponsors', '/status', '/setup', '/start', '/privacy',
 ];
 
 export function isPublicPath(path) {

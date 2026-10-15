@@ -152,11 +152,18 @@ def dump(url, out):
     raise RuntimeError(last_err or "pg_dump failed")
 
 
+MAX_AGE_DAYS = 14  # the privacy notice (cupq.app/privacy) promises about two weeks
+
+
 def prune(folder, prefix, keep):
+    """Keep the newest `keep`, and nothing older than MAX_AGE_DAYS: a Mac that
+    slept through some nights used to leave dumps three weeks old."""
     files = sorted(folder.glob(f"{prefix}*.dump"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for old in files[keep:]:
+    cutoff = time.time() - MAX_AGE_DAYS * 86400
+    gone = [f for i, f in enumerate(files) if i >= keep or (i > 0 and f.stat().st_mtime < cutoff)]
+    for old in gone:
         old.unlink()
-    return max(0, len(files) - keep)
+    return len(gone)
 
 
 def heartbeat(kind, size):

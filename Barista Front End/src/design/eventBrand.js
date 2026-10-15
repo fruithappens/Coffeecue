@@ -95,7 +95,10 @@ export function EventHeader({ brand, className = '', align = 'center' }) {
 // event's own mark.
 export function PoweredBy({ brand, className = '' }) {
   const b = brand || FALLBACK;
-  if (b.poweredBy === false) return null;
+  // The privacy link shows on every ordering page, white-label or not: the
+  // page collects names and phone numbers (cupq.app/privacy, roadmap L6-7).
+  const privacy = <a href="/privacy" className="underline underline-offset-2 hover:text-cq-roast">Privacy</a>;
+  if (b.poweredBy === false) return <div className={`text-xs text-cq-ink-3 ${className}`}>{privacy}</div>;
   return (
     <div className={`text-xs text-cq-ink-3 ${className}`}>
       {/* Always CupQ: this line is our mark, not the event's name. A copy
@@ -104,6 +107,8 @@ export function PoweredBy({ brand, className = '' }) {
       powered by <span className="font-semibold text-cq-ink-3">CupQ</span>
       <span className="mx-1.5">·</span>
       <span className="italic">Cue the cups.</span>
+      <span className="mx-1.5">·</span>
+      {privacy}
     </div>
   );
 }
