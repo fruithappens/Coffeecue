@@ -12,6 +12,42 @@ logger = logging.getLogger("expresso.services.nlp")
 # Ensure directory exists
 os.makedirs(os.path.dirname(__file__), exist_ok=True)
 
+
+# Tables that turned out not to exist on this copy; never asked again.
+_MISSING_TABLES = set()
+
+
+def _optional_query(db, sql):
+    """Run a lookup the parser can do without. Returns rows, or None.
+
+    stock_items (an older menu table) doesn't exist on new copies. These
+    lookups used to fail inside the request's database transaction and
+    swallow the error, which left the connection "aborted": every later
+    query in the same text then failed too, so a returning customer was
+    looked up as nobody and asked for their name again (found 15 Oct 2026).
+    A savepoint keeps a failure here from breaking the rest of the text.
+    """
+    if "stock_items" in _MISSING_TABLES:
+        return None
+    cur = db.cursor()
+    try:
+        cur.execute("SAVEPOINT nlp_optional")
+    except Exception:
+        return None
+    try:
+        cur.execute(sql)
+        rows = cur.fetchall()
+        cur.execute("RELEASE SAVEPOINT nlp_optional")
+        return rows
+    except Exception as e:
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT nlp_optional")
+        except Exception:
+            pass
+        if "does not exist" in str(e):
+            _MISSING_TABLES.add("stock_items")
+        return None
+
 class NLPService:
     """Service for processing coffee orders using robust pattern matching"""
     
@@ -562,13 +598,12 @@ class NLPService:
             if hasattr(current_app, 'config'):
                 coffee_system = current_app.config.get('coffee_system')
                 if coffee_system and hasattr(coffee_system, 'db'):
-                    cursor = coffee_system.db.cursor()
-                    cursor.execute("""
-                        SELECT name FROM stock_items 
+                    rows = _optional_query(coffee_system.db, """
+                        SELECT name FROM stock_items
                         WHERE category = 'coffee_type' AND is_active = TRUE
                         ORDER BY name
                     """)
-                    return [row[0] for row in cursor.fetchall()]
+                    return [row[0] for row in rows] if rows is not None else None
         except Exception as e:
             pass  # Silently fail, will use hardcoded types
         
@@ -864,13 +899,12 @@ class NLPService:
             if hasattr(current_app, 'config'):
                 coffee_system = current_app.config.get('coffee_system')
                 if coffee_system and hasattr(coffee_system, 'db'):
-                    cursor = coffee_system.db.cursor()
-                    cursor.execute("""
-                        SELECT DISTINCT size FROM stock_items 
+                    rows = _optional_query(coffee_system.db, """
+                        SELECT DISTINCT size FROM stock_items
                         WHERE category = 'cup' AND is_active = TRUE
                         ORDER BY size
                     """)
-                    db_sizes = [row[0] for row in cursor.fetchall()]
+                    db_sizes = [row[0] for row in rows or []]
                     if db_sizes:
                         return any(db_size.lower() == size.lower() for db_size in db_sizes)
         except Exception as e:

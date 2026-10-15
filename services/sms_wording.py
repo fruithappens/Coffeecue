@@ -37,6 +37,11 @@ CATALOG = {
         {},
         "They ordered before telling us their name.",
     ),
+    "not_a_name": (
+        "Sorry, I didn't catch your name - what's your first name?",
+        {},
+        "We asked for their name and got something like 'yes' or 'none'.",
+    ),
     "no_name_yet": (
         "I don't have your name yet. What's your first name?",
         {},
