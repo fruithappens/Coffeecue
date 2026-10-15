@@ -3,6 +3,7 @@ import OrderDataService from './OrderDataService';
 import roleLanding from '../utils/roleLanding';
 import ConfigService from './ConfigService';
 import { persistAccessToken, clearAccessTokens } from '../utils/authMirror';
+import { isPublicPath } from '../utils/publicPaths';
 
 /**
  * Remove every cached-order key from localStorage so a NEW session never
@@ -232,6 +233,10 @@ class AuthService {
     // Create a custom event for logout to notify other components
     window.dispatchEvent(new Event('user_logged_out'));
     
+    // A public page (ordering, display, sign-up) never needed the login:
+    // clear it and stay put, rather than bouncing a customer to /login.
+    if (isPublicPath(currentPath)) return;
+
     // Redirect to login page with redirect parameter if appropriate
     window.location.href = `/login${redirectParam}`;
   }

@@ -11,6 +11,7 @@ import HowToOrderPage from './components/display/HowToOrderPage';
 import StatusPage from './components/display/StatusPage';
 import DeviceSetupPage from './components/display/DeviceSetupPage';
 import StartPage from './components/signup/StartPage';
+import { isPublicPath } from './utils/publicPaths';
 import DisplaySelector from './components/display/DisplaySelector';
 import DesignSheet from './components/design/DesignSheet';
 import RunnerInterface from './components/runner/RunnerInterface';
@@ -49,14 +50,8 @@ const ToRunner = () => {
 // are deliberately unauthenticated, so anything that reports "you are not
 // connected" because an authenticated call failed is telling them about a
 // call their screen was never going to make.
-const PUBLIC_SCREEN_PATHS = ['/display', '/displays', '/order', '/my', '/track', '/sponsors', '/status', '/setup', '/start'];
-const PublicScreenGate = ({ children }) => {
-  const path = (typeof window !== 'undefined' ? window.location.pathname : '') || '';
-  const isPublic = PUBLIC_SCREEN_PATHS.some(
-    (p) => path === p || path.startsWith(p + '/') || path.startsWith(p + '?')
-  );
-  return isPublic ? null : children;
-};
+// The list lives in utils/publicPaths.js (AuthService uses it too).
+const PublicScreenGate = ({ children }) => (isPublicPath() ? null : children);
 
 // Simple API Test Component
 
