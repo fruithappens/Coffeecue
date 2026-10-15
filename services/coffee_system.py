@@ -18,6 +18,7 @@ from models.stations import Station
 from services.nlp import NLPService
 from utils.order_provenance import stamp as stamp_provenance
 
+from services.sms_wording import say  # the bot's editable wording (X7-6)
 logger = logging.getLogger("expresso.services.coffee_system")
 
 
@@ -863,7 +864,7 @@ class CoffeeOrderSystem:
                 self._set_conversation_state(
                     phone, "awaiting_name", {"order_details": parsed_order}
                 )
-                return "Got it! And what's your first name?"
+                return say("ask_name_after_order")
 
             # New customer - ask for name
             self._set_conversation_state(phone, "awaiting_name")
@@ -1584,7 +1585,7 @@ class CoffeeOrderSystem:
 
             if not result:
                 logger.info(f"No active orders found for phone: {phone}")
-                return "You don't have any active orders. Text us your coffee order to get started!"
+                return say("no_active_orders")
 
             logger.info(f"Found order for phone: {phone}")
             (
@@ -1844,7 +1845,7 @@ class CoffeeOrderSystem:
                         f"waiting for you at {station_label(self.db, r_station)}! No need to "
                         f"cancel, just come and grab it."
                     )
-                return "You don't have any pending orders to cancel."
+                return say("nothing_to_cancel")
 
             order_id, order_number, station_id = result
 
@@ -1873,7 +1874,7 @@ class CoffeeOrderSystem:
             # Reset conversation state
             self._set_conversation_state(phone, "completed")
 
-            return f"Your order #{order_number} has been cancelled. Text us when you'd like to place a new order."
+            return say("order_cancelled", order_number=order_number)
 
         except Exception as e:
             logger.error(f"Error cancelling order: {str(e)}")
@@ -1901,10 +1902,7 @@ class CoffeeOrderSystem:
                 "awaiting_barista_question",
                 {**(state.get("temp_data") or {})},
             )
-            return (
-                "Sure - type your question and I'll send it straight to your "
-                "barista."
-            )
+            return say("ask_barista_question")
 
         return self._forward_question_to_baristas(phone, question_text, state)
 
@@ -3061,7 +3059,7 @@ class CoffeeOrderSystem:
                 self._set_conversation_state(
                     phone, "awaiting_coffee_type", {"name": name}
                 )
-                return f"{prefix}Sorry, we don't have {drink} today. What would you like? ({', '.join(available)})"
+                return prefix + say("drink_unavailable", drink=drink, available=", ".join(available))
             if self.nlp.is_black_coffee(drink):
                 od["milk"] = "no milk"
 
@@ -3076,7 +3074,7 @@ class CoffeeOrderSystem:
             self._set_conversation_state(
                 phone, "awaiting_coffee_type", {"name": name, "order_details": od}
             )
-            return f"{prefix}What can I get you? (e.g. flat white, latte, cappuccino - or MENU for the list)"
+            return prefix + say("ask_drink")
         if "milk" not in od:
             if milk_note:
                 # They NAMED a milk we can't make — never swap dairy in
@@ -3174,7 +3172,7 @@ class CoffeeOrderSystem:
             self._set_conversation_state(
                 phone, "awaiting_name", {"pending_multi": message}
             )
-            return "Sounds like a few coffees! First - what's your name?"
+            return say("group_ask_name")
         if len(name) > 50:
             name = name[:50]
 
@@ -3346,7 +3344,7 @@ class CoffeeOrderSystem:
                 self._set_conversation_state(
                     phone, "awaiting_name", {"order_details": order_details}
                 )
-                return "Got it! And what's your first name?"
+                return say("ask_name_after_order")
             if len(name) < 2 or len(name) > 50:
                 return "Please enter a valid name (2-50 characters)."
             return self._next_order_step(
@@ -3572,7 +3570,7 @@ class CoffeeOrderSystem:
             # If still no name, we need to ask for it
             if not name:
                 self._set_conversation_state(phone, "awaiting_name")
-                return "I don't have your name yet. What's your first name?"
+                return say("no_name_yet")
 
         # Get usual order
         usual_order = self._get_usual_order_details(phone)
@@ -5436,7 +5434,7 @@ class CoffeeOrderSystem:
 
         # If no coffee type found, prompt again
         if "type" not in order_details:
-            return f"I'm not sure what type of coffee you'd like, {name}. Please specify a coffee type like latte, cappuccino, flat white, etc."
+            return say("unsure_coffee", name=name)
 
         # For black coffees, milk is implicitly "no milk"
         if self.nlp.is_black_coffee(order_details["type"]):
@@ -5632,10 +5630,10 @@ class CoffeeOrderSystem:
                 return self._place_order(phone, name, order_details)
             else:
                 # If size is not available, show available options
-                return f"Sorry, we don't offer size '{size}' for {order_details.get('type', 'coffee')}. Available sizes are: {', '.join(available_sizes)}. Please select one of these."
+                return say("size_not_offered", size=size, drink=order_details.get("type", "coffee"), sizes=", ".join(available_sizes))
         else:
             # If no size was found, prompt again with available options
-            return f"I didn't recognize that size. Please choose from: {', '.join(available_sizes)}."
+            return say("size_unrecognised", sizes=", ".join(available_sizes))
 
     def _sugar_value_to_string(self, val):
         """Map a numeric sugar value to a canonical sugar string."""
@@ -9636,7 +9634,7 @@ class CoffeeOrderSystem:
             self._set_conversation_state(
                 phone, "awaiting_name", {"order_details": order_details}
             )
-            return "Got it! And what's your first name?"
+            return say("ask_name_after_order")
 
         # Nothing usable yet — welcome + ask for name.
         self._set_conversation_state(phone, "awaiting_name")
@@ -11389,7 +11387,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
         # Set state to await confirmation
         self._set_conversation_state(phone, "awaiting_deletion_confirmation")
 
-        return "This will delete all your data including order history.\nReply YES to confirm deletion or NO to cancel."
+        return say("delete_confirm")
 
     def _handle_awaiting_deletion_confirmation(self, phone, message, state):
         """Handle deletion confirmation"""
