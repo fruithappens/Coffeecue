@@ -1,6 +1,7 @@
 """During service, check the printers and the texts once a minute and alert
 the admin when one stops working (roadmap U4-3). Also, at any hour, that a
-backup has checked in within the last day (services/backup_watch, S1-14).
+backup has checked in within the last day (services/backup_watch, S1-14),
+and that the other CupQ copies answer (services/fleet_watch, U4-10).
 
 Before this, a printer that went offline mid-service alerted nobody (the
 barista found out when labels stopped), and "texts are failing" was only
@@ -135,6 +136,23 @@ def check_once(app=None, alert=None):
         if bconn is not None:
             try:
                 bconn.close()
+            except Exception:
+                pass
+
+    # The other copies (U4-10): demo and client copies, every minute.
+    fconn = None
+    try:
+        fconn = _connect()
+        from services import fleet_watch
+        raised += fleet_watch.check(fconn.cursor() if fconn is not None else None, alert)
+        if fconn is not None:
+            fconn.rollback()
+    except Exception as e:
+        logger.warning("[service-watch] fleet check failed: %s", e)
+    finally:
+        if fconn is not None:
+            try:
+                fconn.close()
             except Exception:
                 pass
 
