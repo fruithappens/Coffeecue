@@ -242,7 +242,12 @@ def main(argv=None):
             print(f"{p} is not a CupQ saved event ({e})", file=sys.stderr)
             return 2
         event_file = f"{p} (\"{d.get('name', '?')}\")"
-    event_name = a.event_name or slug.replace("-", " ").title()
+    # The event's own name when a saved event is given (a sign-up's file
+    # carries it), else the slug, capitalised.
+    file_name = ""
+    if a.event_file:
+        file_name = str(d["payload"].get("event_name") or d.get("name") or "").strip()[:80]
+    event_name = a.event_name or file_name or slug.replace("-", " ").title()
 
     if a.apply:
         host = f"{slug}.{DOMAIN}"

@@ -783,6 +783,14 @@ def create_app():
     except Exception as sw_err:
         logger.error(f"SMS wording routes failed to register: {sw_err}")
 
+    # Self-serve sign-up: /api/public/signup and /api/signups (X7-9).
+    try:
+        from routes.signup_routes import bp as signup_bp
+        app.register_blueprint(signup_bp)
+        logger.info("Sign-up routes registered")
+    except Exception as su_err:
+        logger.error(f"Sign-up routes failed to register: {su_err}")
+
     # Who is on call: /api/settings/on-call (U4-6).
     try:
         from routes.on_call_routes import bp as on_call_bp

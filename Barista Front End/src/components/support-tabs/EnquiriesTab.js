@@ -1,4 +1,5 @@
-// EnquiriesTab -- "Book a demo" requests from the cupq.com.au form.
+// EnquiriesTab -- sign-ups (cupq.app/start), help requests, and "Book a demo"
+// requests from the cupq.com.au form.
 //
 // Each one is also texted to the admin alert number when it arrives; this
 // list is the record, so nothing depends on the text getting through.
@@ -121,6 +122,100 @@ function HelpRequests() {
   );
 }
 
+// Self-serve sign-ups from cupq.app/start (X7-9). Approving one doesn't
+// build anything: it gives you their event file and the one command that
+// builds their copy (scripts/new_client.py --apply) on your Mac.
+function Signups() {
+  const apiRef = useRef(null);
+  if (!apiRef.current) apiRef.current = new ApiServiceClass();
+  const [rows, setRows] = useState(null);
+  const load = useCallback(async () => {
+    try {
+      const r = await apiRef.current.get('/signups');
+      setRows(Array.isArray(r?.signups) ? r.signups : []);
+    } catch (e) { setRows([]); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const decide = async (r, decision) => {
+    try { await apiRef.current.post(`/signups/${r.id}/decision`, { decision }); load(); }
+    catch (e) { showToast("Couldn't save that", 'error'); }
+  };
+  const download = async (r) => {
+    try {
+      const token = localStorage.getItem('coffee_system_token');
+      const resp = await fetch(`/api/signups/${r.id}/event-file`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!resp.ok) throw new Error(String(resp.status));
+      const url = URL.createObjectURL(await resp.blob());
+      const a = document.createElement('a');
+      a.href = url; a.download = `${r.slug}.cupq-event.json`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { showToast("Couldn't download the event file", 'error'); }
+  };
+  const copy = async (text) => {
+    try { await navigator.clipboard.writeText(text); showToast('Command copied', 'success'); }
+    catch (e) { showToast('Select the command and copy it', 'info'); }
+  };
+  if (!rows || rows.length === 0) return null;
+  const open = rows.filter((r) => r.status === 'new').length;
+  return (
+    <div className="mb-6">
+      <h3 className="text-base font-bold text-cq-roast mb-1">Sign-ups {open ? `(${open} new)` : ''}</h3>
+      <p className="text-sm text-cq-ink-3 mb-2">
+        From cupq.app/start. Agree pricing first; then download their event file and run the build command on your Mac.
+      </p>
+      <div className="space-y-3">
+        {rows.map((r) => (
+          <Panel key={r.id} className={r.status === 'declined' ? 'opacity-60' : ''}>
+            <div className="flex items-start gap-4 flex-wrap">
+              {r.logo && <img src={r.logo} alt={`${r.organisation} logo`} className="h-12 max-w-[120px] object-contain rounded" style={{ background: (r.answers && r.answers.header_colour) || '#3B2A20' }} />}
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-cq-roast">{r.organisation} <span className="font-normal text-cq-ink-3">- {r.event_name}</span></div>
+                <div className="text-xs text-cq-ink-3 mb-2">
+                  {when(r.created_at)} · {r.status}{r.decided_by ? ` by ${r.decided_by}` : ''}{r.notified ? ' · texted to you' : ''}
+                </div>
+                <Field label="Contact">{r.name}{r.email ? <> · <a className="underline" href={`mailto:${r.email}`}>{r.email}</a></> : null}{r.phone ? <> · <a className="underline" href={`tel:${r.phone}`}>{r.phone}</a></> : null}</Field>
+                <Field label="When">{r.starts}{r.ends && r.ends !== r.starts ? ` to ${r.ends}` : ''} ({(r.timezone || '').split('/').pop()})</Field>
+                <Field label="People">{r.attendees}</Field>
+                <Field label="Address">{r.slug}.cupq.app</Field>
+                <Field label="Serving">{[
+                  ...Object.entries((r.answers && r.answers.drinks) || {}).filter(([, v]) => v).map(([k]) => k.replace('_', ' ').replace('espresso drinks', 'coffee')),
+                  r.answers && r.answers.teas ? 'tea' : null,
+                ].filter(Boolean).join(', ')}</Field>
+                <Field label="Milks">{((r.answers && r.answers.milks) || []).join(', ')}</Field>
+                <Field label="Sizes">{((r.answers && r.answers.sizes) || []).join(', ')}</Field>
+                <Field label="Texts">{r.texts ? 'yes' : 'no'}</Field>
+                <Field label="Plan">{r.plan}</Field>
+                {r.notes ? <p className="text-sm text-cq-ink-2 mt-2 whitespace-pre-wrap">{r.notes}</p> : null}
+                {r.status === 'approved' && (
+                  <div className="mt-3">
+                    <div className="text-xs text-cq-ink-3 mb-1">1. Download their event file. 2. Run this in Terminal (about 10 minutes):</div>
+                    <code className="block text-xs bg-cq-wash rounded p-2 break-all text-cq-roast">{r.build_command}</code>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => download(r)} className="h-9 px-3 rounded-cq-sm border-2 border-cq-line text-sm font-semibold text-cq-roast">Download event file</button>
+                      <button type="button" onClick={() => copy(r.build_command)} className="h-9 px-3 rounded-cq-sm border-2 border-cq-line text-sm font-semibold text-cq-roast">Copy command</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                {r.status !== 'approved' && (
+                  <button type="button" onClick={() => decide(r, 'approved')} className="h-9 px-3 rounded-cq-sm bg-cq-roast text-cq-cream text-sm font-bold">Approve</button>
+                )}
+                {r.status === 'new' && (
+                  <button type="button" onClick={() => decide(r, 'declined')} className="h-9 px-3 rounded-cq-sm border-2 border-cq-line text-sm font-semibold text-cq-roast">Decline</button>
+                )}
+                {r.status !== 'new' && (
+                  <button type="button" onClick={() => decide(r, 'new')} className="h-9 px-3 text-xs underline text-cq-ink-2 inline-flex items-center gap-1"><RotateCcw size={12} /> Undo</button>
+                )}
+              </div>
+            </div>
+          </Panel>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function EnquiriesTab() {
   const apiRef = useRef(null);
   if (!apiRef.current) apiRef.current = new ApiServiceClass();
@@ -199,9 +294,11 @@ export default function EnquiriesTab() {
         <h2 className="text-lg font-bold text-cq-roast">Enquiries</h2>
       </div>
       <p className="text-sm text-cq-ink-3 mb-4 max-w-[62ch]">
-        "Book a demo" requests from cupq.com.au. Each one is also texted to the
-        admin alert number (Live &gt; Readiness &gt; Admin alerts).
+        Sign-ups from cupq.app/start, help requests from staff screens, and "Book a demo" requests from
+        cupq.com.au. Each is also texted to the admin alert number (Live &gt; Readiness &gt; Admin alerts)
+        and whoever is on call.
       </p>
+      <Signups />
       <HelpRequests />
       {loading ? (
         <Empty><span className="inline-flex items-center gap-2"><Loader className="animate-spin" size={16} /> Loading…</span></Empty>
