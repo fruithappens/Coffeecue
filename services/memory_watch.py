@@ -147,7 +147,8 @@ class MemoryWatchService:
         carrying the SAME id is a restart and is alerted (email/SMS)."""
         try:
             dep = (os.getenv("RAILWAY_DEPLOYMENT_ID") or "").strip()
-            sha = (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7]
+            from utils.build_info import commit as _commit
+            sha = (_commit() or "")[:7]
             if not dep or self.db is None:
                 logger.info("[boot] started (no deployment id; not reporting)")
                 return
