@@ -34,3 +34,35 @@ def test_token_must_match_and_be_configured():
     assert _token(None, {"FLEET_STATUS_TOKEN": "s3cret-fleet"}) is False
     # Not configured: no token opens it, not even an empty one.
     assert _token("Bearer ", {"FLEET_STATUS_TOKEN": ""}) is False
+
+
+def test_env_copies_are_read_and_bad_json_ignored():
+    with patch.dict(os.environ, {"FLEET_COPIES": '[{"name": "Acme", "url": "https://acme.cupq.app"}, "junk", {"name": "x"}]'}):
+        assert f._env_copies() == [{"name": "Acme", "url": "https://acme.cupq.app"}]
+    with patch.dict(os.environ, {"FLEET_COPIES": "not json"}):
+        assert f._env_copies() == []
+    with patch.dict(os.environ, {"FLEET_COPIES": '{"url": "https://acme.cupq.app"}'}):
+        assert f._env_copies() == []
+
+
+def test_board_merges_saved_and_env_copies_once_each():
+    app = Flask(__name__)
+    seen = []
+
+    def fake_probe(c):
+        seen.append(c)
+        return {"name": c["name"], "url": c["url"], "up": True}
+
+    saved = [{"name": "Demo", "url": "https://demo.cupq.app"}]
+    env = '[{"name": "Demo again", "url": "https://demo.cupq.app/"}, {"name": "Acme", "url": "https://acme.cupq.app"},' \
+          ' {"name": "Evil", "url": "https://169.254.169.254"}]'
+    with patch.dict(os.environ, {"FLEET_COPIES": env}), \
+         patch.object(f, "_kv_get", return_value=saved), \
+         patch.object(f, "_db", return_value=None), \
+         patch.object(f, "self_status", return_value={"commit": "abc1234"}), \
+         patch.object(f, "_probe", side_effect=fake_probe), \
+         app.test_request_context("/api/fleet/board"):
+        resp = f.get_board.__wrapped__() if hasattr(f.get_board, "__wrapped__") else f.get_board()
+    urls = [c["url"] for c in seen]
+    assert urls == ["https://demo.cupq.app", "https://acme.cupq.app"]  # once each, never the bad address
+    assert resp.get_json()["data"]["copies"][0]["self"] is True

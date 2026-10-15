@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Plan a new client copy of CupQ -- DRY RUN ONLY (roadmap C3-2).
+"""Plan, then build, a new client copy of CupQ (roadmap C3-2, C3-4).
 
-    python scripts/new_client.py demo
+    python scripts/new_client.py demo                 plan only (changes nothing)
+    python scripts/new_client.py acme --apply --region sg --event-file x.cupq-event.json
+                                                      BUILD it (scripts/fleet_apply.py)
     python scripts/new_client.py virgin --event-file ~/cupq-demo-events/virgin-australia-lounge.cupq-event.json
     python scripts/new_client.py demo --json
 
-Prints everything a client's own copy needs and what a real run would
-create: the Railway project, web service and Postgres, its settings, the
-subdomain, the text number, the first admin, the saved event. It CHANGES
-NOTHING. The only things it touches are read-only: whether the Railway CLI
-is logged in, which project names already exist, whether the subdomain
-already resolves, and which tokens are present in this shell (presence
-only -- values are never read or printed).
+Without --apply it prints everything a client's own copy needs and what a
+real run would create: the Railway project, web service and Postgres, its
+settings, the subdomain, the text number, the first admin, the saved
+event. It CHANGES NOTHING; it only reads which Railway project names exist,
+whether the subdomain already resolves, and whether the tokens are present
+(presence only -- values are never read out or printed).
 
-The real run is C3-3 (Cloudflare subdomain), C3-4 (Railway server and
-database) and C3-5 (text number), each waiting on a token from Steve.
+With --apply it builds the copy (scripts/fleet_apply.py: about 10 minutes,
+resumable). A text number (C3-5) is added after the build.
 
 The settings list is built from the CODE (every os.getenv the backend
 reads), sorted into what to generate, what to set per client, and what
@@ -27,9 +28,7 @@ import argparse
 import json
 import os
 import re
-import shutil
 import socket
-import subprocess
 import sys
 from pathlib import Path
 
@@ -144,44 +143,49 @@ def classify(names):
     return groups
 
 
-def _run(cmd):
+def _has_token(name):
+    """Present in this shell or saved in ~/.zshrc. Presence only: never read out."""
+    if os.environ.get(name):
+        return True
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+        return any(l.strip().startswith(f"export {name}=") for l in open(os.path.expanduser("~/.zshrc")))
+    except OSError:
+        return False
 
 
 def prerequisites(slug, host):
-    """Read-only look at what a real run would need. Changes nothing."""
+    """Read-only look at what a real run would need. Changes nothing.
+
+    Each line is (check, ok, note, blocks): a line that doesn't block is
+    shown but doesn't stop --apply (a text number is added after the build).
+    """
     out = []
-    if shutil.which("railway"):
-        who = _run(["railway", "whoami"])
-        ok = bool(who and who.returncode == 0)
-        out.append(("Railway CLI logged in", ok, (who.stdout.strip().splitlines() or [""])[0] if ok else "run: railway login"))
-        lst = _run(["railway", "list", "--json"])
-        names = []
-        if lst and lst.returncode == 0:
-            try:
-                names = [p.get("name") for p in json.loads(lst.stdout)]
-            except ValueError:
-                pass
-        taken = f"cupq-{slug}" in names
-        out.append((f"Railway project name cupq-{slug} is free", not taken,
-                    "already exists" if taken else "free"))
-    else:
-        out.append(("Railway CLI installed", False, "brew install railway"))
-    out.append(("Railway API token (for the real run, C3-4)", bool(os.environ.get("RAILWAY_API_TOKEN")),
-                "set" if os.environ.get("RAILWAY_API_TOKEN") else "missing: Steve creates one in Railway > Account > Tokens"))
-    out.append(("Cloudflare API token (subdomain, C3-3)", bool(os.environ.get("CLOUDFLARE_API_TOKEN")),
-                "set" if os.environ.get("CLOUDFLARE_API_TOKEN") else "missing: Steve creates one limited to DNS on cupq.app"))
-    twilio = bool(os.environ.get("TWILIO_MASTER_ACCOUNT_SID") and os.environ.get("TWILIO_MASTER_AUTH_TOKEN"))
-    out.append(("Twilio master credentials (sub-account + number, C3-5)", twilio,
-                "set" if twilio else "missing: and Steve approves the number spend"))
+    railway = _has_token("RAILWAY_API_TOKEN")
+    out.append(("Railway API token", railway,
+                "set" if railway else "missing: Steve creates one in Railway > Account > Tokens", True))
+    if railway:
+        try:
+            sys.path.insert(0, str(ROOT / "scripts"))
+            from railway_api import call
+
+            r = call("{ projects { edges { node { name } } } }")
+            names = [e["node"]["name"] for e in ((r.get("data") or {}).get("projects") or {}).get("edges", [])]
+            taken = f"cupq-{slug}" in names
+            out.append((f"Railway project name cupq-{slug} is free", not taken,
+                        "already exists: rerun --apply to resume that build" if taken else "free", False))
+        except Exception as e:  # noqa: BLE001 - a dry run reports, never stops
+            out.append(("Railway API answers", False, str(e)[:80], True))
+    cf = _has_token("CLOUDFLARE_API_TOKEN")
+    out.append(("Cloudflare API token (subdomain)", cf,
+                "set" if cf else "missing: Steve creates one limited to DNS on cupq.app", True))
+    twilio = _has_token("TWILIO_MASTER_ACCOUNT_SID") and _has_token("TWILIO_MASTER_AUTH_TOKEN")
+    out.append(("Text number (C3-5, after the build)", twilio,
+                "set" if twilio else "not yet: the copy is built with texts off until a number is added", False))
     try:
         socket.getaddrinfo(host, 443)
-        out.append((f"{host} is unused", False, "already resolves: pick another name or retire the old copy"))
+        out.append((f"{host} is unused", False, "already resolves: pick another name or retire the old copy", True))
     except socket.gaierror:
-        out.append((f"{host} is unused", True, "free"))
+        out.append((f"{host} is unused", True, "free", True))
     return out
 
 
@@ -212,6 +216,11 @@ def main(argv=None):
     ap.add_argument("--event-name", help="the event's name (default: the slug, capitalised)")
     ap.add_argument("--event-file", help="a saved event (.cupq-event.json) to load into the new copy")
     ap.add_argument("--json", action="store_true", help="print the plan as JSON")
+    ap.add_argument("--apply", action="store_true",
+                    help="BUILD the copy (creates a Railway project, costs ~$5/month while it runs)")
+    ap.add_argument("--region", choices=("sg", "us", "eu"), default="sg",
+                    help="sg = Singapore (closest to Australia, default), us = US West, eu = EU West")
+    ap.add_argument("--demo", action="store_true", help="texts off (TESTING_MODE) for a demo or trial copy")
     a = ap.parse_args(argv)
 
     slug = a.slug.strip().lower()
@@ -235,6 +244,18 @@ def main(argv=None):
         event_file = f"{p} (\"{d.get('name', '?')}\")"
     event_name = a.event_name or slug.replace("-", " ").title()
 
+    if a.apply:
+        host = f"{slug}.{DOMAIN}"
+        stops = [f"{c}: {n}" for c, ok, n, b in prerequisites(slug, host) if not ok and b
+                 and not (c.endswith("is unused") and (Path.home() / "cupq-fleet" / f"{slug}.json").exists())]
+        if stops:
+            print("Can't build yet:\n  " + "\n  ".join(stops), file=sys.stderr)
+            return 2
+        from fleet_apply import build
+
+        return build(slug, event_name, region_key=a.region, demo=a.demo,
+                     event_file=a.event_file)
+
     host, groups, steps = plan(slug, event_name, event_file)
     pre = prerequisites(slug, host)
 
@@ -243,7 +264,7 @@ def main(argv=None):
             "dry_run": True, "slug": slug, "host": host, "event_name": event_name,
             "steps": [{"what": w, "detail": d} for w, d in steps],
             "settings": groups,
-            "prerequisites": [{"check": c, "ok": ok, "note": n} for c, ok, n in pre],
+            "prerequisites": [{"check": c, "ok": ok, "note": n, "blocks": b} for c, ok, n, b in pre],
         }, indent=2))
         return 0
 
@@ -274,10 +295,10 @@ def main(argv=None):
     print(f"  Filled in by Railway: {', '.join(groups['railway'])}")
     print(f"  Left at the code's defaults ({len(groups['defaults'])}): {', '.join(groups['defaults'])}")
     print("\nBefore a real run:")
-    for check, ok, note in pre:
+    for check, ok, note, _b in pre:
         print(f"  [{'x' if ok else ' '}] {check}: {note}")
-    blockers = [c for c, ok, _ in pre if not ok]
-    print(f"\n{'Ready for a real run.' if not blockers else f'{len(blockers)} thing(s) to sort out before a real run.'}\n")
+    blockers = [c for c, ok, _n, b in pre if not ok and b]
+    print(f"\n{'Ready for a real run: add --apply.' if not blockers else f'{len(blockers)} thing(s) to sort out before a real run.'}\n")
     return 0
 
 

@@ -9,6 +9,8 @@ GET /api/fleet/board    this copy plus every copy in the 'fleet_copies'
                         /api/app-version, and its numbers from /api/fleet/self
                         when this copy has the token.
 PUT /api/fleet/copies   save the list: [{"name": "Demo", "url": "https://demo.cupq.app"}]
+                        (the board also shows copies in the FLEET_COPIES setting,
+                        which scripts/fleet_apply.py adds to)
 
 The board fetches server-side, so the addresses are limited to https on
 cupq.app or Railway's own domains: an admin can't point it at an internal
@@ -195,12 +197,33 @@ def _probe(copy):
     return row
 
 
+def _env_copies():
+    """Copies listed in FLEET_COPIES (JSON list), which the build script
+    (scripts/fleet_apply.py) adds to when it makes a new copy. Shown beside
+    the list saved in System > Fleet; the same address twice shows once."""
+    import json
+
+    try:
+        raw = json.loads(os.getenv("FLEET_COPIES") or "[]")
+    except ValueError:
+        logger.warning("FLEET_COPIES is not a JSON list; ignored")
+        return []
+    return [c for c in raw if isinstance(c, dict) and c.get("url")] if isinstance(raw, list) else []
+
+
 @bp.route("/board", methods=["GET"])
 @support_role_required
 def get_board():
     db = _db()
     copies = _kv_get(db, "fleet_copies", default=[]) or []
-    copies = [c for c in copies if isinstance(c, dict) and c.get("url")][:MAX_COPIES]
+    copies = [c for c in copies if isinstance(c, dict) and c.get("url")] + _env_copies()
+    seen, merged = set(), []
+    for c in copies:
+        url = _clean_url(c.get("url"))
+        if url and url not in seen:
+            seen.add(url)
+            merged.append({"name": c.get("name") or url, "url": url})
+    copies = merged[:MAX_COPIES]
     here = {"name": "This copy", "url": request.host_url.rstrip("/"), "up": True,
             "self": True, "commit": None, "error": None, "stats": self_status()}
     here["commit"] = here["stats"].get("commit")
