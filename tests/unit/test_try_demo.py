@@ -51,3 +51,24 @@ def test_advance_needs_an_order_and_a_known_action():
         assert c.post("/api/try/advance", json={"token": t, "action": "delete"}).status_code == 400
         with patch.object(tr, "_order_for", return_value=None):
             assert c.post("/api/try/advance", json={"token": t, "action": "start"}).status_code == 409
+
+
+def test_only_orders_since_the_session_began():
+    captured = {}
+
+    class Cur:
+        def execute(self, sql, params):
+            captured["sql"], captured["params"] = sql, params
+
+        def fetchone(self):
+            return None
+
+    class Conn:
+        def cursor(self):
+            return Cur()
+
+    s = {"phone": "+61400009950", "src": "try-abc", "created": tr.time.time() - 60}
+    with patch("utils.database.get_db_connection", return_value=Conn()), patch("utils.database.close_connection"):
+        assert tr._order_for(s) is None
+    assert "make_interval" in captured["sql"]
+    assert 60 <= captured["params"][2] <= 70  # this session's age, not two hours
