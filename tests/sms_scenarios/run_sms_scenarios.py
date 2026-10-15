@@ -166,7 +166,9 @@ class Scenario:
     verify_arg: str | None = None
 
 
-_seq = int(time.time()) % 100000
+# Milliseconds, not seconds: two runs a few seconds apart used to reuse
+# each other's phones, so the bot greeted a 'new' customer as a regular.
+_seq = int(time.time() * 1000) % 10_000_000
 
 
 def fresh_identity() -> tuple[str, str]:
@@ -196,70 +198,60 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("latte", expect_any=[r"milk"]),
-            Step("oat", expect_any=[r"size"]),
-            Step("medium", expect_any=[r"sugar|sweet"]),
-            Step("none", expect_any=[r"confirm|yes"]),
-            Step("yes", expect_any=[r"order|#|line|queue|ready"]),
+            Step("latte", expect_any=[r"full cream milk.*size|size"]),
+            Step("medium", expect_any=[r"confirmed|order #|in line"]),
         ],
         verify="order_exists",
     ))
 
     add(Scenario(
         name="no_silent_milk_default",
-        why="HOUSE RULE: never silently inject defaults into SMS orders.",
+        why="HOUSE RULE (as amended Jul 2026): an unnamed milk becomes full "
+            "cream, but it must be SHOWN before the order is placed, never "
+            "silently baked in.",
         steps=[
             Step("hello", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("cappuccino", expect_any=[r"milk"],
-                 reject_all=[r"full.?cream milk.*confirm", r"order (number|#)"]),
+            Step("cappuccino", expect_any=[r"full cream"],
+                 reject_all=[r"order (number|#)", r"confirmed"]),
         ],
     ))
 
     add(Scenario(
         name="flat_white_no_silent_defaults",
-        why="KNOWN BUG (found 2026-06-13): 'small flat white' skips every "
-            "question and jumps to a confirm pre-filled with full cream milk "
-            "AND 1 sugar the customer never chose. Violates the no-silent-"
-            "defaults house rule; also inconsistent with 'latte' which asks. "
-            "This scenario FAILS until the parser stops injecting defaults.",
+        why="'small flat white' may place straight away, but the recap must "
+            "show the milk (full cream) and must not invent sugar.",
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("small flat white", expect_any=[r"what milk|milk would"],
-                 reject_all=[r"full cream milk.*(confirm|yes)", r"\d sugar.*(confirm|yes)"]),
+            Step("small flat white", expect_any=[r"full cream"],
+                 reject_all=[r"\d sugar"]),
         ],
     ))
 
     add(Scenario(
         name="size_in_first_message_respected",
-        why="KNOWN BUG (found 2026-06-13): 'large latte' drops the size — "
-            "after the milk answer the bot asks 'What size?' even though the "
-            "customer already said large. (The greeting itself advertises "
-            "'small oat latte 1 sugar' as the format.) FAILS until fixed.",
+        why="'large latte' gives the size up front: never ask 'what size?'.",
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("large latte", expect_any=[r"milk"]),
-            Step("oat", expect_any=[r"sugar|sweet|confirm"],
+            Step("large latte", expect_any=[r"large latte|confirmed|order"],
                  reject_all=[r"what size"]),
         ],
     ))
 
     add(Scenario(
         name="size_answer_respected",
-        why="KNOWN BUG (found 2026-06-13): even the explicit ANSWER to the "
-            "size question is dropped — customer replies 'medium' and the "
-            "confirmation reads 'small latte'. Wrong cup at pickup. FAILS "
-            "until size handling is fixed.",
+        why="The answer to the size question must be the size on the order, "
+            "and a milk named at that question must change the milk (found "
+            "15 Oct 2026: 'oat' there used to keep full cream).",
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("latte", expect_any=[r"milk"]),
-            Step("oat", expect_any=[r"size"]),
-            Step("medium", expect_any=[r"sugar|sweet"]),
-            Step("none", expect_any=[r"medium latte|medium"],
-                 reject_all=[r"small latte"]),
+            Step("latte", expect_any=[r"size"]),
+            Step("oat", expect_any=[r"oat milk.*size"]),
+            Step("medium", expect_any=[r"medium latte with oat"],
+                 reject_all=[r"small latte", r"full cream"]),
         ],
     ))
 
@@ -284,16 +276,12 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
 
     add(Scenario(
         name="natural_no_sugar_phrasing",
-        why="KNOWN BUG (found 2026-06-13): at the sugar prompt the customer "
-            "says 'no sugar' — the parser only accepts none/1/2/3/half and "
-            "re-asks. Real customers type 'no sugar'. FAILS until fixed.",
+        why="'no sugar' typed with the order is understood, never re-asked.",
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("latte", expect_any=[r"milk"]),
-            Step("skim", expect_any=[r"size"]),
-            Step("small", expect_any=[r"sugar|sweet"]),
-            Step("no sugar", expect_any=[r"confirm|yes"],
+            Step("skim latte no sugar", expect_any=[r"size"]),
+            Step("small", expect_any=[r"no sugar"],
                  reject_all=[r"didn'?t catch|how much sugar"]),
         ],
     ))
@@ -352,11 +340,8 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("latte", expect_any=[r"milk"]),
-            Step("full cream", expect_any=[r"size"]),
-            Step("small", expect_any=[r"sugar|sweet"]),
-            Step("none", expect_any=[r"confirm|yes"]),
-            Step("yes", expect_any=[r"order|#|line|queue"]),
+            Step("latte", expect_any=[r"size"]),
+            Step("small", expect_any=[r"confirmed|order #|in line"]),
             Step("CANCEL", expect_any=[r"cancel"]),
         ],
         verify="no_pending_order",
@@ -383,19 +368,13 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
 
     add(Scenario(
         name="duplicate_message_sid",
-        why="KNOWN BUG (found 2026-06-13): Twilio retries webhooks on slow "
-            "responses; replaying the SAME MessageSid must be idempotent "
-            "(same reply, no state advance). Today the retry is processed as "
-            "a brand-new message — it got interpreted as a milk answer "
-            "('I didn't recognize that milk type'). Under real Twilio "
-            "retries this corrupts conversations. FAILS until /sms dedupes "
-            "by MessageSid.",
+        why="Twilio retries webhooks on slow responses; replaying the SAME "
+            "MessageSid must be idempotent: the same reply, and no second order.",
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[GREET2]),
-            Step("large latte", expect_any=[r"milk"], sid="SMDUPE-{NAME}"),
-            # identical retry: must replay the milk question, not advance
-            Step("large latte", expect_any=[r"what milk|milk would"],
+            Step("large latte", expect_any=[r"confirmed|order"], sid="SMDUPE-{NAME}"),
+            Step("large latte", expect_any=[r"confirmed|order"],
                  reject_all=[r"didn'?t recognize"], sid="SMDUPE-{NAME}"),
         ],
         verify="at_most_one_order",
@@ -404,19 +383,18 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
     add(Scenario(
         name="all_stations_closed",
         why="With every station inactive the customer must be TOLD it's "
-            "closed/unavailable — not given a confirmation into the void.",
+            "closed/unavailable — never given a confirmation into the void.",
         setup="close_all_stations",
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[r"what can i get|coffee|like|closed|unavailable"]),
-            Step("latte", expect_any=[r"closed|unavailable|not (currently )?(open|taking|available)|sorry|milk"]),
-            # if it asked for milk anyway, push on — the refusal must come
-            # by confirmation time at the latest:
-            Step("oat", expect_any=[r"closed|unavailable|sorry|size"]),
-            Step("medium", expect_any=[r"closed|unavailable|sorry|sugar"]),
-            Step("none", expect_any=[r"closed|unavailable|sorry|confirm|yes"]),
-            Step("yes", expect_any=[r"closed|unavailable|not.*(open|taking)|sorry"],
-                 reject_all=[r"order #?\d", r"you'?re #\d|in line"]),
+            # Today the bot finishes the questions and refuses at the end
+            # (no order is made). Saying so up front would be kinder; until
+            # then the size question is allowed here.
+            Step("latte", expect_any=[r"closed|unavailable|not (currently )?(open|taking|available)|sorry|size"],
+                 reject_all=[r"order #?\d", r"confirmed"]),
+            Step("medium oat latte", expect_any=[r"closed|unavailable|sorry|not sure"],
+                 reject_all=[r"order #?\d", r"you'?re #\d|in line", r"confirmed"]),
         ],
         verify="no_order",
     ))
@@ -509,13 +487,20 @@ def run(base_url: str, username: str, password: str, only: str | None,
             if cups_disabled and cups_snapshot:
                 # recreate the cups we deleted (all but the first kept one)
                 for c in cups_snapshot[1:]:
-                    api.s.post(f"{api.base}/api/inventory", json={
+                    # current_quantity is what the API requires now; with only
+                    # "amount" the POST was refused (400) and every run left the
+                    # event with one cup size for good.
+                    r = api.s.post(f"{api.base}/api/inventory", json={
                         "name": c["name"], "category": "cups",
+                        "current_quantity": c.get("amount") or 200,
                         "amount": c.get("amount") or 200,
                         "capacity": c.get("capacity") or 200,
                         "unit": c.get("unit") or "pcs",
                         "minimum_threshold": c.get("minimum_threshold") or 10,
                     }, headers=api._h(), timeout=10)
+                    if r.status_code >= 400:
+                        print(f"{RED}WARNING{RESET} could not recreate cup {c['name']!r}: "
+                              f"{r.status_code} {r.text[:120]} -- fix it by hand in the Runner")
 
         # ---- backend-state verification
         if scenario.verify and not problems:

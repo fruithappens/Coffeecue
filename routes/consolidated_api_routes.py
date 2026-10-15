@@ -9586,15 +9586,25 @@ def create_inventory_item():
                 'existing_id': dup_id,
             }), 409
 
+        # capacity is NOT NULL in the table; a new item starts full unless told.
+        try:
+            capacity = float(data.get('capacity') or current_quantity or 0)
+        except (TypeError, ValueError):
+            capacity = float(current_quantity or 0)
+
         # Insert new item
         status = 'low_stock' if current_quantity <= minimum_threshold else 'in_stock'
+        # inventory_items has no "status" column (models/inventory.py): it
+        # is worked out here and returned, never stored. Writing it made every
+        # create a 500 ("column status does not exist"), found 15 Oct 2026;
+        # capacity was never written either, and the column is NOT NULL.
         cursor.execute("""
             INSERT INTO inventory_items
-            (name, category, current_quantity, amount, unit, station_id, minimum_threshold, status, created_at, last_updated)
+            (name, category, current_quantity, amount, capacity, unit, station_id, minimum_threshold, created_at, last_updated)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (name, category, current_quantity, current_quantity, unit, station_id, minimum_threshold, 
-              status, datetime.now().isoformat(), datetime.now().isoformat()))
+        """, (name, category, current_quantity, current_quantity, capacity, unit, station_id, minimum_threshold,
+              datetime.now().isoformat(), datetime.now().isoformat()))
         
         # Get column names
         columns = [desc[0] for desc in cursor.description]
@@ -9605,7 +9615,8 @@ def create_inventory_item():
         
         # Format item
         item = dict(zip(columns, row))
-        
+        item['status'] = status
+
         return jsonify({
             'success': True,
             'message': "Inventory item created successfully",
