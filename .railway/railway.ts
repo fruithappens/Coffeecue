@@ -30,7 +30,7 @@ export default defineRailway(() => {
     replicas: { "us-west2": 1 },
     domains: ["cupq.app"],
     volumeMounts: { "/data": webVolume },
-    env: { BACKUP_HEARTBEAT_TOKEN: preserve(), DATABASE_URL: preserve(), DEBUG: preserve(), FLEET_COPIES: preserve(), JWT_COOKIE_SECURE: preserve(), JWT_SECRET_KEY: preserve(), LOG_LEVEL: preserve(), SECRET_KEY: preserve(), TESTING_MODE: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_PHONE_NUMBER: preserve() },
+    env: { ADMIN_ALERT_EMAIL: preserve(), BACKUP_HEARTBEAT_TOKEN: preserve(), GRAPH_CLIENT_ID: preserve(), GRAPH_CLIENT_SECRET: preserve(), GRAPH_SENDER: preserve(), GRAPH_TENANT_ID: preserve(), DATABASE_URL: preserve(), DEBUG: preserve(), FLEET_COPIES: preserve(), FLEET_STATUS_TOKEN: preserve(), JWT_COOKIE_SECURE: preserve(), JWT_SECRET_KEY: preserve(), LOG_LEVEL: preserve(), SECRET_KEY: preserve(), TESTING_MODE: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_PHONE_NUMBER: preserve() },
   });
 
   return project("Coffee Cue", {
