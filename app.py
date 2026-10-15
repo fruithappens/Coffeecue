@@ -783,6 +783,15 @@ def create_app():
     except Exception as sw_err:
         logger.error(f"SMS wording routes failed to register: {sw_err}")
 
+    # Try it live: the public self-guided demo, on demo.cupq.app only
+    # (TRY_DEMO_ENABLED). /api/try/*.
+    try:
+        from routes.try_routes import bp as try_bp
+        app.register_blueprint(try_bp)
+        logger.info("Try-it-live demo routes registered")
+    except Exception as tr_err:
+        logger.error(f"Try-it-live routes failed to register: {tr_err}")
+
     # The Mac's backup job checks in here: /api/public/backup-heartbeat (S1-14).
     try:
         from routes.backup_routes import bp as backup_bp
