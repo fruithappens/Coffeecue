@@ -19,6 +19,13 @@ from services.nlp import NLPService
 from utils.order_provenance import stamp as stamp_provenance
 
 from services.sms_wording import say  # the bot's editable wording (X7-6)
+
+# Replies that are never a first name (see _handle_awaiting_name).
+_NOT_A_NAME = {
+    "yes", "yeah", "yep", "yup", "y", "no", "nope", "nah", "n", "ok", "okay",
+    "k", "none", "nothing", "thanks", "thank you", "thx", "ta", "cheers",
+    "sure", "please", "done", "hello", "hi", "hey",
+}
 logger = logging.getLogger("expresso.services.coffee_system")
 
 
@@ -3353,6 +3360,18 @@ class CoffeeOrderSystem:
 
         # No order in the reply — treat the whole thing as just the name.
         name = (message or "").strip()
+        # ...unless it's plainly not a name. A stray "yes" or "none" after an
+        # order used to become the customer's name ("Hi yes!"); found by
+        # the golden transcript, 15 Oct 2026. A returning customer keeps the
+        # name we have; anyone else is asked again.
+        if name.lower().strip(" .!?,") in _NOT_A_NAME:
+            customer = self.get_customer(phone)
+            known = (customer or {}).get("name") if customer else ""
+            if known:
+                name = known
+            else:
+                self._set_conversation_state(phone, "awaiting_name", state.get("temp_data") or {})
+                return say("not_a_name")
         if len(name) < 2 or len(name) > 50:
             return "Please enter a valid name (2-50 characters)."
 
@@ -5353,6 +5372,11 @@ class CoffeeOrderSystem:
             # answer. Only fires when we genuinely serve no such drink --
             # at an event that does stock tea, the normal menu reply is
             # the more useful one.
+            # Plain "tea" when there ARE teas: ask which, don't refuse. It
+            # used to say "Sorry, we don't have hot tea today" with four
+            # teas on the menu.
+            if teas and coffee_type.strip().lower() in ("tea", "hot tea", "a tea", "cup of tea", "a cup of tea"):
+                return f"Which tea would you like? ({', '.join(sorted(teas))})"
             self._count_refusal("sms", order_details, reason="no_drink", item=coffee_type)
             if not teas and self._is_catering_drink(coffee_type):
                 return (
@@ -5369,12 +5393,14 @@ class CoffeeOrderSystem:
 
         # Validate milk type if specified
         milk_type = order_details.get("milk", "")
-        if milk_type:
+        # "none" / "no milk" is a black coffee, never "we don't have no milk milk".
+        if milk_type and milk_type.lower() not in ("no milk", "none", "black"):
             available_milk_types = self._get_available_milk_types()
             if not self._is_valid_milk_type(milk_type, available_milk_types):
                 self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
+                milk_words = milk_type if "milk" in milk_type.lower() else f"{milk_type} milk"
                 return (
-                    f"Sorry, we don't have {milk_type} milk. Available milks: "
+                    f"Sorry, we don't have {milk_words}. Available milks: "
                     f"{', '.join(available_milk_types)}."
                     f"{self._offmenu_note()}\n"
                     f"Reply MENU for the full list."
@@ -5601,6 +5627,25 @@ class CoffeeOrderSystem:
         # Use NLP to extract size
         new_details = self.nlp.parse_order(message)
         size = new_details.get("size")
+
+        # A milk named at the size question ("oat") is the customer changing
+        # the milk, usually away from the full-cream default shown in the
+        # last reply ("Got it - latte with full cream milk. What size?").
+        # It used to be read as a bad size, and the order then went through
+        # with full cream: the wrong coffee. Found by the golden transcript,
+        # 15 Oct 2026.
+        said_milk = new_details.get("milk")
+        if said_milk and said_milk != order_details.get("milk"):
+            if not self._milk_is_makeable(said_milk):
+                available = self._get_available_milk_types() or []
+                return (f"Sorry, we don't have {said_milk} at any station today. "
+                        f"Milks: {', '.join(available)}. What size? ({', '.join(available_sizes)})")
+            order_details["milk"] = said_milk
+            if not size:
+                self._set_conversation_state(
+                    phone, "awaiting_size", {"name": name, "order_details": order_details})
+                return (f"Got it - {order_details.get('type', 'coffee')} with {said_milk} milk. "
+                        f"What size? ({', '.join(available_sizes)})")
 
         # Also check for simple size indicators
         if not size:
@@ -9564,11 +9609,14 @@ class CoffeeOrderSystem:
 
             # Validate milk type
             milk_type = order_details.get("milk", "")
-            if milk_type:
+            # "none" / "no milk" means a black coffee, not a milk we lack:
+            # it used to come back as "Sorry, we don't have no milk milk".
+            if milk_type and milk_type.lower() not in ("no milk", "none", "black"):
                 available_milk_types = self._get_available_milk_types()
                 if not self._is_valid_milk_type(milk_type, available_milk_types):
                     self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
-                    return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}.{self._offmenu_note()} Please text MENU for full options."
+                    milk_words = milk_type if "milk" in milk_type.lower() else f"{milk_type} milk"
+                    return f"Sorry, we don't have {milk_words}. Available options are: {', '.join(available_milk_types)}.{self._offmenu_note()} Please text MENU for full options."
 
             # Validate sweetener
             sweetener = order_details.get("sugar", "")
