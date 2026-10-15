@@ -783,6 +783,14 @@ def create_app():
     except Exception as sw_err:
         logger.error(f"SMS wording routes failed to register: {sw_err}")
 
+    # The Mac's backup job checks in here: /api/public/backup-heartbeat (S1-14).
+    try:
+        from routes.backup_routes import bp as backup_bp
+        app.register_blueprint(backup_bp)
+        logger.info("Backup heartbeat route registered")
+    except Exception as bk_err:
+        logger.error(f"Backup heartbeat route failed to register: {bk_err}")
+
     # Self-serve sign-up: /api/public/signup and /api/signups (X7-9).
     try:
         from routes.signup_routes import bp as signup_bp

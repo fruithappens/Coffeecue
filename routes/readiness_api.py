@@ -594,6 +594,23 @@ def _check_on_call(db):
     return {'status': 'ok', 'detail': f'On call today: {names}.'}
 
 
+def _check_backups(db):
+    """A good backup checked in within the last day (S1-14)."""
+    from services import backup_watch
+    if not backup_watch.enabled():
+        return {'status': 'skipped', 'detail': 'This copy is not backed up from the Mac (no BACKUP_HEARTBEAT_TOKEN).'}
+    cur = db.cursor()
+    hours, v = backup_watch.last(cur)
+    db.rollback()
+    if hours is None:
+        return {'status': 'fail', 'detail': 'No backup has ever checked in.'}
+    size = f", {round((v.get('bytes') or 0) / 1e6)} MB" if v.get('bytes') else ''
+    when = f'{hours * 60:.0f} minutes' if hours < 2 else f'{hours:.0f} hours'
+    if hours >= backup_watch.STALE_HOURS:
+        return {'status': 'fail', 'detail': f'Last good backup {when} ago{size}. Is the Mac on and online?'}
+    return {'status': 'ok', 'detail': f'Last good backup {when} ago ({v.get("kind", "?")}{size}).'}
+
+
 def _check_plan_tier(db):
     """Plan limits and the included texts do nothing until a tier is set."""
     tier = str(_kv_get(db, 'plan_tier', default='') or '').strip().lower()
@@ -701,6 +718,7 @@ def get_readiness():
         _safe_check('device_pin', 'Unlock PIN changed', lambda: _check_device_pin(db)),
         _safe_check('two_step', 'Admins use two-step login', lambda: _check_two_step(db)),
         _safe_check('on_call', 'Someone on call today', lambda: _check_on_call(db)),
+        _safe_check('backups', 'A backup in the last day', lambda: _check_backups(db)),
         _safe_check('plan_tier', 'Plan chosen', lambda: _check_plan_tier(db)),
         _safe_check('test_order', 'A test order went end to end', lambda: _check_test_order(db)),
     ]

@@ -1,5 +1,6 @@
 """During service, check the printers and the texts once a minute and alert
-the admin when one stops working (roadmap U4-3).
+the admin when one stops working (roadmap U4-3). Also, at any hour, that a
+backup has checked in within the last day (services/backup_watch, S1-14).
 
 Before this, a printer that went offline mid-service alerted nobody (the
 barista found out when labels stopped), and "texts are failing" was only
@@ -115,6 +116,25 @@ def check_once(app=None, alert=None):
         if conn is not None:
             try:
                 conn.close()
+            except Exception:
+                pass
+
+    # Backups (S1-14): texts when no good backup has checked in for a day.
+    bconn = None
+    try:
+        bconn = _connect()
+        if bconn is not None:
+            from services import backup_watch
+            hit = backup_watch.check(bconn.cursor(), alert)
+            bconn.rollback()
+            if hit:
+                raised.append(hit)
+    except Exception as e:
+        logger.warning("[service-watch] backup check failed: %s", e)
+    finally:
+        if bconn is not None:
+            try:
+                bconn.close()
             except Exception:
                 pass
 
