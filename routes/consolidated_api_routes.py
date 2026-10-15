@@ -11601,6 +11601,35 @@ def _sponsor_ticker_read(db):
     }
 
 
+def _sponsor_ticker_clean(payload):
+    """The sponsor wall as stored: capped list, capped logo size, known
+    options only. Shared by the Sponsors panel's save and by a saved event
+    being loaded (_apply_event_extras)."""
+    payload = payload if isinstance(payload, dict) else {}
+    sponsors = []
+    for i, s in enumerate((payload.get('sponsors') or [])[:30]):  # sane cap on count
+        if not isinstance(s, dict):
+            continue
+        img = s.get('image') or ''
+        # ~600KB cap per logo data URL (the panel downscales first).
+        if not img or len(img) > 600_000:
+            continue
+        sponsors.append({
+            'id': str(s.get('id') or i),
+            'name': (s.get('name') or '').strip()[:80],
+            'image': img,
+            'tier': (s.get('tier') or '').strip()[:40],
+        })
+    return {
+        'enabled': bool(payload.get('enabled')),
+        'position': 'top' if payload.get('position') == 'top' else 'bottom',
+        'size': payload.get('size') if payload.get('size') in ('small', 'medium', 'large') else 'small',
+        'tiers': _norm_tiers(payload.get('tiers')),
+        'wall': _norm_wall(payload.get('wall')),
+        'sponsors': sponsors,
+    }
+
+
 @bp.route('/sponsors', methods=['GET'])
 def get_sponsor_ticker():
     """Sponsor logo ticker for the display. PUBLIC — the /tv1, /pickup1
@@ -11628,29 +11657,7 @@ def upsert_sponsor_ticker():
         coffee_system = current_app.config.get('coffee_system')
         data = request.get_json() or {}
         payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
-        raw = payload.get('sponsors') or []
-        sponsors = []
-        for i, s in enumerate(raw[:30]):  # sane cap on count
-            if not isinstance(s, dict):
-                continue
-            img = s.get('image') or ''
-            # ~600KB cap per logo data URL (the panel downscales first).
-            if not img or len(img) > 600_000:
-                continue
-            sponsors.append({
-                'id': str(s.get('id') or i),
-                'name': (s.get('name') or '').strip()[:80],
-                'image': img,
-                'tier': (s.get('tier') or '').strip()[:40],
-            })
-        out = {
-            'enabled': bool(payload.get('enabled')),
-            'position': 'top' if payload.get('position') == 'top' else 'bottom',
-            'size': payload.get('size') if payload.get('size') in ('small', 'medium', 'large') else 'small',
-            'tiers': _norm_tiers(payload.get('tiers')),
-            'wall': _norm_wall(payload.get('wall')),
-            'sponsors': sponsors,
-        }
+        out = _sponsor_ticker_clean(payload)
         _kv_put(coffee_system.db, 'sponsor_ticker', out, merge=False)
         return jsonify({'success': True, 'settings': out})
     except Exception as e:
@@ -12217,6 +12224,23 @@ def _apply_event_extras(coffee_system, preset):
             summary.append(f"branding set ({len(branding)} field(s))")
         except Exception as e:
             logger.warning(f"event template branding failed: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    # The sponsor wall is part of the event too (Steve, 16 Oct: flick between
+    # the CupQ demo event and the Virgin one). A saved event that carries
+    # sponsors puts them back; loading one that doesn't clears the last
+    # event's, so Virgin's screens never show the CupQ demo's sponsors.
+    sponsors = preset.get('sponsors')
+    if isinstance(sponsors, dict) or preset.get('_replace_look'):
+        try:
+            _kv_put(db, 'sponsor_ticker', _sponsor_ticker_clean(sponsors if isinstance(sponsors, dict) else {}), merge=False)
+            n = len((sponsors or {}).get('sponsors') or []) if isinstance(sponsors, dict) else 0
+            summary.append(f"sponsors set ({n})" if n else 'sponsors cleared')
+        except Exception as e:
+            logger.warning(f"event template sponsors failed: {e}")
             try:
                 db.rollback()
             except Exception:
