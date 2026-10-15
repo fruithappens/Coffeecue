@@ -82,6 +82,11 @@ def _fresh_start(phone):
         cur.execute("UPDATE orders SET status = 'cancelled' WHERE status NOT IN "
                     "('completed', 'picked_up', 'cancelled') AND created_at < NOW() - INTERVAL '1 hour' "
                     "AND (phone = ANY(%s) OR order_details->>'source_code' LIKE 'try-%%')", (POOL,))
+        # This only runs on a demo copy (TRY_DEMO_ENABLED). Anything left open
+        # there for 6 hours is a test or a forgotten demo, and it made every
+        # visitor "#104 in line" (16 Oct 2026). Today's demos are untouched.
+        cur.execute("UPDATE orders SET status = 'cancelled' WHERE status NOT IN "
+                    "('completed', 'picked_up', 'cancelled') AND created_at < NOW() - INTERVAL '6 hours'")
         conn.commit()
     except Exception as e:
         conn.rollback()
