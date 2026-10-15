@@ -10,6 +10,10 @@
 //     files set (the dashboard's own builder setting says NIXPACKS).
 // Secrets are preserve(): Railway keeps them; none are written here.
 // Preview any edit with `railway config plan` before `railway config apply`.
+// Applied 16 Oct 2026 (Steve). After that, `plan` still lists two lines that
+// change nothing: Postgres source.preserveExisting (an instruction, never
+// stored) and web restartPolicyType (Railway reports it empty but already
+// restarts ON_FAILURE). Anything ELSE in a plan is a real difference.
 import { defineRailway, github, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
