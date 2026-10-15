@@ -841,6 +841,38 @@ def _m031_support_request_triage(cur):
     cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS note TEXT")
 
 
+def _m032_signup_requests(cur):
+    """Self-serve sign-ups from cupq.app/start (roadmap X7-9). The answers
+    become a saved event the build script loads; approving one never builds
+    anything on its own (the server holds no Railway token)."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS signup_requests (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            status VARCHAR(12) NOT NULL DEFAULT 'new',
+            organisation VARCHAR(160) NOT NULL,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(200) NOT NULL,
+            phone VARCHAR(40),
+            event_name VARCHAR(80) NOT NULL,
+            slug VARCHAR(30) NOT NULL,
+            starts DATE,
+            ends DATE,
+            attendees VARCHAR(12),
+            timezone VARCHAR(40),
+            texts BOOLEAN NOT NULL DEFAULT FALSE,
+            plan VARCHAR(12),
+            answers TEXT,
+            logo TEXT,
+            notes TEXT,
+            ip VARCHAR(64),
+            notified BOOLEAN NOT NULL DEFAULT FALSE,
+            decided_at TIMESTAMP,
+            decided_by VARCHAR(100)
+        )
+    """)
+
+
 def _m019_station_stats_twin_columns(cur):
     """Bring station_stats' twin columns into line.
 
@@ -966,6 +998,7 @@ MIGRATIONS: list[Migration] = [
     Migration(29, 'users_two_step_login',     _m029_users_two_step_login),
     Migration(30, 'device_setup_codes',       _m030_device_setup_codes),
     Migration(31, 'support_request_triage',   _m031_support_request_triage),
+    Migration(32, 'signup_requests',          _m032_signup_requests),
 ]
 
 

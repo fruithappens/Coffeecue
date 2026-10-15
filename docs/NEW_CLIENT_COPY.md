@@ -24,6 +24,23 @@ Paste tokens into Terminal with the hidden-input command, never into chat:
 read -s "T?Paste the token, then press Enter: " && echo "export RAILWAY_API_TOKEN='$T'" >> ~/.zshrc && unset T && chmod 600 ~/.zshrc
 ```
 
+## From a sign-up (cupq.app/start)
+
+A client can describe their event themselves at **https://cupq.app/start**:
+organisation, contact, event name and dates, web address, drinks, milks,
+sizes, colours and logo. It lands in Runner > System > Enquiries > Sign-ups
+and is texted to the admin alert number (and whoever is on call).
+
+1. Agree pricing and dates with them.
+2. Approve it. Two buttons appear: **Download event file** and **Copy
+   command**.
+3. Paste the command into Terminal. It builds their copy with their menu,
+   colours and logo (about 10 minutes).
+
+The server never builds anything from the form: it has no Railway or
+Cloudflare token. The command holds only the checked web address; the
+event's name and everything else travel in the file.
+
 ## Plan it (changes nothing)
 
 ```bash
