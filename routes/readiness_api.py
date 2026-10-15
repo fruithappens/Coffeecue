@@ -582,6 +582,18 @@ def _check_two_step(db):
             'detail': f'Admins without two-step login: {names}. Each turns it on under People.'}
 
 
+def _check_on_call(db):
+    """Someone named to answer today (U4-6). A warning: the admin alert
+    number still gets every alert without a roster."""
+    from services.on_call import today_has_cover
+    shifts = today_has_cover(db)
+    if not shifts:
+        return {'status': 'warn',
+                'detail': 'Nobody on the on-call roster for today; alerts go to the admin number only.'}
+    names = ', '.join(f"{s['name']} {s['start']}-{s['end']}" for s in shifts[:4])
+    return {'status': 'ok', 'detail': f'On call today: {names}.'}
+
+
 def _check_plan_tier(db):
     """Plan limits and the included texts do nothing until a tier is set."""
     tier = str(_kv_get(db, 'plan_tier', default='') or '').strip().lower()
@@ -628,6 +640,7 @@ FIX_LINKS = {
     'quick_setup': ('Quick Setup', 'quickSetup'),
     'device_pin': ('Unlock PINs', 'users/people'),
     'two_step': ('Two-step login', 'users/people'),
+    'on_call': ('On call', 'users/onCall'),
     'plan_tier': ('Plan', 'settings'),
     'test_order': ('Orders', 'orders'),
 }
@@ -687,6 +700,7 @@ def get_readiness():
         _safe_check('quick_picks', 'Quick picks', lambda: _check_quick_picks(db)),
         _safe_check('device_pin', 'Unlock PIN changed', lambda: _check_device_pin(db)),
         _safe_check('two_step', 'Admins use two-step login', lambda: _check_two_step(db)),
+        _safe_check('on_call', 'Someone on call today', lambda: _check_on_call(db)),
         _safe_check('plan_tier', 'Plan chosen', lambda: _check_plan_tier(db)),
         _safe_check('test_order', 'A test order went end to end', lambda: _check_test_order(db)),
     ]

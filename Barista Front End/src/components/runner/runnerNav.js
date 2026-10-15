@@ -52,6 +52,7 @@ export const TABS = {
   ],
   users: [
     { id: 'people', label: 'People',       Icon: Users },
+    { id: 'onCall', label: 'On call',      Icon: Phone },
     { id: 'access', label: 'Roles & access', Icon: UserCog },
   ],
   live: [

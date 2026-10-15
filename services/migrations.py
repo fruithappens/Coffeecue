@@ -833,6 +833,14 @@ def _m030_device_setup_codes(cur):
     """)
 
 
+def _m031_support_request_triage(cur):
+    """Help requests become a small support inbox (roadmap U4-6): a tag
+    (printer, texts, ...), who has taken it, and a note on what was done."""
+    cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS tag VARCHAR(30)")
+    cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS taken_by VARCHAR(100)")
+    cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS note TEXT")
+
+
 def _m019_station_stats_twin_columns(cur):
     """Bring station_stats' twin columns into line.
 
@@ -957,6 +965,7 @@ MIGRATIONS: list[Migration] = [
     Migration(28, 'message_tables',           _m028_message_tables),
     Migration(29, 'users_two_step_login',     _m029_users_two_step_login),
     Migration(30, 'device_setup_codes',       _m030_device_setup_codes),
+    Migration(31, 'support_request_triage',   _m031_support_request_triage),
 ]
 
 

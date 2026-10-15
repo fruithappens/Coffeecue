@@ -3,12 +3,14 @@
 POST /api/support-requests            any logged-in staff (barista included)
 GET  /api/support-requests            manager roles: the list, newest first
 POST /api/support-requests/<id>/handled
+PATCH /api/support-requests/<id>       {tag, take: true, note}: the inbox (U4-6)
 
 The ? button sends what the person typed plus where they were (screen,
 station, version) and the server adds who they are and the latest
 crashes, so nobody has to ask "which tablet, what were you doing?". The
-admin alert number gets a short text (services/admin_alerts), once per
-request, not rate-limited away: each request is a person waiting.
+admin alert number, and whoever is on call (services/on_call), gets a short
+text (services/admin_alerts), once per request, not rate-limited away:
+each request is a person waiting.
 """
 import json
 import logging
@@ -23,6 +25,8 @@ bp = Blueprint("support_requests", __name__, url_prefix="/api/support-requests")
 
 STAFF = ["admin", "staff", "barista", "organizer", "organiser", "event_organizer", "support"]
 MANAGERS = ["admin", "staff", "organizer", "organiser", "event_organizer", "support"]
+TAGS = ("printer", "texts", "ordering", "menu", "screens", "login", "other")
+NOTE_MAX = 1000
 
 
 def _db():
@@ -120,8 +124,8 @@ def list_requests():
         pass
     cur = db.cursor()
     cur.execute(
-        "SELECT id, created_at, username, role, message, screen, station, app_version, diagnostics, notified, handled_at "
-        "FROM support_requests ORDER BY id DESC LIMIT 100")
+        "SELECT id, created_at, username, role, message, screen, station, app_version, diagnostics, notified, handled_at, "
+        "tag, taken_by, note FROM support_requests ORDER BY id DESC LIMIT 100")
     out = []
     for r in cur.fetchall():
         v = list(r.values()) if isinstance(r, dict) else list(r)
@@ -133,9 +137,46 @@ def list_requests():
         out.append({"id": v[0], "created_at": (v[1].isoformat() + "Z") if v[1] else None, "username": v[2], "role": v[3],
                     "message": v[4], "screen": v[5], "station": v[6], "app_version": v[7],
                     "crashes": len(diag.get("crashes_last_30_min") or []), "diagnostics": diag,
-                    "notified": bool(v[9]), "handled_at": (v[10].isoformat() + "Z") if v[10] else None})
+                    "notified": bool(v[9]), "handled_at": (v[10].isoformat() + "Z") if v[10] else None,
+                    "tag": v[11], "taken_by": v[12], "note": v[13]})
     db.rollback()
-    return jsonify({"success": True, "requests": out})
+    return jsonify({"success": True, "requests": out, "tags": list(TAGS)})
+
+
+@bp.route("/<int:rid>", methods=["PATCH"])
+@jwt_required_with_demo()
+@role_required_with_demo(MANAGERS)
+def triage(rid):
+    """Tag it, take it ('I'm on it'), or note what was done."""
+    body = request.get_json(silent=True) or {}
+    sets, args = [], []
+    if "tag" in body:
+        tag = str(body.get("tag") or "").strip().lower()
+        if tag and tag not in TAGS:
+            return jsonify({"success": False, "message": "tag must be one of: " + ", ".join(TAGS)}), 400
+        sets.append("tag = %s")
+        args.append(tag or None)
+    if body.get("take"):
+        who, _role = _who()
+        sets.append("taken_by = %s")
+        args.append(who or "someone")
+    if "note" in body:
+        sets.append("note = %s")
+        args.append(str(body.get("note") or "").strip()[:NOTE_MAX] or None)
+    if not sets:
+        return jsonify({"success": False, "message": "nothing to change"}), 400
+    db = _db()
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    cur = db.cursor()
+    cur.execute(f"UPDATE support_requests SET {', '.join(sets)} WHERE id = %s RETURNING id", (*args, rid))
+    found = cur.fetchone()
+    db.commit()
+    if not found:
+        return jsonify({"success": False, "message": "no such request"}), 404
+    return jsonify({"success": True})
 
 
 @bp.route("/<int:rid>/handled", methods=["POST"])
