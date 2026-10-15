@@ -388,11 +388,10 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
         steps=[
             Step("hi", expect_any=[r"name"]),
             Step("{NAME}", expect_any=[r"what can i get|coffee|like|closed|unavailable"]),
-            # Today the bot finishes the questions and refuses at the end
-            # (no order is made). Saying so up front would be kinder; until
-            # then the size question is allowed here.
-            Step("latte", expect_any=[r"closed|unavailable|not (currently )?(open|taking|available)|sorry|size"],
-                 reject_all=[r"order #?\d", r"confirmed"]),
+            # Said on the first drink message, in customer words; never the
+            # size question, never staff wording (fixed 15 Oct 2026).
+            Step("latte", expect_any=[r"isn'?t being served|closed"],
+                 reject_all=[r"size", r"organi[sz]er", r"order #?\d", r"confirmed"]),
             Step("medium oat latte", expect_any=[r"closed|unavailable|sorry|not sure"],
                  reject_all=[r"order #?\d", r"you'?re #\d|in line", r"confirmed"]),
         ],

@@ -128,8 +128,11 @@ class SecurityAuditLogger:
             'timestamp': datetime.utcnow().isoformat()
         }
         
-        level = logging.WARNING if sensitive else logging.INFO
-        security_logger.log(level, f"DATA_ACCESS: {json.dumps(event)}")
+        # INFO either way: every request to a login or text address is
+        # "sensitive" by path, so WARNING here buried real problems under
+        # normal traffic (log audit, 15 Oct 2026). Failed logins and rate
+        # limits still log at WARNING on their own.
+        security_logger.log(logging.INFO, f"DATA_ACCESS: {json.dumps(event)}")
     
     @staticmethod
     def log_security_event(event_type, description, severity='medium'):
@@ -254,11 +257,13 @@ class APIRequestLogger:
             log_entry['error'] = True
             
             # Log security-relevant errors
+            # A refused request (401/403) is routine: an expired tab, a page
+            # opened before login. Being rate-limited (429) is worth a look.
             if response.status_code in [401, 403, 429]:
                 SecurityAuditLogger.log_security_event(
                     f'http_{response.status_code}',
                     f'{response.status_code} response for {request.path}',
-                    severity='medium'
+                    severity='medium' if response.status_code == 429 else 'low'
                 )
         
         api_logger.info(json.dumps(log_entry))

@@ -5339,6 +5339,12 @@ class CoffeeOrderSystem:
         order_details = self.nlp.parse_order(message, apply_defaults=False)
         coffee_type = order_details.get("type", "").lower()
 
+        # Every station closed: say so now, in customer words, instead of
+        # asking for the size and milk and refusing at the end with staff
+        # wording (found by the SMS scenarios, 15 Oct 2026).
+        if coffee_type and not self._has_active_station():
+            return say("stations_closed")
+
         # All three rejection messages below append "Reply MENU for
         # the full list" — discoverability for customers who don't
         # know they can ask. Operators reported customers giving up
@@ -6742,7 +6748,7 @@ class CoffeeOrderSystem:
                                     phone, name, order_details
                                 )
                             logger.error("No stations available to assign order")
-                            return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
+                            return say("stations_closed")
                         station_was_reassigned = True
                         reassign_reason = "capability"
                         logger.info(
@@ -6765,7 +6771,7 @@ class CoffeeOrderSystem:
                                 phone, name, order_details
                             )
                         logger.error("No stations available to assign order")
-                        return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
+                        return say("stations_closed")
                     station_was_reassigned = True
                     reassign_reason = "invalid"
                     logger.info(
@@ -6791,7 +6797,7 @@ class CoffeeOrderSystem:
                         )
                         return self._no_capable_milk_message(phone, name, order_details)
                     logger.error("No stations available to assign order")
-                    return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
+                    return say("stations_closed")
                 logger.info(
                     f"No station specified, using intelligent assignment to station {station_id}"
                 )
