@@ -147,6 +147,7 @@ export const SECTION_HELP = {
     points: [
       'Tell everyone: one message on the board, the phones and the barista screens at once.',
       'Text blast: a text to everyone who gave a number. Each text costs money, so use it sparingly.',
+      'Text wording: what the text bot replies, message by message, with what each one costs.',
       'Test a text: try the text-ordering conversation without sending anything.',
       'Text meter: how many texts this event has used against its allowance.',
       'Blocked numbers: numbers that will never be texted. (Someone who replies STOP is stopped by the text provider itself.)',

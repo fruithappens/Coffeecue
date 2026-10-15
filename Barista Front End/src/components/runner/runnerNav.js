@@ -69,6 +69,7 @@ export const TABS = {
     // still the SMS-only path.
     { id: 'notice',    label: 'Tell everyone', Icon: Megaphone },
     { id: 'broadcast', label: 'Text blast', Icon: MessageSquare },
+    { id: 'wording',   label: 'Text wording', Icon: FileText },
     { id: 'test',      label: 'Test a text', Icon: Phone },
     { id: 'meter',     label: 'Text meter', Icon: Gauge },
     { id: 'blocked',   label: 'Blocked numbers', Icon: Ban },

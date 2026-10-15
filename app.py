@@ -775,6 +775,14 @@ def create_app():
     except Exception as ds_err:
         logger.error(f"Device setup routes failed to register: {ds_err}")
 
+    # The text bot's wording, editable (X7-6).
+    try:
+        from routes.sms_wording_routes import bp as sms_wording_bp
+        app.register_blueprint(sms_wording_bp)
+        logger.info("SMS wording routes registered")
+    except Exception as sw_err:
+        logger.error(f"SMS wording routes failed to register: {sw_err}")
+
     # Help requests from the ? button: /api/support-requests (U4-5).
     try:
         from routes.support_request_routes import bp as support_requests_bp

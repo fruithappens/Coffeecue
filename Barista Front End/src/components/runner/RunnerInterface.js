@@ -55,6 +55,7 @@ import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
+import SmsWordingTab from './SmsWordingTab';
 import SetupDeviceCard from './SetupDeviceCard';
 import ReleaseFreezeCard from './ReleaseFreezeCard';
 import LedgerTab from './LedgerTab';
@@ -179,6 +180,7 @@ const RunnerInterface = () => {
 
       {activeSection === 'messages' && activeTab === 'notice' && <NoticeComposer />}
       {activeSection === 'messages' && activeTab === 'broadcast' && <EnhancedCommunicationHub />}
+      {activeSection === 'messages' && activeTab === 'wording' && <SmsWordingTab />}
       {activeSection === 'messages' && activeTab === 'test' && <SMSTestSimulator />}
       {activeSection === 'messages' && activeTab === 'meter' && <SmsMeterTab />}
       {activeSection === 'messages' && activeTab === 'blocked' && <SmsBlocklistTab />}
