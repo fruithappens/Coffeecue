@@ -61,12 +61,20 @@ const Field = ({ label, hint, children }) => (
 );
 
 const StartPage = () => {
+  // The cupq.com.au quote tool links here with ?plan=&attendees=&days=, so
+  // what the client just priced arrives filled in.
+  const q = (() => { try { return new URLSearchParams(window.location.search); } catch (e) { return new URLSearchParams(); } })();
+  const qPlan = PLANS.some(([v]) => v === q.get('plan')) ? q.get('plan') : 'unsure';
+  const qPax = (q.get('attendees') || '').replace(/\D/g, '').slice(0, 6);
+  const qDays = parseInt(q.get('days'), 10);
   const [f, setF] = useState({
     organisation: '', name: '', email: '', phone: '', event_name: '', slug: '', starts: '', ends: '',
-    attendees: '', timezone: 'Australia/Adelaide', texts: true, plan: 'unsure',
+    attendees: qPax, timezone: 'Australia/Adelaide', texts: true, plan: qPlan,
     drinks: { espresso_drinks: true, hot_chocolate: true, chai: true, matcha: false }, teas: false,
     milks: ['full cream', 'skim', 'oat', 'almond'], sizes: ['medium'],
-    primary_colour: '#3B2A20', header_colour: '#3B2A20', logo: '', notes: '', agree: false, website: '',
+    primary_colour: '#3B2A20', header_colour: '#3B2A20', logo: '',
+    notes: qDays > 0 && qDays < 31 ? `From the website quote tool: ${qDays} day${qDays > 1 ? 's' : ''}.` : '',
+    agree: false, website: '',
   });
   const [slugTouched, setSlugTouched] = useState(false);
   // CupQ's own page, not the current event's: don't inherit its tab title.
@@ -226,7 +234,10 @@ const StartPage = () => {
             onChange={(e) => set('website', e.target.value)} style={{ position: 'absolute', left: '-10000px' }} aria-hidden="true" />
           <label className="flex items-start gap-2 text-sm text-cq-roast">
             <input type="checkbox" className="mt-1" checked={f.agree} onChange={(e) => set('agree', e.target.checked)} />
-            I'm happy for CupQ to contact me about pricing and terms. Nothing is charged or set up until we agree.
+            <span>
+              I'm happy for CupQ to contact me about pricing and terms. Nothing is charged or set up until we agree.{' '}
+              <a href="/privacy" target="_blank" rel="noopener" className="underline underline-offset-2">How we handle your details</a>
+            </span>
           </label>
         </section>
 
