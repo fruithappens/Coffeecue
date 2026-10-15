@@ -767,6 +767,14 @@ def create_app():
     except Exception as lg_err:
         logger.error(f"Ledger routes failed to register: {lg_err}")
 
+    # One QR sets up a barista tablet: /api/devices (H5-3).
+    try:
+        from routes.device_setup_routes import bp as device_setup_bp
+        app.register_blueprint(device_setup_bp)
+        logger.info("Device setup routes registered")
+    except Exception as ds_err:
+        logger.error(f"Device setup routes failed to register: {ds_err}")
+
     # Help requests from the ? button: /api/support-requests (U4-5).
     try:
         from routes.support_request_routes import bp as support_requests_bp

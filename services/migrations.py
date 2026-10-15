@@ -812,6 +812,27 @@ def _m029_users_two_step_login(cur):
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE")
 
 
+def _m030_device_setup_codes(cur):
+    """One-time codes that sign a tablet in as a barista (roadmap H5-3).
+
+    A manager makes one in Runner > Screens; the tablet scans its QR. Only
+    the code's hash is kept, it works once, and it expires in minutes."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS device_setup_codes (
+            id SERIAL PRIMARY KEY,
+            code_hash VARCHAR(64) NOT NULL UNIQUE,
+            screen VARCHAR(20) NOT NULL,
+            station_id INTEGER,
+            user_id INTEGER,
+            created_by VARCHAR(100),
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            used_ip VARCHAR(64)
+        )
+    """)
+
+
 def _m019_station_stats_twin_columns(cur):
     """Bring station_stats' twin columns into line.
 
@@ -935,6 +956,7 @@ MIGRATIONS: list[Migration] = [
     Migration(27, 'support_requests',         _m027_support_requests),
     Migration(28, 'message_tables',           _m028_message_tables),
     Migration(29, 'users_two_step_login',     _m029_users_two_step_login),
+    Migration(30, 'device_setup_codes',       _m030_device_setup_codes),
 ]
 
 
