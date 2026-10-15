@@ -81,6 +81,11 @@ CATALOG = {
         {"sizes": "the sizes on offer"},
         "Their answer to 'what size?' wasn't a size.",
     ),
+    "stations_closed": (
+        "Sorry, coffee isn't being served right now, so I can't take an order. Text us again when the stations open.",
+        {},
+        "They ordered while every station is closed.",
+    ),
     "no_active_orders": (
         "You don't have any active orders. Text us your coffee order to get started!",
         {},

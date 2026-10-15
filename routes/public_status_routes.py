@@ -4,6 +4,11 @@ GET /api/public/status, no login. Answers the question a client or venue
 asks on the day -- is it working? -- without anything personal: ordering
 up, texts up, printers up, stations open. Cached 15 seconds so a page left
 open on twenty phones can't add load.
+
+Between services (no order in the last 30 minutes, the same test the
+alert watch uses) printers that are switched off show as "off", not as a
+fault: on 15 Oct the page read "degraded, cup labels down" all day because
+the printers were packed away.
 """
 import logging
 import threading
@@ -36,6 +41,7 @@ def build_status():
     cs = current_app.config.get("coffee_system")
     db = cs.db if cs else None
     ordering_up = False
+    serving = False
     try:
         db.rollback()
         cur = db.cursor()
@@ -46,6 +52,9 @@ def build_status():
             event_name = getattr(cs, "event_name", "") or ""
         except Exception:
             event_name = ""
+        from services.service_watch import in_service
+
+        serving = in_service(cur)
         stations = int(_one(cur, "SELECT COUNT(*) FROM station_stats WHERE status = 'active'"))
         printers = int(_one(cur, "SELECT COUNT(*) FROM printers WHERE enabled = TRUE"))
         online = int(_one(cur, "SELECT COUNT(*) FROM printers WHERE enabled = TRUE AND last_poll_at > NOW() - "
@@ -81,13 +90,18 @@ def build_status():
                       else "Sending normally"})
 
     if printers:
-        state = "up" if online == printers else ("degraded" if online else "down")
-        parts.append({"name": "Cup labels", "state": state,
-                      "detail": f"{online} of {printers} printer{'s' if printers != 1 else ''} online"})
+        plural = "s" if printers != 1 else ""
+        if online < printers and not serving:
+            parts.append({"name": "Cup labels", "state": "off",
+                          "detail": f"{online} of {printers} printer{plural} on. Switched on for service."})
+        else:
+            state = "up" if online == printers else ("degraded" if online else "down")
+            parts.append({"name": "Cup labels", "state": state,
+                          "detail": f"{online} of {printers} printer{plural} online"})
 
     states = [p["state"] for p in parts if p["state"] != "off"]
     overall = "down" if not ordering_up else ("degraded" if any(s != "up" for s in states) else "up")
-    return {"success": True, "event_name": event_name, "overall": overall, "parts": parts,
+    return {"success": True, "event_name": event_name, "overall": overall, "serving": serving, "parts": parts,
             "checked_at": datetime.now(timezone.utc).isoformat()}
 
 

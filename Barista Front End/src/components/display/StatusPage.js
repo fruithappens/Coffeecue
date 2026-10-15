@@ -38,7 +38,9 @@ const StatusPage = () => {
           {data?.event_name ? `${data.event_name} · ` : ''}Coffee status
         </p>
         <h1 className={`text-3xl font-extrabold mt-1 mb-6 ${overall ? STYLE[overall].cls : 'text-cq-roast'}`}>
-          {failed ? "Can't reach the coffee system" : overall ? HEADLINE[overall] : 'Checking…'}
+          {failed ? "Can't reach the coffee system"
+            : overall === 'up' && data?.serving === false ? 'Ready. No service running right now'
+            : overall ? HEADLINE[overall] : 'Checking…'}
         </h1>
         <div className="bg-cq-milk rounded-cq-xl shadow-cq-card divide-y divide-cq-line">
           {(data?.parts || []).map(p => {

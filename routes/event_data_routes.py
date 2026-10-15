@@ -128,7 +128,7 @@ def build_snapshot(db, include_messages=True):
             # A table that does not exist is not a failed backup -- it is
             # a feature this install never set up. Roll back so the failed
             # statement cannot poison the rest of the export.
-            logger.warning(f"export: skipping {table}: {te}")
+            logger.debug(f"export: skipping {table}: {te}")  # older copies lack some tables; not a fault
             try:
                 db.rollback()
             except Exception:
