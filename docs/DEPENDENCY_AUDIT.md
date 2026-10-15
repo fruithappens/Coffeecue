@@ -43,8 +43,34 @@ CORS preflight from cupq.com.au.
 | eventlet | 0.33.3 | 0.40.3 | The server's networking layer; the August hangs lived here | Load test on staging with a deliberately slow request; SMS and EventsAir calls; WebSockets |
 | flask | 2.3.3 | 3.1.3 | Framework major; extensions must match | Full test suite and a run-through of every screen on staging |
 
-These wait for the staging copy (roadmap S1-2) so they never reach an event
-untested.
+**Batches 2 and 3: done 15 Oct 2026 (S1-12).** pip-audit: 47 known
+vulnerabilities in 4 packages -> **none**.
+
+| Package | Was | Now |
+|---|---|---|
+| eventlet | 0.33.3 | 0.40.3 |
+| flask | 2.3.3 | 3.1.3 |
+| flask-cors | 4.0.0 | 6.0.5 |
+| pillow | 10.1.0 | 12.3.0 |
+| flask-jwt-extended | 4.5.3 | 4.7.1 (Flask 3 support) |
+| flask-limiter | 3.3.1 | 3.12 (Flask 3 support) |
+
+Checked, on a separate virtualenv so nothing shared was touched:
+- `pip check` clean; unit tests 338/338, same as before.
+- The real server (`run_server.py`, eventlet + green psycopg) booted on the
+  new libraries: 5,000 requests at 200 concurrent against a pool of 4,
+  0 failures, 769 req/s, pool held at 4 (the #686 behaviour); WebSocket
+  handshake; login 401/200; JWT route 200 with a token, 401 without or
+  with a bad one; CORS preflight from cupq.com.au allowed.
+- Outbound HTTPS under the new eventlet (the 5 Sep SMS outage class):
+  Twilio, cupq.app and EventsAir all answered; 10 in parallel in the time
+  of one.
+- Labels on Pillow 12: every label type the same size; 17-168 pixels
+  differ per label (0.01-0.04%, letter edges, from Pillow's text
+  rasterising). Side by side they look identical.
+- Rate limits with production settings: venue reads capped as set,
+  unlisted reads at 5,000/hour, login throttled after 10.
+- Then on demo.cupq.app before cupq.app (see the PR).
 
 ## Frontend
 
