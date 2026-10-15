@@ -7,6 +7,7 @@
 // Everything here comes from the PUBLIC /api/display/config, because these
 // screens have no login. One request is shared by every component that asks.
 import React, { useEffect, useState } from 'react';
+import { readableColour } from '../utils/contrast';
 
 const FALLBACK = { eventName: '', logo: '', accent: '#B8764A', systemName: 'CupQ', sponsor: null, poweredBy: true,
                    header: { mode: 'logo_name', image: '', color: '' }, wording: {}, loaded: false };
@@ -25,7 +26,8 @@ export function loadEventBrand() {
         eventName: c.event_name || '',
         logo: c.logo || '',
         // The operator's own colour. Falls back to caramel, never to blue.
-        accent: c.header_color || '#B8764A',
+        // Readable on cream and under white text (WCAG AA): utils/contrast.js.
+        accent: readableColour(c.header_color || '#B8764A'),
         systemName: c.system_name || 'CupQ',
         // Signed "powered by CupQ" unless the plan is white-label (Pro,
         // Urn). Only an explicit false hides it: an older server that
@@ -36,7 +38,7 @@ export function loadEventBrand() {
         header: {
           mode: (c.customer_header && c.customer_header.mode) || 'logo_name',
           image: (c.customer_header && c.customer_header.image) || '',
-          color: (c.customer_header && c.customer_header.color) || '',
+          color: readableColour((c.customer_header && c.customer_header.color) || ''),
         },
         // The organiser's wording for each stage on the phone (X7-5).
         wording: (c.customer_wording && typeof c.customer_wording === 'object') ? c.customer_wording : {},

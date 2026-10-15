@@ -282,7 +282,7 @@ const MobileOrderPage = () => {
           )}
           <div className={`${copy.tone} text-white rounded-cq-xl p-6 text-center shadow-cq-card
                            ${ready ? 'animate-pulse' : ''}`}>
-            <div className="text-sm uppercase tracking-wide opacity-90">Your order</div>
+            <div className="text-sm uppercase tracking-wide">Your order</div>
             <div className="font-extrabold my-2"
                  style={{ fontSize: 'clamp(2.5rem, 13vw, 3.75rem)', lineHeight: 1.05 }}>#{trackNumber}</div>
             <div className="text-2xl font-bold">{copy.title}</div>

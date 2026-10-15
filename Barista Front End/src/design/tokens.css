@@ -27,14 +27,14 @@
   /* -- warm neutrals (never pure grey) ------------------------------- */
   --cq-ink:          #2A1F17;   /* body text                            */
   --cq-ink-2:        #5C4A3D;   /* secondary text                       */
-  --cq-ink-3:        #8C7B6E;   /* muted labels, placeholders           */
+  --cq-ink-3:        #706258;   /* muted labels, placeholders (was #8C7B6E: 3.6:1 on cream, under WCAG AA; this is 5.2:1) */
   --cq-line:         #E6DCD0;   /* hairlines, borders                   */
   --cq-wash:         #EFE7DC;   /* subtle fills (inputs, wells)         */
 
   /* -- attention only ------------------------------------------------ */
-  --cq-ready:        #1F8A4C;   /* ready / good / done                  */
+  --cq-ready:        #1A7541;   /* ready / good / done (was #1F8A4C: 3.75:1 on ready-wash) */
   --cq-ready-wash:   #DDF3E4;
-  --cq-alert:        #C8372D;   /* needs a person now                   */
+  --cq-alert:        #B8322A;   /* needs a person now (was #C8372D: 4.25:1 on alert-wash) */
   --cq-alert-wash:   #FBE3E0;
   /* The middle state. Health, stock and printer screens are all three-state
      (fine / watch this / broken) and there was no token for the middle one,
