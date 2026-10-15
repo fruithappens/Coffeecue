@@ -106,8 +106,11 @@ def _order_for(s):
         cur.execute(
             "SELECT id, order_number, status, station_id, order_details, created_at "
             "FROM orders WHERE (phone = %s OR order_details->>'source_code' = %s) "
-            "AND created_at > NOW() - INTERVAL '2 hours' ORDER BY created_at DESC LIMIT 1",
-            (s["phone"], s["src"]))
+            "AND created_at > NOW() - make_interval(secs => %s) ORDER BY created_at DESC LIMIT 1",
+            # Only orders placed since THIS session began: demo numbers are
+            # reused, and the last visitor's order on the same number showed
+            # up as this visitor's (found on demo.cupq.app, 16 Oct 2026).
+            (s["phone"], s["src"], max(1.0, time.time() - s["created"] + 5)))
         r = cur.fetchone()
     finally:
         close_connection(conn)
