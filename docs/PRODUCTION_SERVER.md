@@ -2,8 +2,9 @@
 
 Roadmap task S1-10, checked 11 Oct 2026.
 
-- **Start:** Railway runs `python run_server.py` (railway.json, railway.toml,
-  Procfile → start.sh all agree).
+- **Start:** Railway runs `python run_server.py`, built from the Dockerfile,
+  restarting on failure: set in `.railway/railway.ts` (since Oct 2026; it
+  replaced railway.json / railway.toml, which Railway stopped reading).
 - **First lines of run_server.py:** `EVENTLET_NO_GREENDNS=yes` (the September
   SMS DNS outage), then `eventlet.monkey_patch()`, then psycogreen's
   `patch_psycopg()` so database calls yield instead of blocking.

@@ -1,5 +1,7 @@
 {
   "devDependencies": {
-    "http-proxy-middleware": "^3.0.3"
-  }
+    "http-proxy-middleware": "^3.0.3",
+    "railway": "3.14.0"
+  },
+  "type": "module"
 }

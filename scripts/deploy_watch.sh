@@ -58,12 +58,10 @@ while [ "$(date +%s)" -lt "$END" ]; do
 done
 
 if [ "$consec_bad" -ge 3 ] || [ "$settled_bad" -ge 2 ]; then
-  if [ "$RESTORE" = "1" ]; then
-    say "auto-restoring the known-good config"
-    "$ROOT/scripts/deploy_restore.sh"
-  else
-    say "--no-restore set; leaving production as it is"
-  fi
+  # The old auto-restore rewrote railway.json, which Railway no longer
+  # reads (setup is .railway/railway.ts since Oct 2026). Roll back to the
+  # last good deploy instead (docs/ROLLBACK.md).
+  say "roll back with: python scripts/rollback.py --copy live --to <last good deployment id> --yes"
   exit 1
 fi
 
