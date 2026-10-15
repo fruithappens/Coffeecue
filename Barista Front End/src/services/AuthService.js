@@ -107,68 +107,75 @@ class AuthService {
       }
 
       const data = await response.json();
-      
-      // Make sure we have the expected data structure
-      if (!data || !data.token) {
-        throw new Error('Invalid response format from server');
-      }
-      
-      // Save tokens and user data
-      // Persist the access token to EVERY key the app reads it from
-      // (coffee_system_token + coffee_auth_token + jwt_token + token) so no
-      // consumer (e.g. the WebSocket) is ever left holding a stale key.
-      persistAccessToken(data.token);
-      localStorage.setItem(this.refreshKey, data.refreshToken || '');
-      localStorage.setItem('refreshToken', data.refreshToken || '');
-      localStorage.setItem('tokenExpiresIn', String(data.expiresIn || 3600));
-      
-      // Save token expiry if provided
-      if (data.expiresIn) {
-        const expiry = new Date();
-        expiry.setSeconds(expiry.getSeconds() + data.expiresIn);
-        this.tokenExpiry = expiry;
-        localStorage.setItem(this.expiryKey, expiry.toISOString());
-      }
-      
-      // Make sure user object exists before storing
-      const userData = data.user || { 
-        id: 'unknown',
-        username,
-        role: 'guest'
-      };
-      
-      localStorage.setItem(this.userKey, JSON.stringify(userData));
-      
-      // Set token for API requests
-      OrderDataService.setToken(data.token);
-      
-      // Reset auth errors on successful login
-      this.authErrors = 0;
-      localStorage.removeItem('auth_error_count');
-      localStorage.removeItem('auth_error_refresh_needed');
-      localStorage.removeItem('use_fallback_data');
-
-      // Start the new session clean: wipe any order caches left by a previous
-      // session so the barista screen doesn't flash the old event's orders
-      // before the live queue loads. clearOrderCaches() handles localStorage;
-      // also drop OrderDataService's in-memory cache for the SPA-navigation
-      // case (login without a full page reload).
-      clearOrderCaches();
-      try { OrderDataService.invalidateCache('orders'); } catch (e) { /* non-fatal */ }
-      
-      // Redirect to the appropriate dashboard based on user role
-      this.redirectBasedOnRole(userData.role);
-      
-      return {
-        token: data.token,
-        refreshToken: data.refreshToken,
-        user: userData,
-        expiresIn: data.expiresIn || 3600
-      };
+      return this.adoptSession(data, username);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Store a session the server has issued: the normal login, or a tablet
+   * set up by a one-time QR code (roadmap H5-3). Same storage either way.
+   */
+  adoptSession(data, username = '', { redirect = true } = {}) {
+    // Make sure we have the expected data structure
+    if (!data || !data.token) {
+      throw new Error('Invalid response format from server');
+    }
+    
+    // Save tokens and user data
+    // Persist the access token to EVERY key the app reads it from
+    // (coffee_system_token + coffee_auth_token + jwt_token + token) so no
+    // consumer (e.g. the WebSocket) is ever left holding a stale key.
+    persistAccessToken(data.token);
+    localStorage.setItem(this.refreshKey, data.refreshToken || '');
+    localStorage.setItem('refreshToken', data.refreshToken || '');
+    localStorage.setItem('tokenExpiresIn', String(data.expiresIn || 3600));
+    
+    // Save token expiry if provided
+    if (data.expiresIn) {
+      const expiry = new Date();
+      expiry.setSeconds(expiry.getSeconds() + data.expiresIn);
+      this.tokenExpiry = expiry;
+      localStorage.setItem(this.expiryKey, expiry.toISOString());
+    }
+    
+    // Make sure user object exists before storing
+    const userData = data.user || { 
+      id: 'unknown',
+      username,
+      role: 'guest'
+    };
+    
+    localStorage.setItem(this.userKey, JSON.stringify(userData));
+    
+    // Set token for API requests
+    OrderDataService.setToken(data.token);
+    
+    // Reset auth errors on successful login
+    this.authErrors = 0;
+    localStorage.removeItem('auth_error_count');
+    localStorage.removeItem('auth_error_refresh_needed');
+    localStorage.removeItem('use_fallback_data');
+
+    // Start the new session clean: wipe any order caches left by a previous
+    // session so the barista screen doesn't flash the old event's orders
+    // before the live queue loads. clearOrderCaches() handles localStorage;
+    // also drop OrderDataService's in-memory cache for the SPA-navigation
+    // case (login without a full page reload).
+    clearOrderCaches();
+    try { OrderDataService.invalidateCache('orders'); } catch (e) { /* non-fatal */ }
+    
+    // Redirect to the appropriate dashboard based on user role
+    if (redirect) this.redirectBasedOnRole(userData.role);
+    
+    return {
+      token: data.token,
+      refreshToken: data.refreshToken,
+      user: userData,
+      expiresIn: data.expiresIn || 3600
+    };
   }
 
   /**

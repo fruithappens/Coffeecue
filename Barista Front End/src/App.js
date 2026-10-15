@@ -9,6 +9,7 @@ import MobileOrderPage from './components/display/MobileOrderPage';
 import MyCoffeePage from './components/display/MyCoffeePage';
 import HowToOrderPage from './components/display/HowToOrderPage';
 import StatusPage from './components/display/StatusPage';
+import DeviceSetupPage from './components/display/DeviceSetupPage';
 import DisplaySelector from './components/display/DisplaySelector';
 import DesignSheet from './components/design/DesignSheet';
 import RunnerInterface from './components/runner/RunnerInterface';
@@ -47,7 +48,7 @@ const ToRunner = () => {
 // are deliberately unauthenticated, so anything that reports "you are not
 // connected" because an authenticated call failed is telling them about a
 // call their screen was never going to make.
-const PUBLIC_SCREEN_PATHS = ['/display', '/displays', '/order', '/my', '/track', '/sponsors', '/status'];
+const PUBLIC_SCREEN_PATHS = ['/display', '/displays', '/order', '/my', '/track', '/sponsors', '/status', '/setup'];
 const PublicScreenGate = ({ children }) => {
   const path = (typeof window !== 'undefined' ? window.location.pathname : '') || '';
   const isPublic = PUBLIC_SCREEN_PATHS.some(
@@ -589,6 +590,7 @@ function App() {
           <Route path="/how" element={<HowToOrderPage />} />
           {/* Is this event's coffee working? Public, nothing personal (U4-4). */}
           <Route path="/status" element={<StatusPage />} />
+          <Route path="/setup/:code" element={<DeviceSetupPage />} />
           <Route path="/displays" element={<DisplaySelector />} />
           {/* The design system's component sheet (phase 3 checkpoint). */}
           <Route path="/design" element={<DesignSheet />} />

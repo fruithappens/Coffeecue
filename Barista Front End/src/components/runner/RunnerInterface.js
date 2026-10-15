@@ -55,6 +55,7 @@ import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
+import SetupDeviceCard from './SetupDeviceCard';
 import ReleaseFreezeCard from './ReleaseFreezeCard';
 import LedgerTab from './LedgerTab';
 import TwoStepCard from './TwoStepCard';
@@ -183,7 +184,7 @@ const RunnerInterface = () => {
       {activeSection === 'messages' && activeTab === 'blocked' && <SmsBlocklistTab />}
 
       {/* Every screen CupQ can put on a wall, plus where the look is set. */}
-      {activeSection === 'screens' && <div className="cq"><DisplaySelector embedded /></div>}
+      {activeSection === 'screens' && <div className="cq"><SetupDeviceCard /><DisplaySelector embedded /></div>}
       {activeSection === 'printers' && <PrintersTab />}
 
       {activeSection === 'report' && activeTab === 'summary' && <ReportTab />}
