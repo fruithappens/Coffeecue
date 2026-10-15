@@ -31,7 +31,35 @@ python scripts/new_client.py <slug> --event-file ~/cupq-demo-events/<event>.cupq
 ```
 Prints every step, every setting and anything still missing.
 
-## Build it
+## Build it: one command
+
+```bash
+python scripts/new_client.py <slug> --apply --region sg --event-file ~/cupq-demo-events/<event>.cupq-event.json
+```
+
+About 10 minutes, almost all of it Railway building the server. It does
+steps 1-12 below in order and writes what it made to
+`~/cupq-fleet/<slug>.json` (ids only, no secrets). If it stops part-way
+(a Railway hiccup), run the same command again: it picks up where it
+stopped and never makes anything twice.
+
+- `--region`: `sg` Singapore (default, closest to Australia), `us`, `eu`
+- `--demo`: texts off, for a trial or demo copy
+- It refuses to start without the Railway and Cloudflare tokens, or if
+  the address is already taken.
+- It adds the copy to cupq.app's fleet board (the `FLEET_COPIES`
+  setting; it shows after cupq.app's next deploy) and gives it the fleet
+  token so the board can read its numbers. If cupq.app has no fleet token
+  yet, it makes one, but only when no event is on (setting it restarts
+  cupq.app for about a second).
+- The database disk is made in the chosen region from the start and
+  checked (the demo build's trap below).
+- It never deletes anything or buys a text number.
+
+`python scripts/fleet_apply.py list` shows every copy, its region and
+whether its server is running.
+
+## Build it by hand (what the command does)
 
 Every call goes through `scripts/railway_api.py` (Railway's API, reading
 the token from `~/.zshrc`). **The Railway CLI refuses workspace tokens**
@@ -112,6 +140,9 @@ that uses your normal login (`env -u RAILWAY_API_TOKEN railway ...`).
   volume before calling the copy done. Then restart web.
 - **Railway SSH needs an SSH key** registered with Railway. We didn't
   make one; the first-admin line is the way in.
+- **Database version.** Railway's template now makes Postgres 18 (demo is
+  on 18, cupq.app on 16). Dumping a copy needs `pg_dump` 18; the nightly
+  backup job (cupq.app only) uses 16, which is right for cupq.app.
 - **Timing from a Mac on a VPN is meaningless.** Both copies measured
   the same because the traffic left through the US. Measure a new region
   from a phone on an Australian network.
@@ -125,7 +156,15 @@ that uses your normal login (`env -u RAILWAY_API_TOKEN railway ...`).
 
 ## Retire a copy
 
-Runner > Settings > Retire this event (erase attendee details, keep the
-numbers), download the report, then stop the web service (parked, about
-$1.70 a month) or delete the project in the Railway dashboard (Steve
-deletes, there's no undo). Remove its two Cloudflare records.
+1. Runner > Settings > Retire this event (erase attendee details, keep
+   the numbers), and download the report.
+2. Park it: `python scripts/fleet_apply.py park <slug>` stops the web
+   server, keeping the database (about $1.70 a month).
+   `python scripts/fleet_apply.py wake <slug>` brings it back on the same
+   version, with no rebuild. It won't park cupq.app.
+3. Or delete the project in the Railway dashboard (Steve deletes, there's
+   no undo) and remove its two Cloudflare records.
+
+Names that can't be a client: www, api, app, admin, staging, next, mail,
+status, cupq (ours). A trial copy for testing releases could be
+`preview.cupq.app`.
