@@ -70,7 +70,11 @@ Checked, on a separate virtualenv so nothing shared was touched:
   rasterising). Side by side they look identical.
 - Rate limits with production settings: venue reads capped as set,
   unlisted reads at 5,000/hour, login throttled after 10.
-- Then on demo.cupq.app before cupq.app (see the PR).
+- On demo.cupq.app (pointed at this branch, then back to main) before
+  cupq.app. 1,000-phone load test, same hour, old vs new libraries:
+  median phone wait 2.25 s vs 2.39 s, failed checks 10.5% vs 3.4%, orders
+  lost 0 vs 0. Web restart drill on the new libraries: one failed probe,
+  recovered by itself.
 
 ## Frontend
 
