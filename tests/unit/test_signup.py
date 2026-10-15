@@ -93,3 +93,14 @@ def test_build_command_carries_nothing_a_stranger_typed():
         cmd = view().get_json()["signups"][0]["build_command"]
     assert cmd == ("cd ~/expresso && python3 scripts/new_client.py acme --apply --region sg "
                    "--event-file ~/Downloads/acme.cupq-event.json")
+
+
+def test_quote_uses_their_plan_or_the_one_their_headcount_fits():
+    q = su.quote_for({"plan": "unsure", "attendees": "300", "starts": "2026-11-03", "ends": "2026-11-04"})
+    assert (q["tier"], q["suggested"], q["days"], q["subtotal"], q["total"]) == ("standard", True, 2, 980.0, 1078.0)
+    q = su.quote_for({"plan": "lite", "attendees": "900", "starts": "2026-11-03", "ends": "2026-11-03"})
+    assert (q["tier"], q["suggested"], q["subtotal"]) == ("lite", False, 290.0)  # their choice wins
+    assert su.quote_for({"plan": "unsure", "attendees": "2,500"})["quoted_separately"] is True
+    assert su.quote_for({"plan": "pro", "starts": "2026-11-05", "ends": "2026-11-03"})["days"] == 1  # backwards dates
+    assert [su.suggest_tier(n) for n in ("120", "150", "151", "1000", "1001", "", "about 80")] == \
+        ["lite", "lite", "standard", "pro", "urn", "standard", "lite"]
