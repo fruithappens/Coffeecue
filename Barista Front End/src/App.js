@@ -12,6 +12,7 @@ import StatusPage from './components/display/StatusPage';
 import DeviceSetupPage from './components/display/DeviceSetupPage';
 import StartPage from './components/signup/StartPage';
 import PrivacyPage from './components/display/PrivacyPage';
+import TryPage, { TryPhoneLanding } from './components/demo/TryPage';
 import { isPublicPath } from './utils/publicPaths';
 import DisplaySelector from './components/display/DisplaySelector';
 import DesignSheet from './components/design/DesignSheet';
@@ -253,7 +254,7 @@ function App() {
         });
         if (!resp.ok || cancelled) return;
         // CupQ's own sign-up page keeps its own title (not the event's).
-        if (window.location.pathname === '/start') return;
+        if (['/start', '/privacy', '/try'].includes(window.location.pathname)) return;
         const data = await resp.json();
         const evt = (data?.config?.event_name || '').trim();
         const sys = (data?.config?.system_name || 'CupQ').trim();
@@ -592,6 +593,8 @@ function App() {
           <Route path="/setup/:code" element={<DeviceSetupPage />} />
           <Route path="/start" element={<StartPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/try" element={<TryPage />} />
+          <Route path="/try/phone" element={<TryPhoneLanding />} />
           <Route path="/displays" element={<DisplaySelector />} />
           {/* The design system's component sheet (phase 3 checkpoint). */}
           <Route path="/design" element={<DesignSheet />} />
