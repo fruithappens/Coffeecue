@@ -552,7 +552,9 @@ const DisplayScreen = () => {
   // Background video (public /api/display/bg-video). Portrait + landscape;
   // the display plays the one matching its own orientation.
   const [bgVideo, setBgVideo] = useState({ portrait: '', landscape: '' });
-  const [showKiosk, setShowKiosk] = useState(false);
+  // ?open=1 opens straight into ordering (the live demo's touchscreen,
+  // demo.cupq.app/try); closing it returns to the board as usual.
+  const [showKiosk, setShowKiosk] = useState(() => searchParams.get('open') === '1');
 
   // Track which orders are "new" so we can pulse-highlight ready
   // ones when they appear. Map of order_id → timestamp first seen.

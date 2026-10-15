@@ -1,29 +1,38 @@
 // TryPage.js — demo.cupq.app/try: order a coffee and watch it travel.
 //
-// Public and self-guided. The visitor orders by text on the page (a demo
-// number, texts shown here, never sent) or on their own phone from the QR,
-// then presses Next to play the barista: Start, Ready, Collected. Each
-// press calls the real barista route on the server (routes/try_routes.py),
-// so the texts, the cup label, the customer's phone page and the board all
-// change for real. Autoplay does the presses for them.
+// Public and self-guided, on the real system. Step 1 picks one of the four
+// ways people order at an event, each shown as the REAL screen in its
+// device: the phone page from the QR (or on your own phone), a text to the
+// cart, the touchscreen at the cart, and the same phone page inside an
+// event app (how EventsAir shows it). Then Next plays the barista: Start,
+// Ready, Collected, through the real barista routes (routes/try_routes.py),
+// so the texts, the cup label, the customer's watch screen and the board
+// all change for real. Autoplay does the presses.
 //
-// /try/phone?src=… is where the QR lands on their phone: it marks the
-// session as a demo, then opens the real ordering page tagged with src.
+// Orders placed in the frames carry the session's tag (?src=), which is how
+// this page finds them; texts come from the session's demo number.
+// /try/phone?src=… is where the QR lands on the visitor's own phone.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { QrCode, MessageCircle, MonitorSmartphone, AppWindow, ChevronLeft, CalendarDays, Users, Coffee, Map } from 'lucide-react';
 
+const METHODS = [
+  { key: 'qr', Icon: QrCode, title: 'Scan the QR', line: 'Order from your seat on the phone page' },
+  { key: 'sms', Icon: MessageCircle, title: 'Text the cart', line: 'Plain English, any phone, no app' },
+  { key: 'kiosk', Icon: MonitorSmartphone, title: 'Touchscreen', line: 'At the cart, for anyone without a phone' },
+  { key: 'app', Icon: AppWindow, title: 'In the event app', line: 'Inside EventsAir, without leaving the app' },
+];
 const STEPS = [
-  { key: 'order', title: 'Order a coffee', next: null },
-  { key: 'start', title: 'The barista starts it', next: 'start', button: 'Next: barista taps Start' },
-  { key: 'ready', title: 'It\'s ready', next: 'ready', button: 'Next: barista taps Ready' },
-  { key: 'collect', title: 'Collected', next: 'collect', button: 'Next: customer collects it' },
+  { title: 'Order', next: null },
+  { title: 'Barista starts it', next: 'start', button: 'Next: barista taps Start' },
+  { title: 'Ready to collect', next: 'ready', button: 'Next: barista taps Ready' },
+  { title: 'Collected', next: 'collect', button: 'Next: they collect it' },
 ];
 const STATUS_STEP = { pending: 1, 'in-progress': 2, in_progress: 2, completed: 3, ready: 3, picked_up: 4, collected: 4 };
 const AUTOPLAY_MS = 4500;
+const CAME_FROM = { qr: 'from the phone page (QR)', sms: 'by text', kiosk: 'from the touchscreen', app: 'from the event app' };
 
 async function call(path, opts = {}) {
-  const r = await fetch(`/api/try${path}`, {
-    ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
-  });
+  const r = await fetch(`/api/try${path}`, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
   const b = await r.json().catch(() => ({}));
   if (!r.ok || b.success === false) {
     const err = new Error(b.message || `Something went wrong (${r.status})`);
@@ -33,7 +42,7 @@ async function call(path, opts = {}) {
   return b;
 }
 
-// A page at its real size, scaled down to fit its column.
+// A page at its real size (w x h), scaled down to fill its box's width.
 function Scaled({ src, w, h, title }) {
   const ref = useRef(null);
   const [scale, setScale] = useState(0.3);
@@ -47,11 +56,44 @@ function Scaled({ src, w, h, title }) {
     return () => ro.disconnect();
   }, [w]);
   return (
-    <div ref={ref} className="relative overflow-hidden rounded-cq-lg border-4 border-cq-roast bg-black" style={{ height: h * scale }}>
+    <div ref={ref} className="relative overflow-hidden bg-white" style={{ height: h * scale }}>
       <iframe src={src} title={title} style={{ width: w, height: h, border: 0, transform: `scale(${scale})`, transformOrigin: 'top left' }} />
     </div>
   );
 }
+
+const Phone = ({ children }) => (
+  <div className="mx-auto w-full max-w-[340px] rounded-[2.6rem] bg-cq-roast p-3 shadow-cq-raised">
+    <div className="rounded-[2rem] overflow-hidden bg-white">
+      <div className="h-6 bg-cq-roast/90 flex items-center justify-center"><div className="w-20 h-1.5 rounded-full bg-black/40" /></div>
+      {children}
+    </div>
+  </div>
+);
+
+// Upright, like the iPad on its stand at the cart.
+const Tablet = ({ children }) => (
+  <div className="mx-auto w-full max-w-[400px] rounded-[1.6rem] bg-cq-roast p-3 shadow-cq-raised">
+    <div className="rounded-[1rem] overflow-hidden bg-white">{children}</div>
+  </div>
+);
+
+// A plain event-app shell: how a page looks inside an event app (EventsAir
+// shows cupq.app/my as a page in the app). Generic on purpose: no client's
+// or vendor's branding in a public repo.
+const AppShell = ({ children }) => (
+  <>
+    <div className="h-11 bg-[#1f3a5f] text-white flex items-center gap-2 px-3 text-sm font-bold">
+      <ChevronLeft size={18} /> Coffee <span className="ml-auto text-xs font-semibold opacity-80">Your event app</span>
+    </div>
+    {children}
+    <div className="h-12 border-t border-cq-line bg-white grid grid-cols-4 text-[10px] text-cq-ink-3">
+      {[[CalendarDays, 'Agenda'], [Users, 'Speakers'], [Coffee, 'Coffee'], [Map, 'Map']].map(([I, l]) => (
+        <div key={l} className={`flex flex-col items-center justify-center gap-0.5 ${l === 'Coffee' ? 'text-[#1f3a5f] font-bold' : ''}`}><I size={16} />{l}</div>
+      ))}
+    </div>
+  </>
+);
 
 function Panel({ title, hint, children }) {
   return (
@@ -75,11 +117,10 @@ export function TryPhoneLanding() {
 
 export default function TryPage() {
   const [session, setSession] = useState(null);
+  const [method, setMethod] = useState('qr');
   const [error, setError] = useState('');
   const [texts, setTexts] = useState([]);
   const [order, setOrder] = useState(null);
-  const [menu, setMenu] = useState({ drinks: [], milks: [], sizes: [] });
-  const [pick, setPick] = useState({ name: '', drink: '', milk: '', size: '' });
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [auto, setAuto] = useState(false);
@@ -90,21 +131,11 @@ export default function TryPage() {
 
   const begin = useCallback(async () => {
     setError(''); setTexts([]); setOrder(null); setAuto(false);
+    // Orders placed in the frames below are tagged as demo orders.
+    try { sessionStorage.setItem('cupq_demo', '1'); } catch (e) { /* private mode */ }
     try { setSession(await call('/session', { method: 'POST' })); } catch (e) { setError(e.message); }
   }, []);
   useEffect(() => { begin(); }, [begin]);
-
-  useEffect(() => {
-    fetch('/api/display/menu').then((r) => r.json()).then((b) => {
-      const m = b.menu || {};
-      const name = (x) => (typeof x === 'string' ? x : x.name || x.value || '');
-      setMenu({
-        drinks: (m.coffee_types || []).map(name).filter(Boolean).slice(0, 8),
-        milks: (m.milks || []).map(name).filter(Boolean).slice(0, 6),
-        sizes: (m.sizes || []).map(name).filter(Boolean),
-      });
-    }).catch(() => undefined);
-  }, []);
 
   // Follow the session: texts and the order, every 2 seconds.
   useEffect(() => {
@@ -137,18 +168,6 @@ export default function TryPage() {
     setBusy(false);
   };
 
-  // The menu chips text the whole order, one message at a time, like a person.
-  const orderByText = async () => {
-    const name = pick.name.trim() || 'Sam';
-    // Always a complete order, so the bot can confirm it in one go: the size
-    // they picked or the menu's first, their milk, their drink or the first.
-    const size = pick.size || menu.sizes[0] || '';
-    const drink = [size, pick.milk && pick.milk !== 'full cream' ? pick.milk : '', pick.drink || menu.drinks[0] || 'flat white'].filter(Boolean).join(' ');
-    await send('Hi');
-    await send(name);
-    await send(drink);
-  };
-
   const advance = useCallback(async (action) => {
     if (!session) return;
     setBusy(true); setError('');
@@ -160,9 +179,8 @@ export default function TryPage() {
     setBusy(false);
   }, [session]);
 
-  // Autoplay: press the next barista button every few seconds.
-  // Keyed on the order's STATUS, not the order object: the 2-second poll
-  // hands back a new object each time, which restarted this timer forever.
+  // Autoplay. Keyed on the order's STATUS, not the order object: the poll
+  // hands back a new object every 2 seconds, which restarted this timer.
   const orderStatus = order ? String(order.status) : '';
   const nextAction = nextStep?.next || '';
   useEffect(() => {
@@ -171,8 +189,61 @@ export default function TryPage() {
     return () => clearTimeout(t);
   }, [auto, orderStatus, done, busy, nextAction, advance]);
 
-  const phoneUrl = session ? `${window.location.origin}/try/phone?src=${session.src}` : '';
-  const chip = (on) => `h-9 px-3 rounded-full text-sm font-semibold border-2 ${on ? 'bg-cq-caramel text-white border-cq-caramel' : 'bg-white text-cq-roast border-cq-line'}`;
+  const src = session?.src || '';
+  const phoneUrl = session ? `${window.location.origin}/try/phone?src=${src}` : '';
+  const placed = !!order;
+  const viaText = order?.via === 'text';
+
+  const textThread = (canType) => (
+    <div className="flex flex-col h-[560px]">
+      <div className="px-3 py-2 text-center text-xs font-semibold text-cq-ink-2 bg-cq-wash">CupQ · from {session?.phone}</div>
+      <div className="flex-1 p-3 space-y-2 overflow-y-auto">
+        {texts.length === 0 && (
+          <div className="text-center pt-6 space-y-3">
+            <p className="text-sm text-cq-ink-3">Text the cart like you'd text a friend.</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {['Hi', 'Large oat flat white for Sam'].map((s) => (
+                <button key={s} type="button" onClick={() => send(s)} className="h-8 px-3 rounded-full bg-cq-wash text-cq-roast text-sm font-semibold">{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {texts.map((t) => {
+          const mine = t.direction === 'in';
+          return (
+            <div key={t.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`}
+                style={mine ? { background: '#0A84FF', color: '#fff' } : { background: '#E9E9EB', color: '#111' }}>{t.body}</div>
+            </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+      {canType && (
+        <form className="flex gap-2 p-2 border-t border-cq-line" onSubmit={(e) => { e.preventDefault(); const t = draft; setDraft(''); send(t); }}>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Text message" aria-label="Text message"
+            className="flex-1 min-w-0 h-10 px-3 rounded-full border-2 border-cq-line text-cq-roast" />
+          <button type="submit" disabled={busy || !draft.trim()} className="h-10 px-4 rounded-full bg-cq-roast text-cq-cream font-bold disabled:opacity-50">Send</button>
+        </form>
+      )}
+    </div>
+  );
+
+  // The customer's side: the chosen way to order, then their watch screen.
+  const customer = () => {
+    if (!session) return <div className="text-cq-ink-3 p-6">Setting up your demo…</div>;
+    if (placed && viaText) return <Phone>{textThread(false)}</Phone>;
+    if (placed) {
+      const watch = `/order?order=${order.number}`;
+      return method === 'app'
+        ? <Phone><AppShell><Scaled src={watch} w={390} h={700} title="Their watch screen" /></AppShell></Phone>
+        : <Phone><Scaled src={watch} w={390} h={760} title="Their watch screen" /></Phone>;
+    }
+    if (method === 'sms') return <Phone>{textThread(true)}</Phone>;
+    if (method === 'kiosk') return <Tablet><Scaled key={`kiosk-${src}`} src={`/display?kiosk=1&open=1&src=${src}`} w={834} h={1112} title="Touchscreen at the cart" /></Tablet>;
+    if (method === 'app') return <Phone><AppShell><Scaled key={`app-${src}`} src={`/order?new=1&src=${src}`} w={390} h={700} title="Ordering in the event app" /></AppShell></Phone>;
+    return <Phone><Scaled key={`qr-${src}`} src={`/order?new=1&src=${src}`} w={390} h={760} title="The phone ordering page" /></Phone>;
+  };
 
   return (
     <div className="cq min-h-screen bg-cq-cream px-4 py-6">
@@ -180,137 +251,112 @@ export default function TryPage() {
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-sm font-bold text-cq-caramel-deep tracking-wide">CupQ · live demo</div>
-            <h1 className="text-3xl font-extrabold text-cq-roast">Order a coffee and watch it travel</h1>
-            <p className="text-cq-ink-2 mt-1 max-w-[70ch]">
-              This is the real system. Order by text below, or on your own phone with the QR code, then press Next to play the barista.
-            </p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-cq-roast">Order a coffee and watch it travel</h1>
+            <p className="text-cq-ink-2 mt-1 max-w-[70ch]">The real system. Pick how you'd order, place it, then play the barista.</p>
           </div>
           <a href="https://cupq.com.au" className="text-sm font-semibold text-cq-caramel-deep underline underline-offset-4">Back to cupq.com.au</a>
         </header>
 
-        <ol className="flex flex-wrap gap-2" aria-label="Steps">
-          {STEPS.map((s, i) => (
-            <li key={s.key} className={`px-3 h-9 inline-flex items-center rounded-full text-sm font-bold ${i < step ? 'bg-cq-ready text-white' : i === step ? 'bg-cq-roast text-cq-cream' : 'bg-cq-wash text-cq-ink-3'}`}>
-              {i + 1}. {s.title}
-            </li>
-          ))}
-        </ol>
+        {/* Four ways in */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" role="tablist" aria-label="How to order">
+          {METHODS.map((m) => {
+            const on = method === m.key;
+            return (
+              <button key={m.key} type="button" role="tab" aria-selected={on} disabled={placed}
+                onClick={() => setMethod(m.key)}
+                className={`text-left rounded-cq-lg p-3 border-2 transition-colors disabled:cursor-default ${on ? 'bg-cq-roast border-cq-roast text-cq-cream' : 'bg-cq-milk border-cq-line text-cq-roast hover:border-cq-caramel'} ${placed && !on ? 'opacity-50' : ''}`}>
+                <m.Icon size={22} />
+                <div className="font-extrabold mt-1">{m.title}</div>
+                <div className={`text-xs ${on ? 'text-cq-cream/80' : 'text-cq-ink-3'}`}>{m.line}</div>
+              </button>
+            );
+          })}
+        </div>
 
         {error && <div role="alert" className="rounded-cq-md bg-cq-alert-wash text-cq-alert font-semibold p-3 text-sm">{error} <button type="button" onClick={begin} className="underline ml-2">Start again</button></div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* The customer */}
-          <div className="space-y-4 min-w-0">
-            {!order || order.via === 'text' ? (
-              <Panel title="Your phone: texts" hint={session ? `From ${session.phone}, a demo number. Shown here, never sent.` : ''}>
-                <div className="rounded-[2rem] border-8 border-cq-roast bg-white overflow-hidden flex flex-col">
-                  <div className="px-3 py-2 text-center text-xs font-semibold text-cq-ink-2 bg-cq-wash">Messages · CupQ</div>
-                  <div className="p-3 space-y-2 h-72 overflow-y-auto">
-                    {texts.length === 0 && <p className="text-sm text-cq-ink-3 text-center pt-6">Pick a coffee below, or type "Hi".</p>}
-                    {texts.map((t) => {
-                      const mine = t.direction === 'in';
-                      return (
-                        <div key={t.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`}
-                            style={mine ? { background: '#0A84FF', color: '#fff' } : { background: '#E9E9EB', color: '#111' }}>{t.body}</div>
-                        </div>
-                      );
-                    })}
-                    <div ref={endRef} />
-                  </div>
-                  <form className="flex gap-2 p-2 border-t border-cq-line" onSubmit={(e) => { e.preventDefault(); const t = draft; setDraft(''); send(t); }}>
-                    <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Text the coffee cart" aria-label="Text message"
-                      className="flex-1 min-w-0 h-10 px-3 rounded-full border-2 border-cq-line text-cq-roast" />
-                    <button type="submit" disabled={busy || !draft.trim()} className="h-10 px-4 rounded-full bg-cq-roast text-cq-cream font-bold disabled:opacity-50">Send</button>
-                  </form>
-                </div>
-              </Panel>
-            ) : (
-              <Panel title="Your phone: the order page" hint="What the customer sees. The beacon changes colour and chimes when it's ready.">
-                <Scaled src={`/order?order=${order.number}`} w={390} h={760} title="Customer's order page" />
-              </Panel>
-            )}
-
-            {!order && (
-              <Panel title="The menu" hint="Tap your coffee and it's texted for you.">
-                <div className="space-y-2">
-                  <input value={pick.name} onChange={(e) => setPick({ ...pick, name: e.target.value })} placeholder="Your first name" aria-label="Your first name"
-                    className="w-full h-10 px-3 rounded-cq-md border-2 border-cq-line bg-white text-cq-roast" />
-                  <div className="flex flex-wrap gap-2">{menu.drinks.map((d) => <button key={d} type="button" className={chip(pick.drink === d)} onClick={() => setPick({ ...pick, drink: d })}>{d}</button>)}</div>
-                  <div className="flex flex-wrap gap-2">{menu.milks.map((m) => <button key={m} type="button" className={chip(pick.milk === m)} onClick={() => setPick({ ...pick, milk: m })}>{m}</button>)}</div>
-                  <div className="flex flex-wrap gap-2">{menu.sizes.map((s) => <button key={s} type="button" className={chip(pick.size === s)} onClick={() => setPick({ ...pick, size: s })}>{s}</button>)}</div>
-                  <button type="button" disabled={busy || !session} onClick={orderByText}
-                    className="w-full h-11 rounded-cq-md bg-cq-roast text-cq-cream font-extrabold disabled:opacity-50">Text my order</button>
-                </div>
-              </Panel>
-            )}
-
-            {!order && session && (
-              <Panel title="Or use your own phone" hint="Scan with your phone's camera and order on the real page.">
-                <div className="bg-white rounded-cq-lg border border-cq-line p-3 flex items-center gap-3">
-                  <img alt="QR code: order on your own phone" width={132} height={132} src={`/api/qr?size=5&data=${encodeURIComponent(phoneUrl)}`} />
-                  <p className="text-sm text-cq-ink-2">Your phone shows the real order page and pickup beacon. This screen shows everything behind the counter.</p>
-                </div>
-              </Panel>
+          <div className="lg:col-span-5 space-y-3 min-w-0">
+            <h2 className="text-lg font-extrabold text-cq-roast">{placed ? 'Their phone, watching' : 'You, ordering'}</h2>
+            <p className="text-sm text-cq-ink-3 -mt-2">
+              {placed
+                ? (viaText ? 'Every step arrives as a text.' : 'The beacon changes colour and chimes when it\'s ready.')
+                : method === 'sms' ? `You're texting from ${session?.phone || 'a demo number'}. Shown here, never sent.`
+                  : method === 'kiosk' ? 'Tap a drink, add a name. A phone number is optional.'
+                    : 'Tap a drink, add your name, done.'}
+            </p>
+            {customer()}
+            {!placed && method === 'qr' && session && (
+              <div className="bg-cq-milk rounded-cq-lg border border-cq-line p-3 flex items-center gap-3">
+                <img alt="QR code: order on your own phone" width={110} height={110} src={`/api/qr?size=4&data=${encodeURIComponent(phoneUrl)}`} />
+                <p className="text-sm text-cq-ink-2"><b className="text-cq-roast">Use your own phone.</b> Scan this and order there; this screen keeps showing everything behind the counter.</p>
+              </div>
             )}
           </div>
 
-          {/* The barista */}
-          <div className="space-y-4 min-w-0">
-            <Panel title="Next step">
-              <div className="bg-cq-milk rounded-cq-xl shadow-cq-card p-4 space-y-3">
-                {!order && <p className="text-cq-ink-2">Order a coffee first. It appears on the barista's screen straight away.</p>}
-                {order && !done && (
-                  <>
-                    <button type="button" disabled={busy} onClick={() => advance(nextStep.next)}
-                      className="w-full h-12 rounded-cq-md bg-cq-caramel text-white font-extrabold text-lg disabled:opacity-50">{nextStep.button}</button>
-                    <label className="flex items-center gap-2 text-sm text-cq-ink-2">
-                      <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Play the rest automatically
-                    </label>
-                  </>
-                )}
-                {done && (
-                  <div className="space-y-3">
-                    <p className="font-bold text-cq-roast">That's CupQ: ordered, made, labelled, collected, and nobody queued.</p>
-                    <div className="flex flex-wrap gap-2">
-                      <a href="https://cupq.app/start" className="h-11 px-4 inline-flex items-center rounded-cq-md bg-cq-roast text-cq-cream font-bold">Get started</a>
-                      <a href="https://cupq.com.au/#demo" className="h-11 px-4 inline-flex items-center rounded-cq-md border-2 border-cq-line text-cq-roast font-bold">Book a demo</a>
-                      <button type="button" onClick={begin} className="h-11 px-4 rounded-cq-md text-cq-caramel-deep font-bold underline underline-offset-4">Try again</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Panel>
+          {/* Behind the counter */}
+          <div className="lg:col-span-7 space-y-4 min-w-0">
+            <h2 className="text-lg font-extrabold text-cq-roast">Behind the counter</h2>
+            <ol className="flex flex-wrap gap-2 -mt-1" aria-label="Steps">
+              {STEPS.map((s, i) => (
+                <li key={s.title} className={`px-3 h-8 inline-flex items-center rounded-full text-xs font-bold ${i < step ? 'bg-cq-ready text-white' : i === step ? 'bg-cq-roast text-cq-cream' : 'bg-cq-wash text-cq-ink-3'}`}>{i + 1}. {s.title}</li>
+              ))}
+            </ol>
 
-            <Panel title="The barista's screen" hint="Every order lands here, with the milk and size up front.">
-              {order ? (
-                <div className="bg-white rounded-cq-lg border-4 border-cq-roast p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-2xl font-extrabold text-cq-roast">{order.name || 'Guest'} <span className="text-cq-ink-3">#{order.number}</span></div>
-                      <div className="text-cq-ink-2 capitalize">{[order.size, order.milk, order.drink].filter(Boolean).join(' · ')}</div>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${step >= 3 ? 'bg-cq-ready text-white' : step === 2 ? 'bg-cq-caramel text-white' : 'bg-cq-wash text-cq-roast'}`}>
-                      {step >= 4 ? 'Collected' : step === 3 ? 'Ready' : step === 2 ? 'Making' : 'New'}
-                    </span>
+            <div className="bg-cq-milk rounded-cq-xl shadow-cq-card p-4">
+              {!placed && <p className="text-cq-ink-2">Place your order on the left. It lands on the barista's screen the moment you send it.</p>}
+              {placed && !done && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" disabled={busy} onClick={() => advance(nextStep.next)}
+                    className="h-12 px-5 rounded-cq-md bg-cq-caramel text-white font-extrabold text-lg disabled:opacity-50">{nextStep.button}</button>
+                  <label className="flex items-center gap-2 text-sm text-cq-ink-2">
+                    <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Play the rest for me
+                  </label>
+                </div>
+              )}
+              {done && (
+                <div className="space-y-3">
+                  <p className="font-bold text-cq-roast">Ordered, made, labelled, collected, and nobody stood in a queue.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <a href="https://cupq.app/start" className="h-11 px-4 inline-flex items-center rounded-cq-md bg-cq-roast text-cq-cream font-bold">Get started</a>
+                    <a href="https://cupq.com.au/#demo" className="h-11 px-4 inline-flex items-center rounded-cq-md border-2 border-cq-line text-cq-roast font-bold">Book a demo</a>
+                    <button type="button" onClick={begin} className="h-11 px-4 rounded-cq-md text-cq-caramel-deep font-bold underline underline-offset-4">Try another way</button>
                   </div>
                 </div>
-              ) : <div className="rounded-cq-lg border-4 border-dashed border-cq-line p-6 text-center text-sm text-cq-ink-3">Waiting for your order</div>}
-            </Panel>
+              )}
+            </div>
 
-            <Panel title="The cup label" hint="Printed the moment the barista starts it.">
-              <div className="rounded-cq-lg border-4 border-cq-roast bg-white p-3 flex items-center justify-center min-h-[7rem]">
-                {order && step >= 2
-                  ? <img key={labelKey} alt={`Cup label for order ${order.number}`} className="max-w-full h-auto" src={`/api/try/label?token=${encodeURIComponent(session.token)}&k=${labelKey}`} />
-                  : <span className="text-sm text-cq-ink-3">Prints when the coffee is started</span>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Panel title="The barista's screen" hint="Milk and size up front, every order in one queue.">
+                {placed ? (
+                  <div className="bg-white rounded-cq-lg border-4 border-cq-roast p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-2xl font-extrabold text-cq-roast truncate">{order.name || 'Guest'} <span className="text-cq-ink-3">#{order.number}</span></div>
+                        <div className="text-cq-ink-2 capitalize">{[order.size, order.milk, order.drink].filter(Boolean).join(' · ')}</div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${step >= 3 ? 'bg-cq-ready text-white' : step === 2 ? 'bg-cq-caramel text-white' : 'bg-cq-wash text-cq-roast'}`}>
+                        {step >= 4 ? 'Collected' : step === 3 ? 'Ready' : step === 2 ? 'Making' : 'New'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-cq-ink-3 mt-2">Came in {viaText ? 'by text' : CAME_FROM[method]}</div>
+                  </div>
+                ) : <div className="rounded-cq-lg border-4 border-dashed border-cq-line p-6 text-center text-sm text-cq-ink-3">Waiting for your order</div>}
+              </Panel>
+              <Panel title="The cup label" hint="Prints the moment the barista starts it.">
+                <div className="rounded-cq-lg border-4 border-cq-roast bg-white p-3 flex items-center justify-center min-h-[7.5rem]">
+                  {placed && step >= 2
+                    ? <img key={labelKey} alt={`Cup label for order ${order.number}`} className="max-w-full h-auto" src={`/api/try/label?token=${encodeURIComponent(session.token)}&k=${labelKey}`} />
+                    : <span className="text-sm text-cq-ink-3">Prints when it's started</span>}
+                </div>
+              </Panel>
+            </div>
+
+            <Panel title="The board at the cart" hint="Names show here when they're ready to collect.">
+              <div className="rounded-cq-lg border-4 border-cq-roast overflow-hidden">
+                <Scaled src={`/display?mode=pickup${order?.station_id ? `&station=${order.station_id}` : ''}`} w={1920} h={1080} title="Pickup board" />
               </div>
-            </Panel>
-          </div>
-
-          {/* The room */}
-          <div className="space-y-4 min-w-0">
-            <Panel title="The pickup board" hint="On a screen by the cart. Names appear when they're ready.">
-              <Scaled src={`/display?mode=pickup${order?.station_id ? `&station=${order.station_id}` : ''}`} w={1080} h={1920} title="Pickup board" />
             </Panel>
           </div>
         </div>
