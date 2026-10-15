@@ -116,6 +116,7 @@ export const SECTION_HELP = {
     points: [
       'People: add a login for each person and choose their role. Baristas only see the barista screen.',
       'Unlock PINs: give each person their own PIN for unlocking a station screen. The log shows who unlocked it.',
+      'On call: who answers on each event day. Alerts and ? button help requests text whoever is on call then, and always the admin alert number.',
       'Roles & access: what each role can open.',
       'Change your own password here, and never share the admin login.',
     ],

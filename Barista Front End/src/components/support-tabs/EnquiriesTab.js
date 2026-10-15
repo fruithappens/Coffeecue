@@ -28,12 +28,25 @@ function HelpRequests() {
   const apiRef = useRef(null);
   if (!apiRef.current) apiRef.current = new ApiServiceClass();
   const [rows, setRows] = useState(null);
+  const [tags, setTags] = useState([]);
+  const [notes, setNotes] = useState({});
   const load = useCallback(async () => {
     try {
       const r = await apiRef.current.get('/support-requests');
       setRows(Array.isArray(r?.requests) ? r.requests : []);
+      setTags(Array.isArray(r?.tags) ? r.tags : []);
     } catch (e) { setRows([]); }
   }, []);
+  // Tag it, take it, or note what was done (U4-6).
+  const triage = async (r, change) => {
+    try {
+      await apiRef.current.request(`/support-requests/${r.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change),
+      });
+      if ('note' in change) setNotes((n) => { const c = { ...n }; delete c[r.id]; return c; });
+      load();
+    } catch (e) { showToast("Couldn't save that", 'error'); }
+  };
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
   const markHandled = async (r) => {
     try { await apiRef.current.post(`/support-requests/${r.id}/handled`, {}); load(); } catch (e) { /* stays */ }
@@ -43,7 +56,10 @@ function HelpRequests() {
   return (
     <div className="mb-6">
       <h3 className="text-base font-bold text-cq-roast mb-1">Help requests {open ? `(${open} open)` : ''}</h3>
-      <p className="text-sm text-cq-ink-3 mb-2">Sent from the ? button on staff screens, with where they were.</p>
+      <p className="text-sm text-cq-ink-3 mb-2">
+        Sent from the ? button on staff screens, with where they were. Each is texted to whoever is on call
+        (People &gt; On call) and the admin alert number. Tag it, say you're on it, and note what fixed it.
+      </p>
       <div className="space-y-2">
         {rows.map(r => (
           <div key={r.id} className={`rounded-cq-md border p-3 ${r.handled_at ? 'border-cq-line bg-cq-wash opacity-70' : 'border-cq-caramel bg-cq-milk'}`}>
@@ -55,6 +71,41 @@ function HelpRequests() {
                   {r.station ? ` · station ${r.station}` : ''}{r.crashes ? ` · ${r.crashes} crash(es) just before` : ''}
                   {r.notified ? ' · texted' : ''}
                 </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <select value={r.tag || ''} onChange={(e) => triage(r, { tag: e.target.value })}
+                    aria-label={`Tag for request ${r.id}`}
+                    className="h-8 px-2 rounded border border-cq-line bg-white text-cq-roast">
+                    <option value="">No tag</option>
+                    {tags.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  {r.taken_by
+                    ? <span className="font-semibold text-cq-roast">{r.taken_by} is on it</span>
+                    : !r.handled_at && (
+                      <button type="button" onClick={() => triage(r, { take: true })}
+                        className="h-8 px-2 rounded border border-cq-line font-semibold text-cq-roast">I'm on it</button>
+                    )}
+                </div>
+                {r.note && notes[r.id] === undefined && (
+                  <div className="mt-2 text-sm text-cq-ink-2 whitespace-pre-wrap">
+                    <span className="text-cq-ink-3">Note: </span>{r.note}
+                    <button type="button" onClick={() => setNotes((n) => ({ ...n, [r.id]: r.note }))}
+                      className="ml-2 text-xs underline">Edit</button>
+                  </div>
+                )}
+                {!r.note && notes[r.id] === undefined && (
+                  <button type="button" onClick={() => setNotes((n) => ({ ...n, [r.id]: '' }))}
+                    className="mt-2 text-xs underline text-cq-ink-2">Add a note</button>
+                )}
+                {notes[r.id] !== undefined && (
+                  <div className="mt-2">
+                    <textarea rows={2} value={notes[r.id]} aria-label={`Note for request ${r.id}`}
+                      onChange={(e) => setNotes((n) => ({ ...n, [r.id]: e.target.value }))}
+                      placeholder="What was wrong, what fixed it"
+                      className="w-full px-2 py-1 rounded border border-cq-line bg-white text-sm text-cq-roast" />
+                    <button type="button" onClick={() => triage(r, { note: notes[r.id] })}
+                      className="mt-1 h-8 px-3 rounded bg-cq-roast text-cq-cream text-xs font-bold">Save note</button>
+                  </div>
+                )}
               </div>
               {!r.handled_at && (
                 <button type="button" onClick={() => markHandled(r)}

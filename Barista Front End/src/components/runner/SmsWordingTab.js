@@ -34,7 +34,8 @@ const SmsWordingTab = () => {
       setMessages(r.messages || []);
       showToast('Saved. The bot uses it from the next text.', 'success');
     } catch (e) {
-      const p = e && e.response && e.response.data && e.response.data.problems;
+      // ApiService puts the server's reply on e.details (not e.response.data).
+      const p = e && e.details && e.details.problems;
       if (p) setProblems(p);
       showToast("Couldn't save: check the messages marked in red", 'error');
     } finally { setBusy(false); }

@@ -56,6 +56,7 @@ import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import HelpCenter from './HelpCenter';
 import SmsWordingTab from './SmsWordingTab';
+import OnCallTab from './OnCallTab';
 import SetupDeviceCard from './SetupDeviceCard';
 import ReleaseFreezeCard from './ReleaseFreezeCard';
 import LedgerTab from './LedgerTab';
@@ -163,6 +164,7 @@ const RunnerInterface = () => {
           <div className="bg-cq-milk rounded-cq-md shadow p-6"><UserManagementTab /></div>
         </>
       )}
+      {activeSection === 'users' && activeTab === 'onCall' && <OnCallTab />}
       {activeSection === 'users' && activeTab === 'access' && <UsersAccessTab />}
 
       {activeSection === 'live' && activeTab === 'readiness' && <ReadinessTab />}
