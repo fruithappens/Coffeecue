@@ -15,7 +15,8 @@ events:
 | web      | 307 MB | under 0.01 vCPU | 852 MB       |
 | Postgres | 151 MB | under 0.01 vCPU | 183 MB       |
 
-Traffic out (egress) is tiny: well under 1 GB a month.
+Traffic out (egress) is small: 6.3 GB on cupq.app in the October 2026
+period (load tests included), about 32c.
 
 ## Railway's prices
 
@@ -99,3 +100,17 @@ Compare them with the latest invoice (Railway dashboard, then Usage).
 If the bill is much higher, the likely cause is a memory spike during an
 event, or a second environment (staging, the Next copy) that is also
 running.
+
+## Checked against Railway (15 Oct 2026)
+
+Railway's own usage estimate for the current billing period, converted at
+the Hobby rates above:
+
+| Copy | Estimate |
+|---|---|
+| cupq.app (Coffee Cue) | about **$5.44** (memory $4.93, egress $0.32, disk $0.15, CPU $0.04) |
+| demo.cupq.app | about **$0.54** (part of a period) |
+
+So "about $5 a month per copy, live" holds. Memory is nearly all of it.
+The actual invoice is in the Railway dashboard (Workspace > Billing).
+
