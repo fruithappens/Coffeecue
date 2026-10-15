@@ -136,10 +136,12 @@ def _notify(row_id, f):
                 )
                 if v
             )
-            send_html_email(
+            res = send_html_email(
                 email, f"CupQ demo request: {who}", f"<table>{rows}</table>"
             )
-            sent = True
+            # Only a real send counts: with email not set up this is a
+            # dry run, and the request used to be marked "notified".
+            sent = sent or bool(getattr(res, "sent", False))
         except Exception as e:
             logger.warning("demo request #%s: email crashed: %s", row_id, e)
 

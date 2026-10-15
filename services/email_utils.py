@@ -12,6 +12,13 @@ Config (env / config.py):
   SMTP_USERNAME   — login
   SMTP_PASSWORD   — login / API key
   SMTP_FROM       — From: address (falls back to SMTP_USERNAME)
+
+Or Microsoft 365 through Microsoft Graph (preferred for cupq.com.au,
+whose mailboxes are M365, where Microsoft has switched off password SMTP):
+  GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET — an app
+      registration with the Mail.Send application permission
+  GRAPH_SENDER    — the mailbox it sends as, e.g. hello@cupq.com.au
+When all four are set, Graph is used and EMAIL_ENABLED is not needed.
 """
 from __future__ import annotations
 
@@ -38,8 +45,57 @@ def _cfg(key: str, default: str = '') -> str:
     return (os.getenv(key, default) or '').strip()
 
 
+def graph_configured() -> bool:
+    return all(_cfg(k) for k in ('GRAPH_TENANT_ID', 'GRAPH_CLIENT_ID',
+                                  'GRAPH_CLIENT_SECRET', 'GRAPH_SENDER'))
+
+
 def email_enabled() -> bool:
-    return _cfg('EMAIL_ENABLED', 'false').lower() == 'true'
+    return graph_configured() or _cfg('EMAIL_ENABLED', 'false').lower() == 'true'
+
+
+_graph_token = {'value': None, 'expires': 0.0}
+
+
+def _graph_access_token() -> str:
+    import time
+    import requests
+
+    if _graph_token['value'] and time.time() < _graph_token['expires'] - 60:
+        return _graph_token['value']
+    r = requests.post(
+        f"https://login.microsoftonline.com/{_cfg('GRAPH_TENANT_ID')}/oauth2/v2.0/token",
+        data={'client_id': _cfg('GRAPH_CLIENT_ID'), 'client_secret': _cfg('GRAPH_CLIENT_SECRET'),
+              'scope': 'https://graph.microsoft.com/.default', 'grant_type': 'client_credentials'},
+        timeout=15)
+    r.raise_for_status()
+    body = r.json()
+    _graph_token['value'] = body['access_token']
+    _graph_token['expires'] = time.time() + int(body.get('expires_in', 3600))
+    return _graph_token['value']
+
+
+def _send_via_graph(to: str, subject: str, html_body: str) -> EmailResult:
+    import requests
+
+    try:
+        sender = _cfg('GRAPH_SENDER')
+        r = requests.post(
+            f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail",
+            headers={'Authorization': f'Bearer {_graph_access_token()}'},
+            json={'message': {'subject': subject,
+                              'body': {'contentType': 'HTML', 'content': html_body},
+                              'toRecipients': [{'emailAddress': {'address': to}}]},
+                  'saveToSentItems': True},
+            timeout=15)
+        if r.status_code == 202:
+            logger.info("Emailed %r via Graph: %r", to, subject)
+            return EmailResult(ok=True, sent=True, detail='sent')
+        logger.error("Graph send to %r refused: %s %s", to, r.status_code, r.text[:200])
+        return EmailResult(ok=False, detail=f'Graph refused: {r.status_code}')
+    except Exception as e:
+        logger.error("Graph send to %r failed: %s", to, e)
+        return EmailResult(ok=False, detail=f'Graph send failed: {e}')
 
 
 def send_html_email(to: str, subject: str, html_body: str,
@@ -53,6 +109,9 @@ def send_html_email(to: str, subject: str, html_body: str,
     to = (to or '').strip()
     if not to or '@' not in to:
         return EmailResult(ok=False, detail='invalid recipient address')
+
+    if graph_configured():
+        return _send_via_graph(to, subject, html_body)
 
     if not email_enabled():
         logger.info("EMAIL_ENABLED off — would email %r: %r", to, subject)
