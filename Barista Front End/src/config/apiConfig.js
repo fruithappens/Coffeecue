@@ -1,3 +1,4 @@
+import { isPublicPath } from '../utils/publicPaths';
 // src/config/apiConfig.js 
 
 // Environment-based API configuration
@@ -260,8 +261,8 @@ const apiRequest = async (endpoint, options = {}) => {
     const refreshed = await refreshAuthToken();
     if (!refreshed) {
       // Token refresh failed, redirect to login or throw error
-      if (typeof window !== 'undefined') {
-        // If in browser environment, can redirect
+      // Never from a public page (ordering, display, sign-up): it needs no login.
+      if (typeof window !== 'undefined' && !isPublicPath()) {
         window.location.href = '/login?session=expired';
       }
       throw new Error('Authentication expired');
