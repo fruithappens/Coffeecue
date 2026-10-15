@@ -14,8 +14,8 @@ import QueueColumn from './queue/QueueColumn';
 import StationPicker from './queue/StationPicker';
 import AdminSheet from './queue/AdminSheet';
 import useLanesLayout from './queue/useLanesLayout';
-import { TabBar, SettingGroup, SettingRow, Toggle as CqToggle, Segmented, SelectRow, SettingNote } from '../../design';
-import { ArrowLeft, ArrowRightLeft, Bell, Brain, Calendar, Check, Clock, Coffee, Eye, Grid, Hand, Layers, MessageCircle, Monitor, Package, Printer, RefreshCw, RotateCw, Scale, Send, Settings, Timer, Truck, Users, Wrench, XCircle } from 'lucide-react';
+import { TabBar, SettingGroup, SettingRow, Toggle as CqToggle, Segmented, SelectRow, TextField } from '../../design';
+import { ArrowLeft, ArrowRightLeft, Bell, Droplet, FileText, MapPin, Tag, Brain, Calendar, Check, Clock, Coffee, Eye, Grid, Hand, Layers, MessageCircle, Monitor, Package, Printer, RefreshCw, RotateCw, Scale, Send, Settings, Timer, Truck, Users, Wrench, XCircle } from 'lucide-react';
 
 // Import app mode context
 import { useAppMode } from '../../context/AppContext';
@@ -431,16 +431,6 @@ const BaristaInterface = () => {
   // Remembers which leaf each group was last on, so leaving a group and
   // coming back returns to the screen you were using rather than the
   // first one.
-  // Text the operator is typing into the refresh-interval box. Separate from
-  // autoRefreshInterval so a half-typed number is not fought by the setter.
-  const [refreshDraft, setRefreshDraft] = useState('');
-  // Seed and re-sync the draft whenever the live value changes elsewhere
-  // (the header's quick picker, or a value restored from storage).
-  useEffect(() => {
-    setRefreshDraft(String(autoRefreshInterval ?? ''));
-  }, [autoRefreshInterval]);
-
-  
   // Handle tab changes to ensure data persists
   // Initialize inventory integration on component mount
   useEffect(() => {
@@ -1619,98 +1609,21 @@ const BaristaInterface = () => {
 
   
     // Dismissible Info Panel Component
-  // Notification Settings Component
-  const NotificationSettings = () => {
-    const [localSettings, setLocalSettings] = useState({
+  // Texts and display settings: saved the moment they change, on this
+  // device and on the server (the public Display is another device and reads
+  // the server copy). Replaces a card that needed its own Save button.
+  const saveNotification = (patch) => {
+    setSettings(prev => ({ ...prev, ...patch }));
+    MessageService.updateSettings({
       autoSendSmsOnComplete: settings.autoSendSmsOnComplete,
       remindAfterDelay: settings.remindAfterDelay,
       reminderDelay: settings.reminderDelay,
-      showNameOnDisplay: settings.showNameOnDisplay
+      showNameOnDisplay: settings.showNameOnDisplay,
+      ...patch,
     });
-    
-    const saveSettings = () => {
-      // Update parent settings (this device's local state + localStorage)
-      setSettings(prev => ({...prev, ...localSettings}));
-
-      // Update MessageService settings
-      MessageService.updateSettings(localSettings);
-
-      // Persist to the BACKEND too. setSettings only writes THIS device's
-      // localStorage, so settings like "Show customer name on display" never
-      // reached the public Display screen (a separate device that reads these
-      // from the backend). updateSettings PUTs to /api/settings and is
-      // non-fatal if the API call fails.
-      SettingsService.updateSettings(localSettings)
-        .then(() => showToast('Notification settings saved', 'success'))
-        .catch(() => showToast(
-          'Saved on this device, but the server sync failed — the public '
-          + 'Display may not reflect these until it succeeds.', 'error', 6000));
-    };
-    
-    return (
-      <div className="p-4 border rounded shadow-cq-card bg-cq-milk">
-        <h3 className="text-lg font-bold mb-4">Notification Settings</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="flex items-center space-x-2">
-              <input 
-                type="checkbox" 
-                checked={localSettings.autoSendSmsOnComplete} 
-                onChange={e => setLocalSettings({...localSettings, autoSendSmsOnComplete: e.target.checked})}
-              />
-              <span>Automatically send SMS when order is completed</span>
-            </label>
-          </div>
-          
-          <div>
-            <label className="flex items-center space-x-2">
-              <input 
-                type="checkbox" 
-                checked={localSettings.showNameOnDisplay} 
-                onChange={e => setLocalSettings({...localSettings, showNameOnDisplay: e.target.checked})}
-              />
-              <span>Show customer name on display screen</span>
-            </label>
-          </div>
-          
-          <div>
-            <label className="flex items-center space-x-2">
-              <input 
-                type="checkbox" 
-                checked={localSettings.remindAfterDelay} 
-                onChange={e => setLocalSettings({...localSettings, remindAfterDelay: e.target.checked})}
-              />
-              <span>Send reminder if order not picked up</span>
-            </label>
-            
-            {localSettings.remindAfterDelay && (
-              <div className="pl-6 mt-2">
-                <label className="flex items-center space-x-2">
-                  <span>Reminder delay (seconds):</span>
-                  <input 
-                    type="number" 
-                    min="10" 
-                    max="300"
-                    value={localSettings.reminderDelay} 
-                    onChange={e => setLocalSettings({...localSettings, reminderDelay: parseInt(e.target.value)})}
-                    className="w-20 p-1 border rounded"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="mt-4 flex justify-end">
-          <button 
-            className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep"
-            onClick={saveSettings}
-          >
-            Save Settings
-          </button>
-        </div>
-      </div>
-    );
+    SettingsService.updateSettings(patch)
+      .then(() => showToast('Saved', 'success', 1500))
+      .catch(() => showToast("Saved on this tablet only: the server didn't answer, so the Display may not follow", 'error', 6000));
   };
 
   // Switch this tablet to another station (from the picker or a watched
@@ -2168,661 +2081,240 @@ const BaristaInterface = () => {
         {/* Enhanced Capabilities Tab — two stacked sections:
             (1) the new per-station milk/drink/size editor that drives
                 _assign_station routing (built May 2026), and
-        {/* Settings Tab. Order matters: Notifications first (the settings
-            a barista actually reaches for mid-service), then station
-            identity, then the housekeeping cards — the old order left a
-            near-empty left column and pushed Notifications below the fold. */}
+        {/* Settings tab, rebuilt on the settings vocabulary (design/Settings.js)
+            to match the Station admin sheet: an icon, a name, one line of hint
+            and one control per row (Steve, 15 Oct 2026: "lots of white space,
+            wordy, could be much cleaner"). Two columns of groups that each
+            take their own height, so nothing stretches over empty space. */}
         {!loading && activeTab === 'settings' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-            {/* Notification Settings — promoted to the top */}
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
-              <NotificationSettings />
-            </div>
-            {/* Team mode — stage chips for multiple baristas sharing this
-                station's iPad. Per-device, default OFF: solo baristas
-                never see the extra chips. */}
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">Team Mode</h2>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={teamMode}
-                  onChange={(e) => setTeamMode(e.target.checked)}
-                />
-                <span>
-                  Stage chips on current orders — when two or more baristas
-                  share this screen, each ticks their part (☕ shots / 🥛 milk)
-                  and COMPLETE lights up when every part is done
-                </span>
-              </label>
-            </div>
-            {/* Order board — how the three columns are arranged and how
-                tightly the cards pack. Per device, because it depends on
-                the screen in front of this barista, not on the event. */}
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">Order board</h2>
-              <div className="space-y-4">
-                <div>
-                  <div className="font-medium mb-1">Column order</div>
-                  <select
-                    className="border rounded px-2 py-1.5 w-full max-w-sm"
-                    value={settings.boardColumnOrder || 'progression'}
-                    onChange={(e) => setSettings(prev => ({ ...prev, boardColumnOrder: e.target.value }))}
-                  >
-                    <option value="progression">Upcoming &rarr; Current &rarr; Ready (follows the work)</option>
-                    <option value="progression-rtl">Ready &larr; Current &larr; Upcoming (right to left)</option>
-                    <option value="current-first">Current &rarr; Upcoming &rarr; Ready (original)</option>
-                  </select>
-                  <p className="text-sm text-cq-ink-3 mt-1">
-                    In the order a coffee actually moves, so your eye follows one
-                    order across the screen. Pick the direction that matches your
-                    bench &mdash; if the queue is on your right and you hand out on
-                    your left, use right to left.
-                  </p>
-                </div>
-                <label className="flex items-start space-x-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 accent-cq-caramel"
-                    checked={!!settings.skipPickedUp}
-                    onChange={(e) => setSettings(prev => ({ ...prev, skipPickedUp: e.target.checked }))}
-                  />
-                  <span>
-                    <span className="font-medium">Completing an order finishes it</span>
-                    <span className="block text-sm text-cq-ink-3">
-                      Hides the Ready for Pickup column so nobody has to tap
-                      Collected. The order still shows as ready on the customer
-                      display. Use this when someone is calling names out rather
-                      than tracking collection.
-                    </span>
-                  </span>
-                </label>
-                {!settings.skipPickedUp && (
-                  <div>
-                    <div className="font-medium mb-1">Ready cards disappear after</div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        min="5"
-                        max="240"
-                        className="border rounded px-2 py-1.5 w-24"
-                        value={settings.readyExpiryMinutes ?? 30}
-                        onChange={(e) => {
-                          // Empty field must not become NaN while they type.
-                          const v = parseInt(e.target.value, 10);
-                          setSettings(prev => ({
-                            ...prev,
-                            readyExpiryMinutes: Number.isNaN(v) ? '' : v,
-                          }));
-                        }}
-                        onBlur={(e) => {
-                          const v = parseInt(e.target.value, 10);
-                          setSettings(prev => ({
-                            ...prev,
-                            readyExpiryMinutes: Number.isNaN(v) ? 30 : Math.min(240, Math.max(5, v)),
-                          }));
-                        }}
-                      />
-                      <span className="text-cq-ink-2">minutes</span>
-                    </div>
-                    <p className="text-sm text-cq-ink-3 mt-1">
-                      Orders with no phone number stay twice as long &mdash; nobody
-                      texted them, so the card is the only reminder to call the name.
-                    </p>
-                  </div>
-                )}
-                <label className="flex items-start space-x-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 accent-cq-caramel"
-                    checked={!!settings.compactOrders}
-                    onChange={(e) => setSettings(prev => ({ ...prev, compactOrders: e.target.checked }))}
-                  />
-                  <span>
-                    <span className="font-medium">Compact cards</span>
-                    <span className="block text-sm text-cq-ink-3">
-                      Fits about a third more orders on screen. Turn this on when
-                      you are making 8&ndash;10 at once or working on a smaller
-                      screen. Order numbers, names and buttons stay full size.
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </div>
-            {/* Label Printing — per-device auto-print toggle. Deliberately
-                OFF by default: the operator opts each station's tablet in
-                once the printer is confirmed working. */}
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">Label Printing</h2>
-              {stationPrinter ? (
-                <div className="space-y-3">
-                  <div className="text-sm text-cq-ink-2 flex items-center">
-                    <Printer size={16} className="mr-2" />
-                    {stationPrinter.name || 'Label printer'} —{' '}
-                    <span className={stationPrinter.online ? 'text-cq-ready font-medium ml-1' : 'text-cq-alert font-medium ml-1'}>
-                      {stationPrinter.online ? 'online' : 'offline'}
-                    </span>
-                  </div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={autoPrintLabels}
-                      onChange={(e) => setAutoPrintLabels(e.target.checked)}
-                    />
-                    <span>Automatically print a cup label when an order is started</span>
-                  </label>
-                  {/* This station's printer: status, fault in words,
-                      and the queue -- so the barista standing next to
-                      the printer can finally see what it is doing. */}
-                  <StationPrinterPanel
-                    stationId={selectedStation}
-                    stationPrinter={stationPrinter}
-                  />
-                  <button
-                    className="bg-cq-line text-cq-ink-2 px-3 py-1.5 rounded text-sm hover:bg-cq-line"
+          <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-x-5 items-start">
+            <div>
+              <SettingGroup title="This station">
+                <SettingRow Icon={Coffee} label="Name" hint="Shown on the queue, labels and board">
+                  <TextField width="w-56" value={settings.stationName || ''}
+                    onChange={(v) => setSettings(prev => ({ ...prev, stationName: v }))} />
+                </SettingRow>
+                <SettingRow Icon={MapPin} label="Location" hint="Where attendees collect">
+                  <TextField width="w-56" placeholder="e.g. Main Hall" value={settings.stationLocation || ''}
+                    onChange={(v) => setSettings(prev => ({ ...prev, stationLocation: v }))} />
+                </SettingRow>
+                <SettingRow Icon={Users} label="Barista" hint="Who's making the coffee here">
+                  <TextField width="w-56" value={settings.baristaName || ''}
+                    onChange={(v) => setSettings(prev => ({ ...prev, baristaName: v }))} />
+                </SettingRow>
+                <div className="py-3 flex justify-end">
+                  <button type="button"
+                    className="h-10 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-bold inline-flex items-center gap-1.5"
                     onClick={async () => {
-                      const r = await printService.testPrint(stationPrinter.id);
-                      showToast(r?.success ? 'Test label queued' : `Test failed: ${r?.message || 'unknown'}`,
-                        r?.success ? 'success' : 'error');
-                    }}
-                  >
-                    Print test label
+                      // The station record on the server is the one place a
+                      // station's name, location and barista live, so every
+                      // device agrees. Only claim success if it succeeded.
+                      if (!updateStation) { showToast('Cannot save: station service unavailable.', 'error', 6000); return; }
+                      try {
+                        const ok = await updateStation(selectedStation, {
+                          name: settings.stationName, location: settings.stationLocation, baristaName: settings.baristaName,
+                        });
+                        showToast(ok === false ? 'Could not save to the server.' : 'Station saved', ok === false ? 'error' : 'success');
+                      } catch (error) {
+                        showToast('Could not save the station. Try again.', 'error', 6000);
+                      }
+                    }}>
+                    <Check size={16} /> Save station
                   </button>
-                  {/* Sideways banner: free text printed lengthwise down
-                      the roll — the stock width (40-80mm) becomes the
-                      banner height, up to ~30cm long. Express-table
-                      signage straight off the printer (Steve). */}
-                  <div className="flex gap-2 pt-2 border-t mt-2">
-                    <input
-                      id="bannerTextInput"
-                      className="flex-1 border rounded px-2 py-1.5 text-sm"
-                      placeholder="Banner text, e.g. FLAT WHITE"
-                      maxLength={60}
-                    />
-                    <button
-                      className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast"
-                      onClick={async () => {
-                        const el = document.getElementById('bannerTextInput');
-                        const text = (el?.value || '').trim();
-                        if (!text) { showToast('Type the banner text first', 'warning'); return; }
-                        try {
-                          const resp = await fetch('/api/print/banner', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
-                            },
-                            body: JSON.stringify({ text, printer_id: stationPrinter.id }),
-                          });
-                          const b = await resp.json();
-                          showToast(b?.success ? `Banner "${text}" queued`
-                            : `Banner failed: ${b?.message || 'unknown'}`,
-                          b?.success ? 'success' : 'error');
-                          if (b?.success && el) el.value = '';
-                        } catch (e) {
-                          showToast(`Banner failed: ${e?.message || 'network'}`, 'error');
-                        }
-                      }}
-                    >
-                      Print banner
-                    </button>
-                  </div>
-                  {/* Pre-stickered cups: a batch of branded stickers for
-                      plain house cups, for an event too small to justify
-                      a custom cup run. Done the night before, not during
-                      service — which is why it asks for a count rather
-                      than printing one at a time. */}
-                  <div className="pt-2 border-t mt-2">
-                    <div className="text-sm text-cq-ink-2 mb-1.5">
-                      Pre-stickered cups &mdash; branded stickers for plain cups
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        id="stickerCountInput"
-                        type="number"
-                        min="1"
-                        max="200"
-                        defaultValue="50"
-                        className="w-24 border rounded px-2 py-1.5 text-sm"
-                      />
-                      {/* A bare href cannot carry the JWT, so this
-                          opened a JSON auth error in a new tab (Steve
-                          hit it this morning). Fetch with the token,
-                          hand the browser a blob URL -- same pattern
-                          the Support printer tab already uses. */}
-                      <button
-                        type="button"
-                        className="text-sm text-cq-caramel-deep underline"
+                </div>
+              </SettingGroup>
+
+              <SettingGroup title="Texts and the display">
+                <SettingRow Icon={MessageCircle} label="Text when ready" hint="The customer gets a text as you complete it">
+                  <CqToggle on={!!settings.autoSendSmsOnComplete} onChange={(v) => saveNotification({ autoSendSmsOnComplete: v })} />
+                </SettingRow>
+                <SettingRow Icon={Bell} label="Reminder if not collected"
+                  hint={settings.remindAfterDelay ? `After ${settings.reminderDelay || 30} seconds` : 'A second text for forgotten cups'}>
+                  {settings.remindAfterDelay ? (
+                    <Segmented size="sm" value={settings.reminderDelay || 30}
+                      onChange={(v) => saveNotification({ reminderDelay: parseInt(v, 10) })}
+                      options={[{ value: 30, label: '30s' }, { value: 60, label: '1m' }, { value: 120, label: '2m' }, { value: 300, label: '5m' }]} />
+                  ) : null}
+                  <CqToggle on={!!settings.remindAfterDelay} onChange={(v) => saveNotification({ remindAfterDelay: v })} />
+                </SettingRow>
+                <SettingRow Icon={Eye} label="Names on the display" hint="Off shows order numbers only">
+                  <CqToggle on={!!settings.showNameOnDisplay} onChange={(v) => saveNotification({ showNameOnDisplay: v })} />
+                </SettingRow>
+              </SettingGroup>
+
+              <SettingGroup title="Sound">
+                <SettingRow Icon={Bell} label="Sounds on this tablet" hint={settings.soundEnabled ? `Volume ${settings.soundVolume ?? 70}%` : 'Chimes for new and ready orders'}>
+                  {settings.soundEnabled ? (
+                    <input type="range" min="0" max="100" aria-label="Volume" value={settings.soundVolume ?? 70}
+                      onChange={(e) => setSettings(prev => ({ ...prev, soundVolume: parseInt(e.target.value, 10) }))}
+                      className="w-28 accent-cq-caramel" />
+                  ) : null}
+                  <CqToggle on={!!settings.soundEnabled} onChange={(on) => {
+                    setSettings(prev => ({ ...prev, soundEnabled: on }));
+                    window.dispatchEvent(new CustomEvent('app:toggleSound', { detail: { enabled: on } }));
+                    if (on) setTimeout(() => window.dispatchEvent(new CustomEvent('app:newOrder')), 300);
+                  }} />
+                </SettingRow>
+                {settings.soundEnabled ? <SoundChoiceRows settings={settings} setSettings={setSettings} /> : null}
+              </SettingGroup>
+            </div>
+
+            <div>
+              <SettingGroup title="Order board">
+                <SettingRow Icon={Layers} label="Column order" hint="Match your bench: queue in, cups out">
+                  <SelectRow ariaLabel="Column order" value={settings.boardColumnOrder || 'progression'}
+                    onChange={(v) => setSettings(prev => ({ ...prev, boardColumnOrder: v }))}
+                    options={[
+                      { value: 'progression', label: 'Upcoming → Ready' },
+                      { value: 'progression-rtl', label: 'Ready ← Upcoming' },
+                      { value: 'current-first', label: 'Current first' },
+                    ]} />
+                </SettingRow>
+                <SettingRow Icon={Check} label="Complete finishes the order" hint="Hides the Ready column; for calling names out">
+                  <CqToggle on={!!settings.skipPickedUp} onChange={(v) => setSettings(prev => ({ ...prev, skipPickedUp: v }))} />
+                </SettingRow>
+                {!settings.skipPickedUp ? (
+                  <SettingRow Icon={Timer} label="Ready cards clear after" hint="Twice as long for orders with no phone">
+                    <Segmented size="sm" value={settings.readyExpiryMinutes ?? 30}
+                      onChange={(v) => setSettings(prev => ({ ...prev, readyExpiryMinutes: parseInt(v, 10) }))}
+                      options={[{ value: 10, label: '10m' }, { value: 20, label: '20m' }, { value: 30, label: '30m' }, { value: 60, label: '1h' }]} />
+                  </SettingRow>
+                ) : null}
+                <SettingRow Icon={Grid} label="Compact cards" hint="About a third more orders on screen">
+                  <CqToggle on={!!settings.compactOrders} onChange={(v) => setSettings(prev => ({ ...prev, compactOrders: v }))} />
+                </SettingRow>
+                <SettingRow Icon={Users} label="Team mode" hint="Two baristas tick shots and milk separately">
+                  <CqToggle on={!!teamMode} onChange={setTeamMode} />
+                </SettingRow>
+                <SettingRow Icon={RefreshCw} label="Check for new orders" hint="How often this tablet looks">
+                  <Segmented size="sm" value={autoRefreshEnabled ? autoRefreshInterval : 0} onChange={(v) => setRefreshInterval(parseInt(v, 10))}
+                    options={[{ value: 0, label: 'Off' }, { value: 5, label: '5s' }, { value: 15, label: '15s' }, { value: 30, label: '30s' }]} />
+                  <button type="button" aria-label="Check now" title="Check now" onClick={() => refreshData()}
+                    className="h-10 w-10 inline-flex items-center justify-center rounded-cq-md bg-cq-wash text-cq-roast">
+                    <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+                  </button>
+                </SettingRow>
+              </SettingGroup>
+
+              <SettingGroup title="Label printer">
+                {stationPrinter ? (
+                  <>
+                    <SettingRow Icon={Printer} label={stationPrinter.name || 'Label printer'}
+                      hint={stationPrinter.online ? 'Online' : 'Offline: check power, paper and the Nighthawk'}>
+                      <span className={`text-sm font-bold ${stationPrinter.online ? 'text-cq-ready' : 'text-cq-alert'}`}>{stationPrinter.online ? 'Online' : 'Offline'}</span>
+                      <button type="button" className="h-10 px-3 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm"
                         onClick={async () => {
+                          const r = await printService.testPrint(stationPrinter.id);
+                          showToast(r?.success ? 'Test label queued' : `Test failed: ${r?.message || 'unknown'}`, r?.success ? 'success' : 'error');
+                        }}>Test</button>
+                    </SettingRow>
+                    <SettingRow Icon={Tag} label="Print when started" hint="A cup label the moment you start an order">
+                      <CqToggle on={!!autoPrintLabels} onChange={setAutoPrintLabels} />
+                    </SettingRow>
+                    <MilkShapeRow stationId={selectedStation} />
+                    <SettingRow Icon={FileText} label="Banner" hint="Text printed lengthwise, e.g. FLAT WHITE">
+                      <input id="bannerTextInput" maxLength={60} placeholder="Banner text" aria-label="Banner text"
+                        className="w-36 h-10 rounded-cq-md border-2 border-cq-line bg-cq-milk px-3 text-cq-roast" />
+                      <button type="button" className="h-10 px-3 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm"
+                        onClick={async () => {
+                          const el = document.getElementById('bannerTextInput');
+                          const text = (el?.value || '').trim();
+                          if (!text) { showToast('Type the banner text first', 'warning'); return; }
                           try {
-                            const resp = await fetch('/api/print/preview?sticker=1', {
-                              headers: {
-                                Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
-                              },
+                            const resp = await fetch('/api/print/banner', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}` },
+                              body: JSON.stringify({ text, printer_id: stationPrinter.id }),
                             });
-                            if (!resp.ok) {
-                              showToast('Preview failed - is the label service up?', 'warning');
-                              return;
-                            }
-                            const url = URL.createObjectURL(await resp.blob());
-                            window.open(url, '_blank', 'noreferrer');
-                          } catch (e) {
-                            showToast('Preview failed: ' + e.message, 'warning');
-                          }
-                        }}
-                      >
-                        See one first
-                      </button>
-                      <button
-                        className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast ml-auto"
+                            const b = await resp.json();
+                            showToast(b?.success ? `Banner "${text}" queued` : `Banner failed: ${b?.message || 'unknown'}`, b?.success ? 'success' : 'error');
+                            if (b?.success && el) el.value = '';
+                          } catch (e) { showToast(`Banner failed: ${e?.message || 'network'}`, 'error'); }
+                        }}>Print</button>
+                    </SettingRow>
+                    <SettingRow Icon={Package} label="Branded stickers" hint="A batch for plain cups, the night before">
+                      <input id="stickerCountInput" type="number" min="1" max="200" defaultValue="50" aria-label="How many stickers"
+                        className="w-20 h-10 rounded-cq-md border-2 border-cq-line bg-cq-milk px-2 text-cq-roast" />
+                      <button type="button" className="h-10 px-2 text-sm font-semibold text-cq-caramel-deep underline underline-offset-4"
                         onClick={async () => {
-                          const el = document.getElementById('stickerCountInput');
-                          const count = parseInt(el?.value, 10);
-                          if (!count || count < 1) {
-                            showToast('How many stickers?', 'warning');
-                            return;
-                          }
-                          // A batch is paper you cannot get back, so it
-                          // asks — unlike every other button on this card,
-                          // which costs one label at most.
-                          if (!(await askConfirm({
-                            title: `Print ${count} branded stickers now?`,
-                            message: 'A batch is paper you cannot get back.',
-                            confirmLabel: 'Print',
-                          }))) return;
+                          // A bare href can't carry the login, so fetch with
+                          // it and hand the browser a blob.
+                          try {
+                            const resp = await fetch('/api/print/preview?sticker=1', { headers: { Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}` } });
+                            if (!resp.ok) { showToast('Preview failed - is the label service up?', 'warning'); return; }
+                            window.open(URL.createObjectURL(await resp.blob()), '_blank', 'noreferrer');
+                          } catch (e) { showToast('Preview failed: ' + e.message, 'warning'); }
+                        }}>See one</button>
+                      <button type="button" className="h-10 px-3 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm"
+                        onClick={async () => {
+                          const count = parseInt(document.getElementById('stickerCountInput')?.value, 10);
+                          if (!count || count < 1) { showToast('How many stickers?', 'warning'); return; }
+                          // A batch is paper you can't get back, so it asks.
+                          if (!(await askConfirm({ title: `Print ${count} branded stickers now?`, message: 'A batch is paper you cannot get back.', confirmLabel: 'Print' }))) return;
                           try {
                             const r = await printService.printStickers(count, stationPrinter.id);
-                            if (r?.success) {
-                              showToast(r.warning
-                                ? `${r.queued} stickers queued. ${r.warning}`
-                                : `${r.queued} stickers queued`,
-                              r.warning ? 'warning' : 'success');
-                            } else {
-                              showToast(r?.message || 'Could not queue the stickers', 'error');
-                            }
-                          } catch (e) {
-                            showToast(`Stickers failed: ${e?.message || 'network'}`, 'error');
-                          }
-                        }}
-                      >
-                        Print batch
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-cq-ink-3">
-                  No label printer is assigned to this station. Printers are set
-                  up in Runner › Printers (they appear there automatically the
-                  first time they connect).
-                </p>
-              )}
-            </div>
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">Auto-Refresh Settings</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input 
-                      type="checkbox" 
-                      checked={autoRefreshEnabled}
-                      onChange={toggleAutoRefresh} className="h-4 w-4 accent-cq-caramel" />
-                    <span>Enable automatic refreshing of order data</span>
-                  </label>
-                </div>
-                
-                {autoRefreshEnabled && (
-                  <div>
-                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-                      Refresh interval (seconds)
-                    </label>
-                    {/* Draft state, not the live value.
-
-                        This field could not be edited at all. onChange did
-                        parseInt(e.target.value) and the setter rejected NaN
-                        and anything under the minimum - so clearing it gave
-                        NaN (rejected), and typing "3" of "30" was itself
-                        under the minimum (rejected). Either way the
-                        controlled value snapped straight back, on every
-                        keystroke.
-
-                        Now the box holds whatever you type, and the value is
-                        committed only when it is a sensible number. */}
-                    <div className="flex items-center">
-                      <input
-                        type="number"
-                        min="3"
-                        max="300"
-                        value={refreshDraft}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          setRefreshDraft(raw);           // always let it be typed
-                          const n = parseInt(raw, 10);
-                          if (!isNaN(n) && n >= 3 && n <= 300) updateAutoRefreshInterval(n);
-                        }}
-                        onBlur={() => {
-                          // Leaving the box empty or nonsense returns it to
-                          // the value actually in force.
-                          const n = parseInt(refreshDraft, 10);
-                          if (isNaN(n) || n < 3 || n > 300) setRefreshDraft(String(autoRefreshInterval));
-                        }}
-                        className="w-20 p-2 border rounded mr-2"
-                      />
-                      <span className="text-sm text-cq-ink-3">
-                        {autoRefreshInterval <= 5 ? '(fast — good during service)' : ''}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="mt-4">
-                  <button 
-                    className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep flex items-center"
-                    onClick={() => {
-                      // Make sure we preserve the current station when refreshing
-                      const currentStation = stations.find(s => s.id === selectedStation);
-                      console.log(`Refreshing with station: ${currentStation?.name || 'Unknown'} (ID: ${selectedStation})`);
-                      
-                      // Update localStorage to ensure consistency
-                      localStorage.setItem('coffee_cue_selected_station', selectedStation.toString());
-                      localStorage.setItem('last_used_station_id', selectedStation.toString());
-                      
-                      // Refresh the data
-                      refreshData();
-                    }}
-                  >
-                    <RefreshCw size={16} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    Refresh Now
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">Station Settings</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-                    Station Name
-                  </label>
-                  <input 
-                    type="text" 
-                    value={settings.stationName}
-                    onChange={(e) => setSettings(prev => ({...prev, stationName: e.target.value}))}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-                    Station Location
-                  </label>
-                  <input 
-                    type="text" 
-                    value={settings.stationLocation}
-                    onChange={(e) => setSettings(prev => ({...prev, stationLocation: e.target.value}))}
-                    className="w-full p-2 border rounded"
-                    placeholder="e.g., Main Hall, Registration Area, etc."
-                  />
-                </div>
-                
-                <button
-                  className="mt-4 px-4 py-2 bg-cq-ready text-white rounded hover:bg-cq-ready flex items-center"
-                  onClick={async () => {
-                    // No local copy of these: the station record on the
-                    // server is the only place a station's name, location
-                    // and barista live, so every device agrees.
-
-                    // The signature is updateStation(stationId, data).
-                    // This call passed ONE object with the id inside it, so
-                    // the hook received the whole object as `stationId` and
-                    // `undefined` as the data -- nothing was ever sent. The
-                    // other call site in this same file (station name) had
-                    // it right, which is how the two drifted.
-                    if (!updateStation) {
-                      showToast('Cannot save: station service unavailable.', 'error', 6000);
-                      return;
-                    }
-                    try {
-                      const ok = await updateStation(selectedStation, {
-                        name: settings.stationName,
-                        location: settings.stationLocation,
-                        baristaName: settings.baristaName
-                      });
-                      // And only claim success if it succeeded. The toast
-                      // used to fire whatever happened, so a save that
-                      // never left the browser still said "saved
-                      // successfully" -- which is worse than an error,
-                      // because you stop looking.
-                      if (ok === false) {
-                        showToast('Could not save station settings to the server.', 'error', 6000);
-                      } else {
-                        showToast('Station settings saved successfully!', 'success');
-                      }
-                    } catch (error) {
-                      console.error('Error saving station settings:', error);
-                      showToast('Error saving station settings. Please try again.', 'error', 6000);
-                    }
-                  }}
-                >
-                  <Check size={18} className="mr-1" />
-                  Save Station Settings
-                </button>
-                
-                <div>
-                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-                    Barista Name
-                  </label>
-                  <input 
-                    type="text" 
-                    value={settings.baristaName}
-                    onChange={(e) => {
-                      const newBaristaName = e.target.value;
-                      // Update settings state
-                      setSettings(prev => ({...prev, baristaName: newBaristaName}));
-                      // Saved to the station record by "Save Station Settings".
-                    }}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-                
-                <div>
-                  <h3 className="font-medium mb-3">Sound Notifications</h3>
-                  
-                  {/* Master Sound Toggle */}
-                  <label className="flex items-center space-x-2 mb-3">
-                    <input 
-                      type="checkbox" 
-                      checked={settings.soundEnabled}
-                      onChange={(e) => {
-                        const newSoundEnabled = e.target.checked;
-                        setSettings(prev => ({...prev, soundEnabled: newSoundEnabled}));
-                        
-                        // (A 'coffee_sound_enabled' key was also written
-                        // here "for the sound system" -- but the sound
-                        // service reads soundEnabled from the
-                        // coffee_cue_settings blob persisted below, and
-                        // nothing anywhere read the extra key. Sweep 2:
-                        // one fact, one store.)
-                        window.dispatchEvent(new CustomEvent('app:toggleSound', { 
-                          detail: { enabled: newSoundEnabled } 
-                        }));
-                        
-                        // Play test sound if enabled
-                        if (newSoundEnabled && window.coffeeSounds) {
-                          window.coffeeSounds.play('newOrder', { volume: settings.soundVolume / 100 });
-                        } else if (newSoundEnabled) {
-                          // Direct event dispatch fallback if coffeeSounds not available
-                          setTimeout(() => {
-                            window.dispatchEvent(new CustomEvent('app:newOrder'));
-                          }, 300);
-                        }
-                      }}
-                    />
-                    <span className="font-medium">Enable All Sounds</span>
-                  </label>
-                  
-                  {settings.soundEnabled && (
-                    <div className="ml-6 space-y-2">
-                      {/* Volume Control */}
-                      <div className="flex items-center space-x-3">
-                        <label className="text-sm w-20">Volume:</label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={settings.soundVolume}
-                          onChange={(e) => setSettings(prev => ({...prev, soundVolume: parseInt(e.target.value)}))}
-                          className="flex-1"
-                        />
-                        <span className="text-sm w-10">{settings.soundVolume}%</span>
+                            if (r?.success) showToast(r.warning ? `${r.queued} stickers queued. ${r.warning}` : `${r.queued} stickers queued`, r.warning ? 'warning' : 'success');
+                            else showToast(r?.message || 'Could not queue the stickers', 'error');
+                          } catch (e) { showToast(`Stickers failed: ${e?.message || 'network'}`, 'error'); }
+                        }}>Print</button>
+                    </SettingRow>
+                    <details className="py-3">
+                      <summary className="cursor-pointer font-bold text-cq-roast">Recent labels</summary>
+                      <div className="mt-2">
+                        <StationPrinterPanel stationId={selectedStation} stationPrinter={stationPrinter} />
                       </div>
-                      
-                      {/* Per-event sound chooser. Each row: enable
-                          toggle, sound dropdown, preview button. The
-                          sounds come from SoundNotificationService's
-                          synthesized library — they're genuinely
-                          different (different pitches, envelopes,
-                          waveforms) rather than the old near-identical
-                          base64 WAV stubs. */}
-                      <SoundChoiceRows settings={settings} setSettings={setSettings} />
-                      {/* "Test All Sounds" removed — it played a legacy
-                          base64 stub (window.coffeeSounds is gone) and the
-                          per-row Test buttons cover the need. */}
-                    </div>
-                  )}
-                </div>
-                
-                {/* REMOVED: a second "Auto-print labels" checkbox.
-
-                    It wrote settings.autoPrintLabels, which nothing reads.
-                    The switch that actually prints is `autoPrintLabels`
-                    (see startOrderWithLabel), shown up in the Label
-                    Printing block beside the printer's online status -
-                    which is where it belongs, since it is meaningless
-                    without a printer.
-
-                    Two controls for one idea, and they disagreed on
-                    screen: Steve had the real one ON and this one OFF at
-                    the same time, with no way to tell which governed. */}
-              </div>
-            </div>
-            
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-4">System Information</h2>
-              <div className="text-sm text-cq-ink-2 space-y-2">
-                <div>Version: 1.2.0</div>
-                <div>Station: {stations.find(s => s.id === selectedStation)?.name || 'Unknown'}</div>
-                <div>Last Sync: {new Date().toLocaleString()}</div>
-                <div>API Status: {online ? 'Connected' : 'Offline'}</div>
-                <div>App Mode: {isDemoMode ? 'Demo' : 'Production'}</div>
-              </div>
-
-              {/* The duplicate "Save Settings" button that lived here
-                  (a second, slightly different station save that also
-                  wrote per-device caches) is gone: "Save Station
-                  Settings" above is the one save. */}
+                    </details>
+                  </>
+                ) : (
+                  <SettingRow Icon={Printer} label="No printer for this station" hint="Set one up in Runner > Printers (Pair a printer)" />
+                )}
+              </SettingGroup>
             </div>
           </div>
         )}
-        
+
         {/* Display Tab */}
         {!loading && activeTab === 'display' && (
-          <div className="p-4">
-            {/* The "Display Screen Integration" demo-data warning that
-                used to live here is gone: the customer-facing display
-                IS connected to real orders now (rewritten May 2026).
-                Steve flagged the stale popup as confusing — leaving it
-                only on a non-dismissible info panel below. */}
-            <div className="mb-4 rounded-cq-md p-3 bg-cq-ready-wash border-l-4 border-cq-ready text-sm text-cq-ready">
-              The display screen shows <strong>live order data</strong>.
-              Open it on a tablet or external monitor; portrait /
-              landscape now flips automatically based on viewport.
-            </div>
-
-            {/* Screen links — every display URL findable in one place,
-                copyable, QR-scannable to another device, with short
-                paths a human can type into a TV browser (Steve's ask). */}
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
-              <h2 className="text-xl font-bold mb-1">Screen links</h2>
-              <p className="text-sm text-cq-ink-2 mb-3">
-                Open these on any TV, tablet or phone — <b>no login needed</b>. Short paths are
-                easy to type into a TV browser; Copy puts the full link on the clipboard;
-                QR lets another device scan it straight off this screen.
-              </p>
-              {/* One station at a time (defaults to the station being
-                  viewed) — an event with 50 stations shouldn't mean 150
-                  rows of links (Steve). */}
-              {(() => {
-                const chosen = linkStation === null ? String(selectedStation ?? '') : linkStation;
-                const chosenName = chosen === ''
-                  ? 'All stations'
-                  : (stations.find(s => String(s.id) === String(chosen))?.name || `Station ${chosen}`);
-                return (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <label className="text-sm font-medium text-cq-ink-2">Links for:</label>
-                      <select
-                        value={chosen}
-                        onChange={(e) => setLinkStation(e.target.value)}
-                        className="p-2 border rounded text-sm"
-                      >
-                        {stations.map(s => (
-                          <option key={s.id} value={String(s.id)}>
-                            {s.name}{String(s.id) === String(selectedStation) ? ' (this station)' : ''}
-                          </option>
-                        ))}
-                        <option value="">All stations</option>
-                      </select>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { key: 'tv', label: '📺 TV board' },
-                        { key: 'kiosk', label: '👆 Touch kiosk' },
-                        { key: 'pickup', label: '✅ Pickup only' },
-                        { key: 'sponsors', label: '🏷️ Sponsor wall' },
-                      ].map(v => {
-                        // The sponsor wall is event-wide — one screen, no station suffix.
-                        const shortPath = v.key === 'sponsors' ? '/sponsors' : `/${v.key}${chosen}`;
-                        const url = `${window.location.origin}${shortPath}`;
-                        return (
-                          <div key={v.key} className="flex items-center gap-2 bg-cq-wash rounded px-2 py-1">
-                            <span className="text-xs text-cq-ink-3">{v.label}</span>
-                            <code className="text-sm font-bold">{shortPath}</code>
-                            <button
-                              className="text-cq-caramel-deep text-xs underline"
-                              onClick={() => {
-                                try {
-                                  navigator.clipboard.writeText(url);
-                                  showToast(`Copied ${url}`, 'success');
-                                } catch (_) {
-                                  showToast(url, 'info', 8000);
-                                }
-                              }}
-                            >
-                              Copy
-                            </button>
-                            <button
-                              className="text-cq-caramel-deep text-xs underline"
-                              onClick={() => setScreenLinkQr({ url, label: `${chosenName} — ${v.label}` })}
-                            >
-                              QR
-                            </button>
-                            <button
-                              className="text-cq-caramel-deep text-xs underline"
-                              onClick={() => setScreenLinkPreview({ url, label: `${chosenName} — ${v.label}` })}
-                            >
-                              Preview
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
+          <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-x-5 items-start">
+            <div>
+            {/* Screen links, one row per screen (rebuilt 15 Oct 2026 on the
+                settings vocabulary, like the rest of this page). One station
+                at a time: 50 stations shouldn't mean 150 rows. */}
+            {(() => {
+              const chosen = linkStation === null ? String(selectedStation ?? '') : linkStation;
+              const chosenName = chosen === ''
+                ? 'All stations'
+                : (stations.find(s => String(s.id) === String(chosen))?.name || `Station ${chosen}`);
+              const small = 'h-9 px-2.5 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm';
+              return (
+                <SettingGroup title="Screen links: no login needed">
+                  <SettingRow Icon={Coffee} label="Links for" hint="Short paths are easy to type on a TV">
+                    <SelectRow ariaLabel="Links for" value={chosen} onChange={(v) => setLinkStation(v)}
+                      options={[...stations.map(st => ({ value: String(st.id), label: st.name + (String(st.id) === String(selectedStation) ? ' (this one)' : '') })),
+                                { value: '', label: 'All stations' }]} />
+                  </SettingRow>
+                  {[
+                    { key: 'tv', label: 'TV board', Icon: Monitor },
+                    { key: 'kiosk', label: 'Touch kiosk', Icon: Hand },
+                    { key: 'pickup', label: 'Pickup only', Icon: Check },
+                    { key: 'sponsors', label: 'Sponsor wall', Icon: Tag },
+                  ].map(v => {
+                    // The sponsor wall is event-wide: one screen, no station suffix.
+                    const shortPath = v.key === 'sponsors' ? '/sponsors' : `/${v.key}${chosen}`;
+                    const url = `${window.location.origin}${shortPath}`;
+                    return (
+                      <SettingRow key={v.key} Icon={v.Icon} label={v.label} hint={<code className="font-bold text-cq-roast">{shortPath}</code>}>
+                        <button type="button" className={small} onClick={() => {
+                          try { navigator.clipboard.writeText(url); showToast(`Copied ${url}`, 'success'); } catch (_) { showToast(url, 'info', 8000); }
+                        }}>Copy</button>
+                        <button type="button" className={small} onClick={() => setScreenLinkQr({ url, label: `${chosenName}: ${v.label}` })}>QR</button>
+                        <button type="button" className={small} onClick={() => setScreenLinkPreview({ url, label: `${chosenName}: ${v.label}` })}>Preview</button>
+                      </SettingRow>
+                    );
+                  })}
+                </SettingGroup>
+              );
+            })()}
 
             {/* In-page link preview — the real screen, scaled, without
                 leaving the page. */}
@@ -2870,77 +2362,29 @@ const BaristaInterface = () => {
               </div>
             )}
 
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
-              <h2 className="text-xl font-bold mb-4">Display Screen Settings</h2>
-              <p className="mb-4">Control what appears on the customer-facing display screen.</p>
-
-              {/* ONE open control — this button, station-scoped, new tab.
-                  There were three ("Open Display Screen", "Open in New
-                  Tab", and a link further down) all doing the same thing. */}
-              <div className="flex space-x-4 mb-4">
-                <button
-                  className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-roast"
-                  onClick={openDisplayScreen}
-                >
-                  Open customer Display (new tab)
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-                    Display Header
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.stationName}
-                    onChange={(e) => setSettings(prev => ({...prev, stationName: e.target.value}))}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-                    Custom Message
-                  </label>
-                  {/* Was a dead input — no value, no onChange, saved
-                      nowhere ("custom text goes no where"). Commits on
-                      blur so we don't PUT per keystroke; shows in the
-                      Display footer (sponsor line takes precedence). */}
-                  <input
-                    type="text"
-                    placeholder="Enjoy your coffee!"
-                    defaultValue={settings.displayCustomMessage || ''}
-                    onBlur={(e) => {
-                      const v = e.target.value || '';
-                      if (v !== (settings.displayCustomMessage || '')) {
-                        setSettings(prev => ({ ...prev, displayCustomMessage: v }));
-                        // The Display is a DIFFERENT DEVICE reading the
-                        // backend -- setSettings alone is this device's
-                        // localStorage, so the old toast claimed a footer
-                        // update that never left the room (sweep 1
-                        // placebo hunt). Claim success only when the
-                        // server said yes.
-                        SettingsService.updateSettings({ displayCustomMessage: v })
-                          .then(() => showToast('Custom message saved — shows in the Display footer', 'success'))
-                          .catch(() => showToast('Server update failed — message saved on this device only, the Display will NOT show it', 'error', 6000));
-                      }
-                    }}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Display Configuration, rebuilt on the settings vocabulary
-                (design/Settings.js). Steve, holding this page next to the
-                Station Admin sheet: "simple clean, branded UI vs cluttered
-                complicated, non branded UI." It was six raw <select>s, each
-                with a paragraph of grey text under it. Same settings, same
-                behaviour, one row each. The explanations that earned their
-                place moved to the bottom of the group; the rest were saying
-                what the control already says. */}
             <SettingGroup title="The customer display">
+              <SettingRow Icon={Monitor} label="Open the display" hint="This station's board, in a new tab">
+                <button type="button" onClick={openDisplayScreen}
+                  className="h-10 px-4 rounded-cq-md bg-cq-caramel text-white font-bold">Open</button>
+              </SettingRow>
+              <SettingRow Icon={FileText} label="Header" hint="The title across the top">
+                <TextField width="w-48" value={settings.stationName || ''}
+                  onChange={(v) => setSettings(prev => ({ ...prev, stationName: v }))} />
+              </SettingRow>
+              <SettingRow Icon={MessageCircle} label="Footer message" hint="A sponsor line takes its place">
+                {/* Saves on blur, not per keystroke. The Display is another
+                    device reading the server: claim success only when the
+                    server said yes. */}
+                <TextField width="w-48" placeholder="Enjoy your coffee!" defaultValue={settings.displayCustomMessage || ''}
+                  onBlur={(e) => {
+                    const v = e.target.value || '';
+                    if (v === (settings.displayCustomMessage || '')) return;
+                    setSettings(prev => ({ ...prev, displayCustomMessage: v }));
+                    SettingsService.updateSettings({ displayCustomMessage: v })
+                      .then(() => showToast('Footer message saved', 'success'))
+                      .catch(() => showToast("Not saved to the server: the Display won't show it", 'error', 6000));
+                  }} />
+              </SettingRow>
               <SettingRow Icon={Monitor} label="Layout"
                           hint="How the board is arranged on screen">
                 <SelectRow
@@ -2957,7 +2401,7 @@ const BaristaInterface = () => {
               </SettingRow>
 
               <SettingRow Icon={RotateCw} label="Rotate output"
-                          hint="Only for a TV mounted sideways">
+                          hint="Last resort: the device's own rotation is sharper">
                 <Segmented
                   size="sm"
                   value={settings.displayRotation ?? 0}
@@ -2992,7 +2436,7 @@ const BaristaInterface = () => {
               ) : null}
 
               <SettingRow Icon={Grid} label="Orders per page"
-                          hint="Auto measures the screen and never cuts a card off">
+                          hint="Auto fits the screen; a number shrinks cards to fit">
                 <SelectRow
                   ariaLabel="Orders per page"
                   value={settings.displayCardsPerPage ?? 0}
@@ -3030,22 +2474,16 @@ const BaristaInterface = () => {
               </SettingRow>
             </SettingGroup>
 
-            <SettingNote>
-              Rotating here is a last resort — the OS does it more sharply
-              (Mac System Settings → Displays, Windows → Display orientation,
-              iPad Control Centre). Asking for more orders per page than fit
-              scales the cards down, three minimum and eight maximum.
-            </SettingNote>
+
 
             
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-              <h2 className="text-xl font-bold mb-1">Preview — live 16:9</h2>
-              <p className="text-sm text-cq-ink-2 mb-3">
-                This is the REAL customer display, scaled down — exactly what the
-                external screen shows, live orders, page flips and all. (The old
-                preview was a hand-drawn mock that looked nothing like the screen.)
-              </p>
-              <ScaledDisplayPreview url={`/display?station=${selectedStation}`} />
+            </div>
+            <div>
+              <SettingGroup title="Live preview: the real display, scaled">
+                <div className="py-3">
+                  <ScaledDisplayPreview url={`/display?station=${selectedStation}`} />
+                </div>
+              </SettingGroup>
             </div>
           </div>
         )}
@@ -3419,89 +2857,73 @@ const SOUND_EVENT_ROWS = [
   { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-cq-alert hover:bg-cq-alert' },
 ];
 
+// One row per sound: on/off, which sound, and a Test. The two sounds that
+// play on OTHER screens are saved to the server so every display and phone
+// picks them up.
 const SoundChoiceRows = ({ settings, setSettings }) => {
   const choices = { ...DEFAULT_SOUND_CHOICES, ...(settings.soundChoices || {}) };
   const volume = (settings.soundVolume ?? 70) / 100;
-
-  const setChoice = (eventKey, presetKey) => {
-    setSettings(prev => ({
-      ...prev,
-      soundChoices: { ...choices, [eventKey]: presetKey },
-    }));
-  };
-
   const preview = (presetKey) => {
-    try {
-      SoundNotificationService.preview(presetKey, volume);
-    } catch (e) {
-      // Should never happen; the service handles its own errors.
-      console.warn('Sound preview failed:', e);
-    }
+    try { SoundNotificationService.preview(presetKey, volume); } catch (e) { /* the service handles its own errors */ }
   };
-
+  const options = SOUND_PRESETS.map(p => ({ value: p.key, label: p.label }));
+  const testBtn = (key) => (
+    <button type="button" onClick={() => preview(key)}
+      className="h-10 px-3 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm">Test</button>
+  );
   return (
-    <div className="space-y-2">
-      {SOUND_EVENT_ROWS.map(row => (
-        <div key={row.key} className="flex items-center gap-2 flex-wrap">
-          <label className="flex items-center space-x-2 min-w-[150px]">
-            <input
-              type="checkbox"
-              checked={settings[row.enableField] !== false}
-              onChange={(e) => setSettings(prev => ({ ...prev, [row.enableField]: e.target.checked }))}
-            />
-            <span className="text-sm">{row.label}</span>
-          </label>
-          <select
-            value={choices[row.key] || DEFAULT_SOUND_CHOICES[row.key]}
-            onChange={(e) => setChoice(row.key, e.target.value)}
-            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-cq-line rounded"
-          >
-            {SOUND_PRESETS.map(p => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
-            onClick={() => preview(choices[row.key] || DEFAULT_SOUND_CHOICES[row.key])}
-          >
-            Test
-          </button>
-        </div>
+    <>
+      {SOUND_EVENT_ROWS.map(row => {
+        const key = choices[row.key] || DEFAULT_SOUND_CHOICES[row.key];
+        const on = settings[row.enableField] !== false;
+        return (
+          <SettingRow key={row.key} label={row.label}>
+            {on ? <SelectRow ariaLabel={`${row.label} sound`} value={key} options={options}
+              onChange={(v) => setSettings(prev => ({ ...prev, soundChoices: { ...choices, [row.key]: v } }))} /> : null}
+            {on ? testBtn(key) : null}
+            <CqToggle on={on} onChange={(v) => setSettings(prev => ({ ...prev, [row.enableField]: v }))} />
+          </SettingRow>
+        );
+      })}
+      {[
+        { key: 'displayReadySound', label: 'Display: ready', def: 'chime_up' },
+        { key: 'beaconReadySound', label: "Customer's phone: ready", def: 'cupq_signature' },
+      ].map(row => (
+        <SettingRow key={row.key} label={row.label} hint="Every screen, within 30 seconds">
+          <SelectRow ariaLabel={row.label} value={settings[row.key] || row.def} options={options}
+            onChange={(v) => setSettings(prev => ({ ...prev, [row.key]: v }))} />
+          {testBtn(settings[row.key] || row.def)}
+        </SettingRow>
       ))}
-      {/* The two sounds that play on OTHER screens. Saved to the server (not
-          this device) so the display board and every phone pick them up;
-          Test plays the preset here so the operator can hear it. */}
-      <div className="mt-4 pt-3 border-t border-cq-line">
-        <div className="text-sm font-medium text-cq-ink-2 mb-2">On the other screens</div>
-        {[
-          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-cq-ready hover:bg-cq-ready' },
-          { key: 'beaconReadySound', label: "Customer's phone: order ready", def: 'cupq_signature', btnColor: 'bg-sky-600 hover:bg-sky-700' },
-        ].map(row => (
-          <div key={row.key} className="flex items-center gap-2 flex-wrap mb-2">
-            <span className="text-sm min-w-[150px]">{row.label}</span>
-            <select
-              value={settings[row.key] || row.def}
-              onChange={(e) => setSettings(prev => ({ ...prev, [row.key]: e.target.value }))}
-              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-cq-line rounded"
-            >
-              {SOUND_PRESETS.map(p => (
-                <option key={p.key} value={p.key}>{p.label}</option>
-              ))}
-            </select>
-            <button type="button" className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
-              onClick={() => preview(settings[row.key] || row.def)}>
-              Test
-            </button>
-          </div>
-        ))}
-        <div className="text-xs text-cq-ink-3">Applies to every display and phone within about 30 seconds.</div>
-      </div>
-      <div className="text-xs text-cq-ink-3 mt-2">
-        Sounds are synthesized in-browser — no assets to download, works offline.
-        "No sound" disables that alert without affecting the others.
-      </div>
-    </div>
+    </>
+  );
+};
+
+// The milk shape on cup labels (moved here from Tools > Milk, 15 Oct 2026:
+// it's a label setting). Saved per station on the server, because the label
+// is drawn there.
+const MilkShapeRow = ({ stationId }) => {
+  const [on, setOn] = useState(false);
+  const [glyphs, setGlyphs] = useState({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!stationId) return undefined;
+    let live = true;
+    printService.getMilkSymbols(stationId)
+      .then((r) => { if (live) { setOn(!!r?.enabled); setGlyphs(r?.glyphs || {}); } })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [stationId]);
+  const legend = Object.entries(glyphs).slice(0, 5).map(([milk, mark]) => `${mark} ${milk}`).join('  ·  ');
+  return (
+    <SettingRow Icon={Droplet} label="Milk shape on labels"
+      hint={on && legend ? legend : 'A mark before the milk, so a row of cups reads at a glance'}>
+      <CqToggle on={on} disabled={busy || !stationId} onChange={async (next) => {
+        setOn(next); setBusy(true);
+        try { await printService.setMilkSymbols(stationId, next); } catch (e) { setOn(!next); }
+        finally { setBusy(false); }
+      }} />
+    </SettingRow>
   );
 };
 
