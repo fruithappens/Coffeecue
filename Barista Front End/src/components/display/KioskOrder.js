@@ -2005,11 +2005,12 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
             number could be there also".
             One kiosk becomes several ordering points without buying any
             hardware -- the person waiting behind does not have to wait
-            for the screen. Deliberately small and low-contrast: it must
+            for the screen. Deliberately small and quiet (muted grey, no
+            fade: a fade took it under WCAG AA contrast): it must
             never compete with the step the current customer is on. */}
         {channel !== 'walkin' && <PoweredBy brand={brand} className="mt-6 text-center" />}
         {step !== 'done' && channel !== 'walkin' && (
-          <div className="mt-6 pt-4 border-t border-cq-line flex items-center justify-center gap-4 opacity-80">
+          <div className="mt-6 pt-4 border-t border-cq-line flex items-center justify-center gap-4">
             <img
               src={`/api/qr?size=5&data=${encodeURIComponent(
                 `${window.location.origin}/order${myStation ? `?station=${myStation}` : ''}` +

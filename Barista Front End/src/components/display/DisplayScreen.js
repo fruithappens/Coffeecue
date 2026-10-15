@@ -24,6 +24,7 @@
 //   - Theme support (light / dark / coffee)
 //   - Tap-anywhere to toggle fullscreen on iPad
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { readableColour } from '../../utils/contrast';
 import startConnectionWatchdog from '../../utils/connectionWatchdog';
 import KioskAdminPanel from './KioskAdminPanel';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
@@ -1386,7 +1387,9 @@ const DisplayScreen = () => {
   // the brand.
   const CUPQ_DARK = '#3B2314';
   const CUPQ_COFFEE = '#B8764A';
-  const headerColor = config.header_color || CUPQ_COFFEE;
+  // Darkened only as far as needed to read on cream and carry white text
+  // (WCAG AA; axe audit 15 Oct 2026). utils/contrast.js.
+  const headerColor = readableColour(config.header_color || CUPQ_COFFEE);
   const _hx = (headerColor || '').replace('#', '');
   const _r = parseInt(_hx.substring(0, 2) || '1e', 16);
   const _g = parseInt(_hx.substring(2, 4) || '40', 16);
@@ -1406,7 +1409,7 @@ const DisplayScreen = () => {
   // Splitting surface from accent keeps every one of those correct.
   const BANNER_BG = '#FFFFFF';
   const bannerInk = CUPQ_DARK;
-  const bannerInkDim = 'rgba(31,42,55,0.62)';
+  const bannerInkDim = 'rgba(31,42,55,0.72)'; // 0.62 was 4.28:1 on white, under WCAG AA
   const bannerEdge = headerColor;
   // Solid rather than soft. A diffuse shadow under a white card on a
   // photographic background disappears into the picture; this one has
@@ -1900,6 +1903,7 @@ const DisplayScreen = () => {
         <div className="flex items-center gap-2 flex-shrink-0 absolute right-2 bottom-1 z-40">
           {stations.length > 1 && (
             <select
+              aria-label="Which station this screen shows"
               value={currentStation?.id || ''}
               onChange={(e) => {
                 e.stopPropagation();
