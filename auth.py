@@ -52,6 +52,24 @@ def _demo_mode_enabled():
         # Outside a request (e.g. unit tests) -- fail closed.
         return False
 
+def unsigned_webhooks_allowed():
+    """True iff a webhook may skip its signature/secret check: TESTING_MODE
+    AND the request came to localhost (a laptop copy running the SMS
+    scenario tests). demo.cupq.app runs TESTING_MODE=True on the public
+    internet, and "testing" used to mean "accept unsigned" there too: forged
+    texts and EventsAir orders could be posted to it (found 16 Oct 2026,
+    before demo went on the website)."""
+    import os
+
+    if os.getenv('TESTING_MODE', 'false').lower() != 'true':
+        return False
+    try:
+        host = (request.host or '').split(':')[0].lower()
+        return host in ('localhost', '127.0.0.1', '::1')
+    except Exception:
+        return False  # outside a request: fail closed
+
+
 def init_app(app):
     """Initialize JWT authentication for the app"""
     global jwt
