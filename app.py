@@ -808,6 +808,14 @@ def create_app():
     except Exception as su_err:
         logger.error(f"Sign-up routes failed to register: {su_err}")
 
+    # Forgot password: /api/auth/forgot-password and /reset-password.
+    try:
+        from routes.password_reset_routes import bp as password_reset_bp
+        app.register_blueprint(password_reset_bp)
+        logger.info("Password reset routes registered")
+    except Exception as pr_err:
+        logger.error(f"Password reset routes failed to register: {pr_err}")
+
     # Who is on call: /api/settings/on-call (U4-6).
     try:
         from routes.on_call_routes import bp as on_call_bp
