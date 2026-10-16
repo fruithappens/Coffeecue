@@ -849,6 +849,7 @@ const QuickSetup = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preset: previewCfg }),
+        timeout: 90000, // the preview gets the whole event, logos and all
       });
       if (resp && resp.success) {
         setPreview(resp);
@@ -1671,6 +1672,7 @@ const EventTemplatesSection = ({ config, setConfig, onSwitch }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: String(file.name).trim(), description: file.description || '', payload: file.payload }),
+        timeout: 90000, // logos and backgrounds: big, and venues upload over 4G
       });
       if (!resp?.success) throw new Error(resp?.error || 'Import failed');
       await loadList();
@@ -1796,6 +1798,7 @@ const EventTemplatesSection = ({ config, setConfig, onSwitch }) => {
         headers: { 'Content-Type': 'application/json' },
         // (_saved_event is this screen's own mark, not part of the event.)
         body: JSON.stringify({ name: name.trim(), payload: withEvent ? { ...running, ...(await eventExtras()) } : running }),
+        timeout: 90000,
       });
       if (resp?.success) {
         setStatus({ ok: true, msg: `Saved as "${name.trim()}".` });

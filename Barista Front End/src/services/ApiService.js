@@ -402,12 +402,16 @@ class ApiService {
         console.log(`Fetching from: ${url} with method: ${options.method || 'GET'}`);
       }
 
-      // Add timeout control
+      // Add timeout control. A caller sending something big (a saved
+      // event with its logos and backgrounds is ~0.7 MB) passes its own
+      // `timeout`: 10 s cut the import off on a 4G upload ("signal is
+      // aborted without reason", demo.cupq.app 16 Oct 2026).
+      const { timeout: callerTimeout, ...fetchOptions } = options;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.connectionTimeout);
+      const timeoutId = setTimeout(() => controller.abort(), callerTimeout || this.connectionTimeout);
 
       let response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
         signal: controller.signal,
         // Explicitly add CORS mode but skip credentials to avoid CORS issues
