@@ -24,6 +24,7 @@ export async function applyEventPreset(api, preset, { replaceLook = false } = {}
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ preset, ...(replaceLook ? { replace_look: true } : {}) }),
+    timeout: 90000, // a saved event carries its logos and backgrounds (~0.7 MB)
   });
 
   // Persist the "started" SMS policy separately — it lives in its
