@@ -261,7 +261,13 @@ const QuickSetup = () => {
   // progress, we don't want a backend fetch to clobber them.
   useEffect(() => {
     if (_readDraft()) return;  // local draft wins
-    api.request('/quick-setup/preset', { method: 'GET' })
+    // What is RUNNING first (16 Oct 2026: after an Apply the form fell back
+    // to café defaults, so it never showed the event that was on); the
+    // café defaults only for a server that has nothing yet.
+    api.request('/quick-setup/current', { method: 'GET' })
+       .then(cur => (cur && cur.success && cur.recorded ? cur
+         : api.request('/quick-setup/preset', { method: 'GET' })))
+       .catch(() => api.request('/quick-setup/preset', { method: 'GET' }))
        .then(resp => {
          if (resp && resp.preset) {
            setConfig(c => ({ ...c, ...resp.preset,
@@ -830,7 +836,10 @@ const QuickSetup = () => {
   // Step 1: fetch the dry-run diff. Opens the preview modal; operator
   // confirms there before the destructive apply runs. Replaces the old
   // window.confirm() prompt that just said "trust me."
-  const openPreview = async () => {
+  // `cfg`: preview this instead of the form as it last rendered (Switch to
+  // this event sets the form and previews in the same click).
+  const openPreview = async (cfg) => {
+    const previewCfg = cfg && !cfg.nativeEvent ? cfg : config;
     setPreviewLoading(true);
     setPreviewError(null);
     setPreview(null);
@@ -839,7 +848,7 @@ const QuickSetup = () => {
       const resp = await api.request('/quick-setup/dry-run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preset: config }),
+        body: JSON.stringify({ preset: previewCfg }),
       });
       if (resp && resp.success) {
         setPreview(resp);
@@ -991,6 +1000,9 @@ const QuickSetup = () => {
         error: resp.error,
       });
       if (resp.success) {
+        window.dispatchEvent(new CustomEvent('app:toast', { detail: {
+          message: fromSavedEvent ? 'Switched. The screens update within a few seconds.' : 'Quick Setup applied.',
+          type: 'success', duration: 6000 } }));
         logEvent('QUICK_SETUP_APPLIED', {
           appliedCount: applied.length,
           accountsCreated: accountsCreated.length,
@@ -1050,7 +1062,14 @@ const QuickSetup = () => {
           current form state as a template for future events. Templates
           strip per-event identity (event_name, password, slug) before
           saving so they apply cleanly across venues. */}
-      <EventTemplatesSection config={config} setConfig={setConfig} />
+      <EventTemplatesSection config={config} setConfig={setConfig} onSwitch={(payload) => {
+        // The event parts come only from the event being switched to.
+        // eslint-disable-next-line no-unused-vars
+        const { branding, quick_picks, sugar_self_serve, active_stations, event_inventory, sponsors, ...rest } = config;
+        const next = { ...rest, ...payload, _saved_event: true };
+        setConfig(next);
+        openPreview(next);
+      }} />
 
       {/* Event identity — the human name of THIS event. Promoted from
           Branding into Quick Setup because it's the first thing every
@@ -1574,7 +1593,7 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
 // num_event_baristas) are stripped before save by the backend —
 // templates apply across venues without carrying the previous
 // event's name or credentials.
-const EventTemplatesSection = ({ config, setConfig }) => {
+const EventTemplatesSection = ({ config, setConfig, onSwitch }) => {
   const [templates, setTemplates] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [selected, setSelected] = React.useState('');
@@ -1656,7 +1675,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
       if (!resp?.success) throw new Error(resp?.error || 'Import failed');
       await loadList();
       setSelected(String(resp.id || ''));
-      setStatus({ ok: true, msg: `Imported "${file.name}". Load it into the form, check, then Apply.` });
+      setStatus({ ok: true, msg: `Imported "${file.name}". Press Switch to this event to use it.` });
     } catch (er) {
       setStatus({ ok: false, msg: er?.message || 'Import failed' });
     }
@@ -1677,6 +1696,13 @@ const EventTemplatesSection = ({ config, setConfig }) => {
   }, []);
 
   React.useEffect(() => { loadList(); }, [loadList]);
+  // A switch finished (or Quick Setup was applied): the "check the
+  // changes, then confirm" line is out of date.
+  React.useEffect(() => {
+    const done = () => setStatus(st => (st && st.ok ? null : st));
+    window.addEventListener('quick_setup_applied', done);
+    return () => window.removeEventListener('quick_setup_applied', done);
+  }, []);
 
   const handleLoad = async () => {
     if (!selected) return;
@@ -1705,6 +1731,22 @@ const EventTemplatesSection = ({ config, setConfig }) => {
     }
   };
 
+  // One step (Steve, 16 Oct 2026: "like opening a document"): fetch the
+  // event, show what switching changes, one confirm applies it. No
+  // scrolling to Apply at the bottom of the page.
+  const handleSwitch = async () => {
+    if (!selected || !onSwitch) return;
+    setStatus(null);
+    try {
+      const resp = await api.request(`/event-templates/${selected}`, { method: 'GET' });
+      if (!resp?.template?.payload) throw new Error('That saved event is empty');
+      setStatus({ ok: true, msg: `Switching to "${resp.template.name}": check the changes, then confirm.` });
+      onSwitch(resp.template.payload);
+    } catch (e) {
+      setStatus({ ok: false, msg: e?.message || 'Could not open that event' });
+    }
+  };
+
   const handleSave = async () => {
     const name = await askText({
       title: 'Save as a template',
@@ -1718,13 +1760,21 @@ const EventTemplatesSection = ({ config, setConfig }) => {
     // eslint-disable-next-line no-unused-vars
     const { _saved_event: _mark, ...plainConfig } = config;
     try {
+      // What is RUNNING, not the form: the form can hold café defaults or
+      // half-made changes, and saving it lost a menu (16 Oct 2026). The
+      // form is the fallback only for a server too old to say.
+      let running = plainConfig;
+      try {
+        const cur = await api.request('/quick-setup/current', { method: 'GET' });
+        if (cur?.success && cur.recorded && cur.preset) running = cur.preset;
+      } catch (e) { /* older server: the form it is */ }
       // The whole `config` object IS the payload — the backend strips
       // per-event identity fields itself, so we don't need to filter here.
       const resp = await api.request('/event-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // (_saved_event is this screen's own mark, not part of the event.)
-        body: JSON.stringify({ name: name.trim(), payload: withEvent ? { ...plainConfig, ...(await eventExtras()) } : plainConfig }),
+        body: JSON.stringify({ name: name.trim(), payload: withEvent ? { ...running, ...(await eventExtras()) } : running }),
       });
       if (resp?.success) {
         setStatus({ ok: true, msg: `Saved as "${name.trim()}".` });
@@ -1742,7 +1792,11 @@ const EventTemplatesSection = ({ config, setConfig }) => {
 
   return (
     <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-      <h3 className="text-lg font-bold text-cq-roast mb-1">Templates</h3>
+      <h3 className="text-lg font-bold text-cq-roast mb-1">Saved events</h3>
+      <p className="text-sm text-cq-ink-3 mb-3">
+        Switch between saved events like opening a file: the look, menu, sponsors and quick picks all change together.
+        Save the one that's on first if you want to come back to it.
+      </p>
       <div className="flex flex-wrap gap-2 items-center">
         <select
           value={selected}
@@ -1758,11 +1812,19 @@ const EventTemplatesSection = ({ config, setConfig }) => {
         </select>
         <button
           type="button"
+          onClick={handleSwitch}
+          disabled={!selected || !onSwitch}
+          className="h-10 px-4 rounded-cq-md bg-cq-caramel text-white text-sm font-bold hover:bg-cq-caramel-deep disabled:opacity-40"
+        >
+          Switch to this event
+        </button>
+        <button
+          type="button"
           onClick={handleLoad}
           disabled={!selected}
           className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast text-sm font-bold hover:border-cq-caramel disabled:opacity-40"
         >
-          Load into form
+          Load to edit first
         </button>
         <button
           type="button"

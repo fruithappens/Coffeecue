@@ -12175,6 +12175,9 @@ EVENT_LOOK_KEYS = frozenset({
     'customerHeaderColor', 'customerHeaderMode', 'customerHeaderImage',
     'background_landscape', 'background_portrait', 'bgLandscape', 'bgPortrait',
     'customMessage', 'footerText',
+    # The cup sticker's logo is part of the event too: left behind, the
+    # last event's sponsor printed on the next event's cups (16 Oct 2026).
+    'labelLogo',
     'sponsorEnabled', 'showSponsor', 'sponsorName', 'sponsorMessage', 'sponsorLogo',
 })
 
@@ -12324,6 +12327,95 @@ def get_quick_setup_preset():
     return jsonify({'preset': DEFAULT_QUICK_PRESET})
 
 
+# What Quick Setup last applied, kept so the screen (and "Save current as
+# template") can show what is RUNNING. Before this the form fell back to
+# the café defaults after every Apply, and saving "the current event"
+# saved those defaults: a saved Virgin lost soy, small cups, hot
+# chocolate and chai (found on demo.cupq.app, 16 Oct 2026).
+QS_CURRENT_KEY = 'quick_setup_current'
+# Never kept: the look and sponsors are read live when saving, and the
+# event password is a credential.
+_QS_NOT_KEPT = frozenset({'branding', 'sponsors', 'event_inventory', '_replace_look',
+                          '_saved_event', 'event_password'})
+
+
+def _qs_remember(db, merged):
+    try:
+        _kv_put(db, QS_CURRENT_KEY, {k: v for k, v in merged.items() if k not in _QS_NOT_KEPT})
+    except Exception as e:
+        logger.warning(f"quick setup: could not remember the applied preset: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _qs_live_menu(db):
+    """The menu as it is now, read from inventory_items: Quick Setup's
+    own rows plus anything changed on the Menu screen since."""
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT category, name FROM inventory_items ORDER BY id")
+        rows = [((r['category'] if isinstance(r, dict) else r[0]) or '',
+                 (r['name'] if isinstance(r, dict) else r[1]) or '') for r in cur.fetchall()]
+    except Exception as e:
+        logger.warning(f"quick setup: live menu read failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
+    if not rows:
+        return None
+    by_cat = {}
+    for cat, name in rows:
+        by_cat.setdefault(cat.strip().lower(), []).append(name.strip())
+    drink_names = [n.lower() for n in by_cat.get('drinks', [])]
+    known = {name for rows_ in EXTRA_DRINKS.values() for name, _c in rows_} | set(TEA_FLAVORS.values())
+    return {
+        'milks': by_cat.get('milk', []),
+        'sizes': by_cat.get('cups', []),
+        'drinks': {'espresso_drinks': True,
+                   **{k: any(name in drink_names for name, _c in v) for k, v in EXTRA_DRINKS.items()}},
+        'teas': {k: v in drink_names for k, v in TEA_FLAVORS.items()},
+        'custom_teas': ', '.join(n for n in drink_names if n not in known and 'tea' in n),
+    }
+
+
+def _qs_current(db):
+    """(preset, recorded): what is running, in Quick Setup's own shape."""
+    saved = _kv_get(db, QS_CURRENT_KEY, default=None)
+    preset = json.loads(json.dumps(DEFAULT_QUICK_PRESET))
+    if isinstance(saved, dict):
+        preset.update(saved)
+    live = _qs_live_menu(db)
+    if live:
+        preset.update(live)
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'vip_code'")
+        row = cur.fetchone()
+        preset['vip_code'] = ((row['value'] if isinstance(row, dict) else row[0]) or '') if row else ''
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    return preset, isinstance(saved, dict) or bool(live)
+
+
+@bp.route('/quick-setup/current', methods=['GET'])
+@jwt_required_with_demo()
+def get_quick_setup_current():
+    """What is running now, so the form and "Save current" start from it."""
+    try:
+        preset, recorded = _qs_current(current_app.config.get('coffee_system').db)
+        return jsonify({'success': True, 'preset': preset, 'recorded': recorded})
+    except Exception as e:
+        logger.exception(f"quick setup current failed: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/quick-setup', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -12359,6 +12451,7 @@ def apply_quick_setup():
             }
         summary = _apply_quick_setup(coffee_system, merged)
         merged.pop('_replace_look', None)  # an instruction, not part of the event
+        _qs_remember(coffee_system.db, merged)
         # Invalidate the unlimited-stock cache so the conversation
         # flow's next read picks up the new value immediately.
         if hasattr(coffee_system, '_invalidate_unlimited_stock_cache'):
