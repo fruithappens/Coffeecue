@@ -12,7 +12,7 @@ import StatusPage from './components/display/StatusPage';
 import DeviceSetupPage from './components/display/DeviceSetupPage';
 import StartPage from './components/signup/StartPage';
 import PrivacyPage from './components/display/PrivacyPage';
-import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/PasswordResetPages';
+import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/AccountRecoveryPages';
 import TryPage, { TryPhoneLanding } from './components/demo/TryPage';
 import { isPublicPath } from './utils/publicPaths';
 import DisplaySelector from './components/display/DisplaySelector';

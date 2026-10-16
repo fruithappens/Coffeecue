@@ -810,7 +810,7 @@ def create_app():
 
     # Forgot password: /api/auth/forgot-password and /reset-password.
     try:
-        from routes.password_reset_routes import bp as password_reset_bp
+        from routes.account_recovery_routes import bp as password_reset_bp
         app.register_blueprint(password_reset_bp)
         logger.info("Password reset routes registered")
     except Exception as pr_err:
