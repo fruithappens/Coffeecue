@@ -13,7 +13,7 @@
 // this page finds them; texts come from the session's demo number.
 // /try/phone?src=… is where the QR lands on the visitor's own phone.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QrCode, MessageCircle, MonitorSmartphone, AppWindow, ChevronLeft, CalendarDays, Users, Coffee, Map } from 'lucide-react';
+import { QrCode, MessageCircle, MonitorSmartphone, AppWindow, UserPlus, Menu, ArrowLeft, Bean, Home, CalendarPlus, Lock } from 'lucide-react';
 
 const METHODS = [
   { key: 'qr', Icon: QrCode, title: 'Scan the QR', line: 'Order from your seat on the phone page' },
@@ -78,21 +78,47 @@ const Tablet = ({ children }) => (
   </div>
 );
 
-// A plain event-app shell: how a page looks inside an event app (EventsAir
-// shows cupq.app/my as a page in the app). Generic on purpose: no client's
-// or vendor's branding in a public repo.
+// How a page looks inside an event app (Steve's EventsAir screenshots, 16 Oct
+// 2026): the app's own top bar, a coloured page header, the page, and the
+// app's tab bar with Coffee Order? highlighted. Laid out like EventsAir but
+// with no vendor's or client's name or logo: this repo and page are public.
 const AppShell = ({ children }) => (
   <>
-    <div className="h-11 bg-[#1f3a5f] text-white flex items-center gap-2 px-3 text-sm font-bold">
-      <ChevronLeft size={18} /> Coffee <span className="ml-auto text-xs font-semibold opacity-80">Your event app</span>
+    <div className="h-10 bg-white flex items-center justify-between px-3 text-[#E39462]">
+      <UserPlus size={18} /><Menu size={20} />
+    </div>
+    <div className="h-11 bg-[#E39462] text-cq-roast-deep flex items-center px-3">
+      <ArrowLeft size={18} />
+      <span className="flex-1 flex items-center justify-center gap-1.5 font-bold text-[15px] -ml-4"><Bean size={16} /> Coffee Order?</span>
     </div>
     {children}
-    <div className="h-12 border-t border-cq-line bg-white grid grid-cols-4 text-[10px] text-cq-ink-3">
-      {[[CalendarDays, 'Agenda'], [Users, 'Speakers'], [Coffee, 'Coffee'], [Map, 'Map']].map(([I, l]) => (
-        <div key={l} className={`flex flex-col items-center justify-center gap-0.5 ${l === 'Coffee' ? 'text-[#1f3a5f] font-bold' : ''}`}><I size={16} />{l}</div>
+    <div className="h-14 bg-[#2B2A4C] grid grid-cols-4 items-center text-[10px] font-semibold px-1">
+      {[[Home, 'Home'], [Bean, 'Coffee Order?'], [CalendarPlus, 'My Agenda'], [MessageCircle, 'Ask AI']].map(([I, l]) => (
+        <div key={l} className={`flex flex-col items-center justify-center gap-0.5 ${
+          l === 'Coffee Order?' ? 'text-white' : l === 'Ask AI' ? 'bg-white text-[#2B2A4C] rounded-md mx-1.5 py-1' : 'text-white/55'}`}>
+          <I size={16} />{l}
+        </div>
       ))}
     </div>
   </>
+);
+
+// The event app opening: it asks for the event's code first, as event apps
+// do. The demo fills it in; Submit opens the app on its Coffee Order? page.
+const AppSplash = ({ onOpen }) => (
+  <div className="h-[560px] flex flex-col items-center justify-between px-5 py-10 text-white"
+    style={{ background: 'linear-gradient(160deg, #5B2BD0 0%, #3A1E9C 45%, #160C55 100%)' }}>
+    <div className="text-center">
+      <div className="text-sm font-bold opacity-90">Your</div>
+      <div className="text-4xl font-extrabold tracking-tight leading-none">EVENT<span className="text-[#9F86FF]">APP</span></div>
+    </div>
+    <div className="w-full rounded-2xl bg-white p-4 text-cq-ink space-y-3 shadow-lg">
+      <div className="text-center font-bold text-sm">Please enter your Event Code:</div>
+      <div className="h-10 rounded-lg bg-[#F4F4FB] flex items-center gap-2 px-3 text-sm"><Lock size={14} className="text-cq-ink-3" /> CUPQLIVE</div>
+      <button type="button" onClick={onOpen} className="w-full h-10 rounded-full bg-[#6F35E8] text-white font-bold text-sm">Submit</button>
+    </div>
+    <div className="text-xs opacity-70">The organiser's event app</div>
+  </div>
 );
 
 function Panel({ title, hint, children }) {
@@ -125,6 +151,7 @@ export default function TryPage() {
   const [busy, setBusy] = useState(false);
   const [auto, setAuto] = useState(false);
   const [labelKey, setLabelKey] = useState(0);
+  const [appOpen, setAppOpen] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => { document.title = 'Try CupQ live'; }, []);
@@ -241,7 +268,11 @@ export default function TryPage() {
     }
     if (method === 'sms') return <Phone>{textThread(true)}</Phone>;
     if (method === 'kiosk') return <Tablet><Scaled key={`kiosk-${src}`} src={`/display?kiosk=1&open=1&src=${src}`} w={834} h={1112} title="Touchscreen at the cart" /></Tablet>;
-    if (method === 'app') return <Phone><AppShell><Scaled key={`app-${src}`} src={`/order?new=1&src=${src}`} w={390} h={700} title="Ordering in the event app" /></AppShell></Phone>;
+    if (method === 'app') {
+      return appOpen
+        ? <Phone><AppShell><Scaled key={`app-${src}`} src={`/order?new=1&src=${src}`} w={390} h={700} title="Ordering in the event app" /></AppShell></Phone>
+        : <Phone><AppSplash onOpen={() => setAppOpen(true)} /></Phone>;
+    }
     return <Phone><Scaled key={`qr-${src}`} src={`/order?new=1&src=${src}`} w={390} h={760} title="The phone ordering page" /></Phone>;
   };
 
@@ -263,7 +294,7 @@ export default function TryPage() {
             const on = method === m.key;
             return (
               <button key={m.key} type="button" role="tab" aria-selected={on} disabled={placed}
-                onClick={() => setMethod(m.key)}
+                onClick={() => { setMethod(m.key); if (m.key === 'app') setAppOpen(false); }}
                 className={`text-left rounded-cq-lg p-3 border-2 transition-colors disabled:cursor-default ${on ? 'bg-cq-roast border-cq-roast text-cq-cream' : 'bg-cq-milk border-cq-line text-cq-roast hover:border-cq-caramel'} ${placed && !on ? 'opacity-50' : ''}`}>
                 <m.Icon size={22} />
                 <div className="font-extrabold mt-1">{m.title}</div>
