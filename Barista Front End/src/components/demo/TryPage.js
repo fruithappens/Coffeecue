@@ -121,6 +121,34 @@ const AppSplash = ({ onOpen }) => (
   </div>
 );
 
+// The moment that sells it (Steve, 16 Oct 2026): the phone is in a pocket,
+// locked, and the "your coffee is ready" text lights it up. Shown when the
+// barista taps Ready; tap the notification (or the next step) to go on.
+function LockScreen({ body, onOpen }) {
+  const now = new Date();
+  const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[ap]m$/i, '');
+  const date = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+  return (
+    <div className="h-[560px] flex flex-col items-center px-4 pt-10 text-white"
+      style={{ background: 'radial-gradient(120% 80% at 50% 0%, #6b4a33 0%, #3B2314 45%, #160c06 100%)' }}>
+      <div className="text-sm font-semibold opacity-85">{date}</div>
+      <div className="text-7xl font-light tracking-tight leading-none mt-1">{time}</div>
+      <button type="button" onClick={onOpen}
+        className="mt-10 w-full text-left rounded-2xl bg-white/85 text-[#111] p-3 shadow-lg backdrop-blur animate-[cqdrop_.5s_ease-out]">
+        <div className="flex items-center gap-2 text-[11px] text-[#555]">
+          <span className="w-5 h-5 rounded-md bg-[#34C759] inline-flex items-center justify-center"><MessageCircle size={12} color="#fff" /></span>
+          <span className="font-semibold uppercase tracking-wide">Messages</span>
+          <span className="ml-auto">now</span>
+        </div>
+        <div className="mt-1.5 text-sm font-bold">CupQ</div>
+        <div className="text-sm leading-snug">{body}</div>
+      </button>
+      <div className="mt-auto mb-6 text-xs opacity-70">Tap the message to open it</div>
+      <style>{'@keyframes cqdrop{from{transform:translateY(-24px)}to{transform:none}}'}</style>
+    </div>
+  );
+}
+
 function Panel({ title, hint, children }) {
   return (
     <section className="min-w-0">
@@ -152,6 +180,7 @@ export default function TryPage() {
   const [auto, setAuto] = useState(false);
   const [labelKey, setLabelKey] = useState(0);
   const [appOpen, setAppOpen] = useState(false);
+  const [locked, setLocked] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => { document.title = 'Try CupQ live'; }, []);
@@ -221,6 +250,15 @@ export default function TryPage() {
   const placed = !!order;
   const viaText = order?.via === 'text';
 
+  // Ready: the phone locks and the text arrives on the lock screen.
+  useEffect(() => { setLocked(step === 3); }, [step]);
+  const readyText = (() => {
+    const t = [...texts].reverse().find((x) => x.direction !== 'in' && /ready/i.test(x.body || ''));
+    if (t) return t.body;
+    const what = [order?.size, order?.drink].filter(Boolean).join(' ') || 'coffee';
+    return `${order?.name ? `${order.name}, your` : 'Your'} ${what} is ready. Collect it from the cart.`;
+  })();
+
   const textThread = (canType) => (
     <div className="flex flex-col h-[560px]">
       <div className="px-3 py-2 text-center text-xs font-semibold text-cq-ink-2 bg-cq-wash">CupQ · from {session?.phone}</div>
@@ -259,6 +297,7 @@ export default function TryPage() {
   // The customer's side: the chosen way to order, then their watch screen.
   const customer = () => {
     if (!session) return <div className="text-cq-ink-3 p-6">Setting up your demo…</div>;
+    if (placed && locked) return <Phone><LockScreen body={readyText} onOpen={() => setLocked(false)} /></Phone>;
     if (placed && viaText) return <Phone>{textThread(false)}</Phone>;
     if (placed) {
       const watch = `/order?order=${order.number}`;
