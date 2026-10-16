@@ -38,6 +38,18 @@ const _saveEnrichment = (enrichment) => {
   }
 };
 
+// A login can reset its own password only with an address the link can
+// reach (16 Oct 2026). Quick Setup's shared barista logins use @local.
+const realEmail = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test((e || '').trim())
+  && !/@(local|localhost|example\.com)$/i.test((e || '').trim());
+// Managers need one; a shared barista login can do without.
+const emailProblem = (email, role) => {
+  const e = (email || '').trim();
+  if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e)) return "That email address doesn't look right";
+  if (role !== 'barista' && !realEmail(e)) return 'Add their email so they can reset their own password';
+  return '';
+};
+
 const UserManagementTab = () => {
   // Pull real stations from the backend so the preferred-station dropdown
   // isn't capped at the hardcoded ['1','2','3']. Falls back to an empty
@@ -149,6 +161,10 @@ const UserManagementTab = () => {
       showToast('The two passwords do not match', 'warning');
       return;
     }
+    if (emailProblem(userForm.email, userForm.role)) {
+      showToast(emailProblem(userForm.email, userForm.role), 'warning');
+      return;
+    }
 
     // Check if username already exists locally (defensive — backend
     // also checks).
@@ -206,6 +222,10 @@ const UserManagementTab = () => {
 
     const existing = users.find(u => u.id === editingUser);
     if (!existing) return;
+    if (emailProblem(userForm.email, userForm.role)) {
+      showToast(emailProblem(userForm.email, userForm.role), 'warning');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -525,13 +545,19 @@ const UserManagementTab = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
+                <label className="block text-sm font-medium mb-1">
+                  Email{userForm.role !== 'barista' ? ' *' : ''}
+                </label>
                 <input
                   type="email"
                   value={userForm.email}
                   onChange={(e) => setUserForm({...userForm, email: e.target.value})}
                   className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 />
+                <p className="text-xs text-cq-ink-3 mt-1">
+                  {emailProblem(userForm.email, userForm.role)
+                    || 'Used for "Forgot your password?" on the sign-in page.'}
+                </p>
               </div>
               
               <div>
@@ -722,6 +748,12 @@ const UserManagementTab = () => {
                         {!user.active && (
                           <span className="text-xs px-2 py-0.5 rounded bg-cq-wash text-cq-ink-2">
                             Inactive
+                          </span>
+                        )}
+                        {!realEmail(user.email) && user.role !== 'barista' && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-cq-alert-wash text-cq-alert"
+                            title="Without a real email they can't use Forgot your password?">
+                            No email: can't reset own password
                           </span>
                         )}
                       </div>

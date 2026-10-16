@@ -244,13 +244,12 @@ const LoginPage = ({ onLoginSuccess }) => {
               >
                 {loading ? 'Logging in...' : 'Sign In'}
               </button>
-              {/* No self-service reset exists, so don't render a link that
-                  pretends one does (it was an href="#" + alert). Plain
-                  guidance instead — organisers reset passwords from the
-                  Users tab. */}
-              <span className="forgot-password text-sm text-cq-ink-3">
-                Forgot your password? Ask your event organiser to reset it.
-              </span>
+              {/* Self-service reset by email (16 Oct 2026). Logins without a
+                  real email (shared barista logins) still go to their
+                  organiser, and the page says so. */}
+              <a href="/forgot-password" className="forgot-password text-sm text-cq-caramel-deep font-semibold">
+                Forgot your password?
+              </a>
             </div>
           </form>
         </div>

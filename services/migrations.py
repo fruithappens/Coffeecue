@@ -841,6 +841,23 @@ def _m031_support_request_triage(cur):
     cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS note TEXT")
 
 
+def _m033_password_reset_tokens(cur):
+    """Forgot password (16 Oct 2026): one-time links emailed to a login's
+    own address. Only the link's hash is kept; it works once and expires."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            token_hash VARCHAR(64) NOT NULL UNIQUE,
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            requested_ip VARCHAR(64)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens (user_id)")
+
+
 def _m032_signup_requests(cur):
     """Self-serve sign-ups from cupq.app/start (roadmap X7-9). The answers
     become a saved event the build script loads; approving one never builds
@@ -999,6 +1016,7 @@ MIGRATIONS: list[Migration] = [
     Migration(30, 'device_setup_codes',       _m030_device_setup_codes),
     Migration(31, 'support_request_triage',   _m031_support_request_triage),
     Migration(32, 'signup_requests',          _m032_signup_requests),
+    Migration(33, 'password_reset_tokens',    _m033_password_reset_tokens),
 ]
 
 
