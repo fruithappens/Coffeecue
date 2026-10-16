@@ -1747,6 +1747,27 @@ const EventTemplatesSection = ({ config, setConfig, onSwitch }) => {
     }
   };
 
+  // Saved events pile up (and a bad save is worth removing). Admins only:
+  // the server refuses anyone else, and says so.
+  const handleDelete = async () => {
+    const t = templates.find(x => String(x.id) === String(selected));
+    if (!t) return;
+    if (!(await askConfirm({
+      title: 'Delete this saved event?',
+      message: `"${t.name}" will be gone for good. What's running now doesn't change. Download it first if you might want it back.`,
+      confirmLabel: 'Delete', danger: true,
+    }))) return;
+    try {
+      const resp = await api.request(`/event-templates/${t.id}`, { method: 'DELETE' });
+      if (resp && resp.success === false) throw new Error(resp.error || 'Delete failed');
+      setSelected('');
+      await loadList();
+      setStatus({ ok: true, msg: `Deleted "${t.name}".` });
+    } catch (e) {
+      setStatus({ ok: false, msg: /403|permission|role/i.test(e?.message || '') ? 'Only an admin can delete saved events.' : (e?.message || 'Delete failed') });
+    }
+  };
+
   const handleSave = async () => {
     const name = await askText({
       title: 'Save as a template',
@@ -1841,6 +1862,14 @@ const EventTemplatesSection = ({ config, setConfig, onSwitch }) => {
           className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast text-sm font-bold hover:border-cq-caramel disabled:opacity-40"
         >
           Download file
+        </button>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={!selected}
+          className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-alert text-sm font-bold hover:border-cq-alert disabled:opacity-40"
+        >
+          Delete
         </button>
         <button
           type="button"
