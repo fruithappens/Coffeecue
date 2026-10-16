@@ -185,6 +185,21 @@ export default function TryPage() {
 
   useEffect(() => { document.title = 'Try CupQ live'; }, []);
 
+  // ?embed=1: running inside cupq.com.au's "Try it right here" section.
+  // The site has its own heading, links open in the main window, and the
+  // page tells the site its height so there's no scrollbar inside a frame.
+  const embed = new URLSearchParams(window.location.search).get('embed') === '1';
+  const linkTarget = embed ? '_top' : undefined;
+  useEffect(() => {
+    if (!embed || window.parent === window) return undefined;
+    const send = () => window.parent.postMessage(
+      { type: 'cupq-try-height', height: document.documentElement.scrollHeight }, '*');
+    const ro = new ResizeObserver(send);
+    ro.observe(document.body);
+    send();
+    return () => ro.disconnect();
+  }, [embed]);
+
   const begin = useCallback(async () => {
     setError(''); setTexts([]); setOrder(null); setAuto(false);
     // Orders placed in the frames below are tagged as demo orders.
@@ -316,16 +331,18 @@ export default function TryPage() {
   };
 
   return (
-    <div className="cq min-h-screen bg-cq-cream px-4 py-6">
+    <div className={`cq bg-cq-cream ${embed ? 'px-3 py-3' : 'min-h-screen px-4 py-6'}`}>
       <div className="max-w-6xl mx-auto space-y-5">
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-sm font-bold text-cq-caramel-deep tracking-wide">CupQ · live demo</div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-cq-roast">Order a coffee and watch it travel</h1>
-            <p className="text-cq-ink-2 mt-1 max-w-[70ch]">The real system. Pick how you'd order, place it, then play the barista.</p>
-          </div>
-          <a href="https://cupq.com.au" className="text-sm font-semibold text-cq-caramel-deep underline underline-offset-4">Back to cupq.com.au</a>
-        </header>
+        {!embed && (
+          <header className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-sm font-bold text-cq-caramel-deep tracking-wide">CupQ · live demo</div>
+              <h1 className="text-3xl md:text-4xl font-extrabold text-cq-roast">Order a coffee and watch it travel</h1>
+              <p className="text-cq-ink-2 mt-1 max-w-[70ch]">The real system. Pick how you'd order, place it, then play the barista.</p>
+            </div>
+            <a href="https://cupq.com.au" className="text-sm font-semibold text-cq-caramel-deep underline underline-offset-4">Back to cupq.com.au</a>
+          </header>
+        )}
 
         {/* Four ways in */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3" role="tablist" aria-label="How to order">
@@ -389,8 +406,8 @@ export default function TryPage() {
                 <div className="space-y-3">
                   <p className="font-bold text-cq-roast">Ordered, made, labelled, collected, and nobody stood in a queue.</p>
                   <div className="flex flex-wrap gap-2">
-                    <a href="https://cupq.app/start" className="h-11 px-4 inline-flex items-center rounded-cq-md bg-cq-roast text-cq-cream font-bold">Get started</a>
-                    <a href="https://cupq.com.au/#demo" className="h-11 px-4 inline-flex items-center rounded-cq-md border-2 border-cq-line text-cq-roast font-bold">Book a demo</a>
+                    <a href="https://cupq.app/start" target={linkTarget} className="h-11 px-4 inline-flex items-center rounded-cq-md bg-cq-roast text-cq-cream font-bold">Get started</a>
+                    <a href="https://cupq.com.au/#demo" target={linkTarget} className="h-11 px-4 inline-flex items-center rounded-cq-md border-2 border-cq-line text-cq-roast font-bold">Book a demo</a>
                     <button type="button" onClick={begin} className="h-11 px-4 rounded-cq-md text-cq-caramel-deep font-bold underline underline-offset-4">Try another way</button>
                   </div>
                 </div>

@@ -76,6 +76,18 @@ limiter = Limiter(
 EMBEDDABLE_PREFIXES = ('/my', '/order', '/how', '/display', '/sign')
 
 
+# The live demo (/try) may be framed by the marketing site only, so
+# visitors try it without leaving cupq.com.au (Steve, 16 Oct 2026). It holds
+# no session, and naming the one site keeps every other site refused.
+TRY_FRAME_ANCESTORS = "'self' " + (os.getenv('TRY_FRAME_ORIGINS')
+                                   or 'https://cupq.com.au https://www.cupq.com.au')
+
+
+def _is_try_page(path):
+    path = (path or '').rstrip('/')
+    return path == '/try' or path.startswith('/try/')
+
+
 def _is_embeddable(path):
     path = (path or '').rstrip('/') or '/'
     return any(path == p or path.startswith(p + '/') or path.startswith(p + '?')
@@ -85,10 +97,11 @@ def _is_embeddable(path):
 def add_security_headers(response):
     """Add comprehensive security headers to all responses"""
     embeddable = _is_embeddable(request.path)
+    try_page = _is_try_page(request.path)
 
     # Prevent clickjacking — except on the anonymous pages an event app
-    # is meant to embed.
-    if embeddable:
+    # is meant to embed, and the demo on cupq.com.au.
+    if embeddable or try_page:
         # X-Frame-Options has no "any origin" value; omitting it and
         # letting frame-ancestors govern is the modern, correct way.
         response.headers.pop('X-Frame-Options', None)
@@ -139,7 +152,8 @@ def add_security_headers(response):
         # personal data — the staff screens, which do, keep
         # frame-ancestors 'self' and X-Frame-Options: SAMEORIGIN (only
         # cupq.app's own pages may frame them).
-        None if embeddable else "frame-ancestors 'self'",
+        None if embeddable else (f"frame-ancestors {TRY_FRAME_ANCESTORS}" if try_page
+                                 else "frame-ancestors 'self'"),
         "upgrade-insecure-requests"
     ]
     response.headers['Content-Security-Policy'] = "; ".join(
