@@ -243,7 +243,8 @@ def _sms_webhook_inner():
         # we fail closed (401) if the auth token is missing in
         # production rather than letting unsigned requests through.
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        testing_mode = os.getenv('TESTING_MODE', 'False').lower() == 'true'
+        from auth import unsigned_webhooks_allowed
+        testing_mode = unsigned_webhooks_allowed()  # TESTING_MODE on a laptop copy only
         skip_validation = testing_mode and (not auth_token or auth_token == 'test_token')
 
         if not skip_validation and not auth_token:
@@ -1093,7 +1094,8 @@ def _twilio_signature_ok():
     """
     try:
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        testing_mode = os.getenv('TESTING_MODE', 'False').lower() == 'true'
+        from auth import unsigned_webhooks_allowed
+        testing_mode = unsigned_webhooks_allowed()  # TESTING_MODE on a laptop copy only
         if testing_mode and (not auth_token or auth_token == 'test_token'):
             return True, 'testing-mode'
         if not auth_token:

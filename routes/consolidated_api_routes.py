@@ -16318,7 +16318,8 @@ def _eventsair_secret_ok(db):
     if not cfg.get('enabled'):
         return False, 'EventsAir integration is disabled'
     secret = (cfg.get('webhook_secret') or '').strip()
-    testing = os.getenv('TESTING_MODE', 'false').lower() == 'true'
+    from auth import unsigned_webhooks_allowed
+    testing = unsigned_webhooks_allowed()  # TESTING_MODE on a laptop copy only
     if not secret:
         # No secret configured: accept only in TESTING_MODE. In prod this
         # FAILS CLOSED -- the integration was live on cupq.app with
