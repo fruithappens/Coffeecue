@@ -358,37 +358,43 @@ export default function TryPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Panel title="The barista's screen" hint="Milk and size up front, every order in one queue.">
-                {placed ? (
-                  <div className="bg-white rounded-cq-lg border-4 border-cq-roast p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-2xl font-extrabold text-cq-roast truncate">{order.name || 'Guest'} <span className="text-cq-ink-3">#{order.number}</span></div>
-                        <div className="text-cq-ink-2 capitalize">{[order.size, order.milk, order.drink].filter(Boolean).join(' · ')}</div>
+            {/* The board stands upright beside the cart, like the tablet at
+                Treenet: sponsors on top, Ready and Brewing, and the event's
+                artwork filling the rest. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+              <div className="space-y-4 min-w-0">
+                <Panel title="The barista's screen" hint="Milk and size up front, every order in one queue.">
+                  {placed ? (
+                    <div className="bg-white rounded-cq-lg border-4 border-cq-roast p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-2xl font-extrabold text-cq-roast truncate">{order.name || 'Guest'} <span className="text-cq-ink-3">#{order.number}</span></div>
+                          <div className="text-cq-ink-2 capitalize">{[order.size, order.milk, order.drink].filter(Boolean).join(' · ')}</div>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${step >= 3 ? 'bg-cq-ready text-white' : step === 2 ? 'bg-cq-caramel text-white' : 'bg-cq-wash text-cq-roast'}`}>
+                          {step >= 4 ? 'Collected' : step === 3 ? 'Ready' : step === 2 ? 'Making' : 'New'}
+                        </span>
                       </div>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${step >= 3 ? 'bg-cq-ready text-white' : step === 2 ? 'bg-cq-caramel text-white' : 'bg-cq-wash text-cq-roast'}`}>
-                        {step >= 4 ? 'Collected' : step === 3 ? 'Ready' : step === 2 ? 'Making' : 'New'}
-                      </span>
+                      <div className="text-xs text-cq-ink-3 mt-2">Came in {viaText ? 'by text' : CAME_FROM[method]}</div>
                     </div>
-                    <div className="text-xs text-cq-ink-3 mt-2">Came in {viaText ? 'by text' : CAME_FROM[method]}</div>
+                  ) : <div className="rounded-cq-lg border-4 border-dashed border-cq-line p-6 text-center text-sm text-cq-ink-3">Waiting for your order</div>}
+                </Panel>
+                <Panel title="The cup label" hint="Prints the moment the barista starts it.">
+                  <div className="rounded-cq-lg border-4 border-cq-roast bg-white p-3 flex items-center justify-center min-h-[7.5rem]">
+                    {placed && step >= 2
+                      ? <img key={labelKey} alt={`Cup label for order ${order.number}`} className="max-w-full h-auto" src={`/api/try/label?token=${encodeURIComponent(session.token)}&k=${labelKey}`} />
+                      : <span className="text-sm text-cq-ink-3">Prints when it's started</span>}
                   </div>
-                ) : <div className="rounded-cq-lg border-4 border-dashed border-cq-line p-6 text-center text-sm text-cq-ink-3">Waiting for your order</div>}
-              </Panel>
-              <Panel title="The cup label" hint="Prints the moment the barista starts it.">
-                <div className="rounded-cq-lg border-4 border-cq-roast bg-white p-3 flex items-center justify-center min-h-[7.5rem]">
-                  {placed && step >= 2
-                    ? <img key={labelKey} alt={`Cup label for order ${order.number}`} className="max-w-full h-auto" src={`/api/try/label?token=${encodeURIComponent(session.token)}&k=${labelKey}`} />
-                    : <span className="text-sm text-cq-ink-3">Prints when it's started</span>}
+                </Panel>
+              </div>
+              <Panel title="The board at the cart" hint="An upright screen at the cart. Names show when they're ready.">
+                <div className="mx-auto w-full max-w-[300px] rounded-[1.4rem] bg-cq-roast p-2.5 shadow-cq-raised">
+                  <div className="rounded-[0.9rem] overflow-hidden">
+                    <Scaled src={`/display?orientation=portrait${order?.station_id ? `&station=${order.station_id}` : ''}`} w={800} h={1280} title="The board at the cart" />
+                  </div>
                 </div>
               </Panel>
             </div>
-
-            <Panel title="The board at the cart" hint="Names show here when they're ready to collect.">
-              <div className="rounded-cq-lg border-4 border-cq-roast overflow-hidden">
-                <Scaled src={`/display?mode=pickup${order?.station_id ? `&station=${order.station_id}` : ''}`} w={1920} h={1080} title="Pickup board" />
-              </div>
-            </Panel>
           </div>
         </div>
       </div>
