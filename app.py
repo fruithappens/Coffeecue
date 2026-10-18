@@ -1244,6 +1244,15 @@ def create_app():
         except Exception:
             # Never turn a cleanup failure into a request failure.
             pass
+        # And any other connection this request took with get_db_connection()
+        # and never handed back (utils/database.return_request_connections).
+        try:
+            from utils.database import return_request_connections
+            leaked = return_request_connections()
+            if leaked:
+                logger.debug("returned %d unreturned DB connection(s) at teardown", leaked)
+        except Exception:
+            pass
 
     # Authentication API endpoints
     # NOTE: the LIVE /api/auth/login is routes/auth_routes.py (registered

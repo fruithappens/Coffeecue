@@ -64,11 +64,22 @@ class MessagingService:
         never be able to stop a ready-message going out - so it opens one
         defensively and falls back on any failure.
         """
+        conn = None
         try:
-            return station_label(get_db_connection(), station_id)
+            conn = get_db_connection()
+            return station_label(conn, station_id)
         except Exception as e:
             logger.warning(f"station name lookup failed, using id: {e}")
             return f"Station {station_id}"
+        finally:
+            # Return it: this also runs from background loops (reminders),
+            # where nothing else would.
+            if conn is not None:
+                try:
+                    from utils.database import close_connection
+                    close_connection(conn)
+                except Exception:
+                    pass
 
     def __init__(self, account_sid=None, auth_token=None, phone_number=None, testing_mode=False):
         """
