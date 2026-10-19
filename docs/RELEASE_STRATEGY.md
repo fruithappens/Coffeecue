@@ -1,5 +1,20 @@
 # Release strategy — the stable line and the rebuild
 
+## Since 20 Oct 2026: demo first, then live
+
+- A merge to `main` deploys **demo.cupq.app** only.
+- **cupq.app** deploys the `live` branch. Only `.github/workflows/release.yml`
+  moves it: `gh workflow run release.yml` (or `-f sha=<commit on main>`).
+  It waits until demo serves that commit, checks demo's menu (needs the
+  database) and runs `scripts/smoke_live.sh` against demo, refuses while
+  cupq.app is frozen for an event (unless cupq.app is down entirely), then
+  fast-forwards `live`. It never rewrites `live`.
+- The Post-deploy check follows both: a push to `main` checks demo, a push
+  to `live` checks cupq.app.
+- Rollback is unchanged (`scripts/rollback.py`, docs/ROLLBACK.md).
+
+The older notes below are kept for history.
+
 Steve, 2026-08-26: "is it possible to have for lack of a better word a
 restore point. ie we can come back to this evenings roll out and pick
 and use that but in the mean time get the stock stuff working and

@@ -22,7 +22,12 @@ menu=$(curl -s -m 20 "$BASE/api/display/menu")
 echo "$menu" | grep -q '"success": *true' && echo "$menu" | grep -q '"menu"' && ok "public menu" || bad "display/menu"
 [ "$(code "$BASE/api/orders")" = 401 ] && ok "orders still need a login" || bad "orders did not refuse an anonymous request"
 [ "$(code "$BASE/api/sms/meter")" = 401 ] && ok "text meter needs a login" || bad "sms/meter auth"
-[ "$(code -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/cloudprnt")" = 200 ] && ok "printer endpoint alive" || bad "cloudprnt"
+# 200 = open; 403 = alive with CLOUDPRNT_SHARED_SECRET set (demo has it).
+case "$(code -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/cloudprnt")" in
+  200) ok "printer endpoint alive (no shared secret)";;
+  403) ok "printer endpoint alive (shared secret on)";;
+  *) bad "cloudprnt";;
+esac
 curl -s -m 20 -D - -o /dev/null "$BASE/api/health" | grep -qi '^x-content-type-options: *nosniff' && ok "security headers on" || bad "security headers missing"
 curl -s -m 20 -X OPTIONS "$BASE/api/public/demo-request" -H 'Origin: https://cupq.com.au' \
   -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' -D - -o /dev/null \

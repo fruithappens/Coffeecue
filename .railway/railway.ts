@@ -23,7 +23,9 @@ export default defineRailway(() => {
   const webVolume = volume("web-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "us-west2", sizeMB: 5000 });
   const dropVolume = volume("drop-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "us-west2", sizeMB: 500 });
   const web = service("web", {
-    source: github("fruithappens/Coffeecue", { checkSuites: false }),
+    // cupq.app follows `live`, which only .github/workflows/release.yml moves,
+    // after demo.cupq.app (which follows main) has run the same commit.
+    source: github("fruithappens/Coffeecue", { branch: "live", checkSuites: false }),
     start: "python run_server.py",
     build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
     deploy: { restartPolicyType: "ON_FAILURE" },

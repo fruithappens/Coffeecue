@@ -1,0 +1,78 @@
+# Release to live: cupq.app only gets what demo.cupq.app has already run.
+#
+# Merges to main deploy demo.cupq.app (its Railway service follows main).
+# cupq.app follows the `live` branch, and this workflow is the only thing
+# that moves it: it checks demo is serving the commit and its menu loads
+# (needs the database), that cupq.app isn't frozen for an event, then
+# fast-forwards `live` to that commit, and Railway deploys it.
+# (Roadmap S1-2 / due-diligence "demo before live", 20 Oct 2026.)
+#
+#   gh workflow run release.yml               # release what main is now
+#   gh workflow run release.yml -f sha=<sha>  # a specific commit on main
+name: Release to live
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit on main to release (blank = main now)"
+        required: false
+        default: ""
+
+concurrency:
+  group: release-live
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Demo first, then live
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Which commit
+        id: pick
+        run: |
+          sha="${{ github.event.inputs.sha }}"
+          [ -z "$sha" ] && sha=$(git rev-parse origin/main)
+          sha=$(git rev-parse "$sha")
+          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main."; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${sha:0:7}"
+      - name: Demo is running it, and it works
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          for i in $(seq 1 30); do
+            demo=$(curl -s -m 15 https://demo.cupq.app/api/app-version | python3 -c "import json,sys; print(json.load(sys.stdin).get('commit') or '')" 2>/dev/null || true)
+            if [ -n "$demo" ] && git merge-base --is-ancestor "$SHA" "$demo" 2>/dev/null; then break; fi
+            echo "[$i] demo=${demo:0:7}, waiting for ${SHA:0:7}..."; sleep 30
+            [ "$i" = 30 ] && { echo "::error::demo.cupq.app isn't serving ${SHA:0:7} after 15 minutes."; exit 1; }
+          done
+          menu=$(curl -s -o /dev/null -m 20 -w '%{http_code}' https://demo.cupq.app/api/display/menu || echo 000)
+          [ "$menu" = "200" ] || { echo "::error::demo.cupq.app's menu answers HTTP $menu. Not releasing."; exit 1; }
+          bash scripts/smoke_live.sh https://demo.cupq.app
+      - name: cupq.app isn't frozen for an event
+        run: |
+          code=$(curl -s -o freeze.json -w '%{http_code}' -A CupQ-release https://cupq.app/api/public/release-freeze || echo 000)
+          frozen=$(python3 -c "import json;print(json.load(open('freeze.json')).get('frozen', True))" 2>/dev/null || echo True)
+          if [ "$frozen" = "False" ]; then echo "Not frozen."; exit 0; fi
+          # Down entirely: not serving an event, and this may be the fix.
+          menu=$(curl -s -o /dev/null -m 20 -w '%{http_code}' https://cupq.app/api/display/menu || echo 000)
+          case "$code" in 5*|000) [ "$menu" != "200" ] && { echo "::warning::cupq.app is down; releasing anyway."; exit 0; };; esac
+          echo "::error::cupq.app is frozen for an event ($(cat freeze.json 2>/dev/null)). Release after it."
+          exit 1
+      - name: Move live to it
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          if git rev-parse -q --verify origin/live >/dev/null; then
+            git merge-base --is-ancestor origin/live "$SHA" || { echo "::error::live has commits main doesn't. Not overwriting."; exit 1; }
+          fi
+          git push origin "$SHA:refs/heads/live"
+          echo "live -> ${SHA:0:7}; Railway deploys cupq.app now (Post-deploy check follows it)."
