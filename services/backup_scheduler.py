@@ -163,11 +163,15 @@ def take_backup(app, force=False):
         logger.error("backup: could not build snapshot: %s", e)
         return None
     finally:
-        try:
-            if conn is not None:
-                conn.rollback()  # read-only; do not leave a txn open
-        except Exception:
-            pass
+        # Hand it BACK. This used to only roll back, so every hourly run kept
+        # one pool connection forever: 30 hours after a deploy the pool (30)
+        # was empty and cupq.app's menu and board failed (17-18 Oct 2026).
+        if conn is not None:
+            try:
+                from utils.database import close_connection
+                close_connection(conn)  # rolls back, then returns it
+            except Exception:
+                pass
 
     fp = _fingerprint(snapshot)
     if not force and fp == _read_fingerprint():

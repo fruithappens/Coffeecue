@@ -10072,7 +10072,7 @@ class CoffeeOrderSystem:
         try:
             from utils.database import get_db_connection
 
-            new_conn = get_db_connection()
+            new_conn = get_db_connection(track=False)  # kept beyond any request
             if new_conn is not None:
                 logger.warning("Shared DB connection was closed; reconnected.")
                 self._db = new_conn

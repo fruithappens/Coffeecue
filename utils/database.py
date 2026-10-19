@@ -250,7 +250,49 @@ def _getconn_waiting():
             delay = min(delay * 2, 0.05)
 
 
-def get_db_connection(db_url=None):
+def _borrowed_list():
+    """This request's borrowed connections, or None outside a request.
+
+    Kept on the REQUEST, not on flask.g: a request made inside another (the
+    try demo presses barista buttons through test_client) shares g with the
+    outer one, and its teardown must not hand back the outer's connections.
+    """
+    try:
+        from flask import has_request_context, request
+        if not has_request_context():
+            return None
+        req = request._get_current_object()
+        lst = getattr(req, "_cupq_borrowed", None)
+        if lst is None:
+            lst = []
+            req._cupq_borrowed = lst
+        return lst
+    except Exception:
+        return None
+
+
+def return_request_connections():
+    """Give back every pooled connection this request took and didn't return.
+
+    Called from app.py's teardown_request. Before this, ~30 handlers took a
+    connection with get_db_connection() and never called close_connection(),
+    each leaking one pool slot until a restart (found 18 Oct 2026, with the
+    hourly backup's leak that emptied cupq.app's pool)."""
+    lst = _borrowed_list()
+    if not lst:
+        return 0
+    n = 0
+    for conn in list(lst):
+        try:
+            close_connection(conn)
+            n += 1
+        except Exception:
+            pass
+    lst.clear()
+    return n
+
+
+def get_db_connection(db_url=None, track=True):
     """Get a connection from the pool
     
     Args:
@@ -292,6 +334,13 @@ def get_db_connection(db_url=None):
             conn._cupq_pool = connection_pool
         except Exception:
             pass
+        # Inside a request, remember it, so teardown can return it even if
+        # the handler forgets (track=False: the caller keeps it for longer
+        # than this request, like coffee_system's shared fallback).
+        if track:
+            lst = _borrowed_list()
+            if lst is not None:
+                lst.append(conn)
         return conn
     except _PoolBusy:
         # Every connection is in use and none came back in time. That is
@@ -378,6 +427,12 @@ def close_connection(conn):
             # Close the connection
             conn.close()
         elif connection_pool:
+            lst = _borrowed_list()
+            if lst:
+                for i, c in enumerate(lst):
+                    if c is conn:
+                        del lst[i]
+                        break
             # Defensive rollback before putconn — see docstring above.
             try:
                 conn.rollback()
