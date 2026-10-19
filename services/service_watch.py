@@ -31,6 +31,56 @@ SERVICE_WINDOW_MIN = 30
 # 15 Oct 2026: the offline text came, nothing ever said it was fixed).
 _offline_alerted = {}
 
+# This copy checking itself: the menu a customer's phone loads first, asked
+# of this very server once a minute at any hour. cupq.app's connection pool
+# ran dry on 17 Oct 2026 and ordering failed for three days while
+# /api/health (no database) stayed green and nobody was texted.
+SELF_DOWN_AFTER = int(os.getenv("SELF_CHECK_DOWN_AFTER", "3"))
+_self = {"fails": 0, "alerted": False}
+
+
+def site_answers(timeout=15):
+    """True if this server serves its public menu (which needs the database)."""
+    import urllib.request
+
+    port = os.getenv("PORT", "5001")
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/display/menu",
+                                     headers={"User-Agent": "CupQ-self-check/1"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def check_self(alert, probe=None):
+    """Count failures; text after SELF_DOWN_AFTER in a row, and again when it
+    recovers. Returns (code, message) when it alerted, else None."""
+    if (probe or site_answers)():
+        _self["fails"] = 0
+        if _self["alerted"]:
+            _self["alerted"] = False
+            msg = "CupQ: ordering is working again (the menu loads)."
+            alert("SITE_BACK", "critical", msg)
+            try:
+                from services.admin_alerts import _last_sent
+
+                _last_sent.pop("SITE_DOWN", None)
+            except Exception:
+                pass
+            return ("SITE_BACK", msg)
+        return None
+    _self["fails"] += 1
+    if _self["fails"] >= SELF_DOWN_AFTER and not _self["alerted"]:
+        _self["alerted"] = True
+        where = os.getenv("PUBLIC_BASE_URL") or os.getenv("RAILWAY_PUBLIC_DOMAIN") or "this copy"
+        msg = (f"CupQ: {where} can't load its menu ({_self['fails']} checks in a row). "
+               "Ordering is probably down. Restart the web service in Railway "
+               "(Deployments, the active one, Restart).")
+        alert("SITE_DOWN", "critical", msg)
+        return ("SITE_DOWN", msg)
+    return None
+
 
 def _connect():
     import psycopg2
@@ -77,6 +127,13 @@ def check_once(app=None, alert=None):
     if alert is None:
         from services.admin_alerts import send_admin_alert as alert
     raised = []
+    # Can this server still serve a customer? Any hour, not just in service.
+    try:
+        hit = check_self(alert)
+        if hit:
+            raised.append(hit)
+    except Exception as e:
+        logger.warning("[service-watch] self check failed: %s", e)
     conn = None
     try:
         conn = _connect()

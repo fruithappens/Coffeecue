@@ -2,7 +2,8 @@
 
 Every minute the service watch (services/service_watch.py) asks each copy
 on the fleet board (System > Fleet, plus the FLEET_COPIES setting the build
-script fills) for /api/health. A copy that fails DOWN_AFTER checks in a row
+script fills) for its public menu (/api/display/menu: it needs the
+database, where /api/health doesn't). A copy that fails DOWN_AFTER checks in a row
 texts the admin number and whoever is on call; when it answers again they
 get "it's back". Live (cupq.app) watches demo and every client copy.
 
@@ -16,7 +17,12 @@ import os
 logger = logging.getLogger(__name__)
 
 DOWN_AFTER = int(os.getenv("FLEET_DOWN_AFTER_CHECKS", "2"))
-TIMEOUT_S = 6
+# Longer than the database pool's 10 s wait, so a busy copy isn't "down".
+TIMEOUT_S = 15
+# /api/health answers without touching the database, so it stayed 200
+# through demo's empty connection pool (17-20 Oct 2026) and nobody heard.
+# The public menu is what a customer's phone loads first, and needs the DB.
+PROBE_PATH = "/api/display/menu"
 
 _fails = {}      # url -> consecutive failed checks
 _alerted = set()  # urls we've said are down
@@ -53,7 +59,7 @@ def answers(url):
     import requests
 
     try:
-        r = requests.get(f"{url}/api/health", timeout=TIMEOUT_S,
+        r = requests.get(f"{url}{PROBE_PATH}", timeout=TIMEOUT_S,
                          headers={"User-Agent": "CupQ-fleet-watch/1"})
         return r.status_code == 200
     except Exception:

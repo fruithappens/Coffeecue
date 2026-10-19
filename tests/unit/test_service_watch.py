@@ -32,6 +32,7 @@ def _run(conn, ms=None, snap=None):
     app = MagicMock()
     app.config.get.return_value = ms
     with patch.object(sw, "_connect", return_value=conn), \
+         patch.object(sw, "site_answers", return_value=True), \
          patch("services.sms_health.snapshot", return_value=snap or {}):
         sw.check_once(app, alert=lambda code, sev, msg: sent.append((code, sev, msg)))
     return sent
