@@ -21,8 +21,11 @@ Never deploy during an event (the Event freeze check enforces this).
 | Live | cupq.app | Coffee Cue | us-west2 |
 | Demo / trial copy | demo.cupq.app | cupq-demo | Singapore |
 
-- Both deploy from `main` on merge (Dockerfile; `python run_server.py`,
-  eventlet, one process). Cloudflare in front.
+- Demo deploys `main` on merge; live deploys the `live` branch, which only
+  `.github/workflows/release.yml` moves (`gh workflow run release.yml`),
+  after demo is serving the commit and its menu and smoke test pass, and
+  cupq.app isn't frozen. Dockerfile; `python run_server.py`, eventlet, one
+  process. Cloudflare in front.
 - `main` is protected: Frontend build, Backend syntax, Python unit tests,
   Consistency checks, One handler per address, Event freeze must pass.
   No approvals needed. Branch each PR off `main`; never stack PRs.

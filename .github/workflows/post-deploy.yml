@@ -1,4 +1,8 @@
-# Post-deploy check: did the merge actually go live, and does it work?
+# Post-deploy check: did the push actually deploy, and does it work?
+#
+# Since 20 Oct 2026 main deploys demo.cupq.app and the `live` branch deploys
+# cupq.app (moved only by release.yml, after demo has run the change). So a
+# push to main checks demo, and a push to live checks cupq.app.
 #
 # Railway deploys main on every push, with no gate of its own, and has been
 # seen to skip a deploy silently ("Railway can miss a deploy -- re-push").
@@ -10,7 +14,7 @@ name: Post-deploy check
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, live ]
   workflow_dispatch:
 
 concurrency:
@@ -28,7 +32,7 @@ jobs:
           fetch-depth: 0
       - name: Wait for Railway to serve this commit
         env:
-          BASE: https://cupq.app
+          BASE: ${{ github.ref_name == 'live' && 'https://cupq.app' || 'https://demo.cupq.app' }}
         run: |
           want="$GITHUB_SHA"
           for i in $(seq 1 40); do
@@ -40,7 +44,7 @@ jobs:
             echo "[$i] live=${live:-unknown}, waiting for ${want:0:7}..."
             sleep 30
           done
-          echo "::error::Production is not serving ${want:0:7} after 20 minutes. Railway may have skipped this deploy: redeploy it from the Railway dashboard, or push again."
+          echo "::error::$BASE is not serving ${want:0:7} after 20 minutes. Railway may have skipped this deploy: redeploy it from the Railway dashboard, or push again."
           exit 1
       - name: Smoke test
-        run: bash scripts/smoke_live.sh https://cupq.app
+        run: bash scripts/smoke_live.sh ${{ github.ref_name == 'live' && 'https://cupq.app' || 'https://demo.cupq.app' }}
