@@ -123,6 +123,17 @@ jobs:
           code=$(curl -s -o freeze.json -w '%{http_code}' -A CupQ-CI https://cupq.app/api/public/release-freeze || echo 000)
           echo "HTTP $code: $(cat freeze.json 2>/dev/null)"
           if [ "$code" = "404" ]; then echo "cupq.app predates the freeze check; not blocking."; exit 0; fi
+          # cupq.app not answering at all (17-20 Oct 2026: its database pool
+          # was empty, the freeze check returned 503 and blocked the very fix
+          # that ended the outage). If its menu fails too, it can't be serving
+          # an event: let the fix through, loudly.
+          case "$code" in 5*|000)
+            menu=$(curl -s -o /dev/null -m 20 -w '%{http_code}' -A CupQ-CI https://cupq.app/api/display/menu || echo 000)
+            if [ "$menu" != "200" ]; then
+              echo "::warning::cupq.app is down (freeze check HTTP $code, menu HTTP $menu), so it isn't serving an event. Not blocking: this may be the fix."
+              exit 0
+            fi;;
+          esac
           frozen=$(python3 -c "import json;print(json.load(open('freeze.json')).get('frozen', True))" 2>/dev/null || echo True)
           if [ "$frozen" = "False" ]; then echo "Not frozen."; exit 0; fi
           if [ "$OVERRIDE" = "true" ]; then echo "::warning::Frozen, but the PR is labelled freeze-override."; exit 0; fi
