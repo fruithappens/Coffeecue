@@ -42,7 +42,14 @@ ENV_FILE = HOME / ".cupq_backup.env"         # BACKUP_HEARTBEAT_TOKEN=... (chmod
 INSTALL_DIR = HOME / "cupq-backup"
 PG = Path("/opt/homebrew/opt/postgresql@16/bin")  # v16 client, matching cupq.app's server
 KEEP = {"nightly": 14, "hourly": 48}
-TRIES = (0, 60, 180)                          # seconds to wait before each try
+# Seconds to wait before each try. Five tries over ~25 minutes: after Railway's
+# 21 Oct 2026 incident its public database connection got slow and dropped
+# mid-dump (a dump took 5 min instead of 1), and three quick tries failed most
+# nights.
+TRIES = (0, 60, 180, 420, 900)
+# Ask Postgres' client to keep an idle connection alive and to notice a dead
+# one, so a stalled proxy fails fast and the next try starts.
+KEEPALIVE = "keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=6&connect_timeout=30"
 HEARTBEAT_URL = "https://cupq.app/api/public/backup-heartbeat"
 
 # cupq.app's Postgres service (Railway project "Coffee Cue")
@@ -136,7 +143,22 @@ def verify(path):
     return sum(1 for line in r.stdout.splitlines() if " TABLE DATA " in line)
 
 
+def _with_keepalive(url):
+    return url + ("&" if "?" in url else "?") + KEEPALIVE
+
+
+def _first_error(stderr):
+    """The line that says what went wrong. pg_dump's LAST line is usually a
+    'detail: Query was: ...' echo, which hid the cause in the log."""
+    lines = [ln.strip() for ln in (stderr or "").splitlines() if ln.strip()]
+    for ln in lines:
+        if "error" in ln.lower() or "could not" in ln.lower() or "server closed" in ln.lower():
+            return ln
+    return lines[0] if lines else "dump held no table data"
+
+
 def dump(url, out):
+    url = _with_keepalive(url)
     last_err = ""
     for i, wait in enumerate(TRIES, 1):
         if wait:
@@ -146,7 +168,7 @@ def dump(url, out):
         tables = verify(out) if r.returncode == 0 and out.exists() else 0
         if tables >= 10:
             return tables
-        last_err = (r.stderr.strip().splitlines() or ["dump held no table data"])[-1][:160]
+        last_err = _first_error(r.stderr)[:200]
         log(f"RETRY try {i} failed: {last_err}")
         out.unlink(missing_ok=True)
     raise RuntimeError(last_err or "pg_dump failed")
