@@ -68,7 +68,7 @@ export const milkEmoji = (name) => {
 // knows which one it is, so it is a prop, not a guess.
 const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk', onPick , onCheckExisting,
-                      eventCode = '' }) => {
+                      eventCode = '', sharedScreen = false }) => {
   // Anything the event needs everyone to know, before they order.
   const notices = useNotices('phone', stationId);
   // Whose event this is -- the operator's logo, name and colour. A delegate
@@ -183,7 +183,13 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // barista signed it in to work the station. So a token in storage means
   // this is the cart's shared screen; no token means a phone in someone's
   // hand.
+  //
+  // The board's own kiosk overlay says so outright (sharedScreen): a kiosk
+  // left open without a barista signed in still has no token, and the
+  // 31 Oct 2026 audit (ORD-001) watched it offer the previous person's
+  // mobile to the next one.
   const isOwnDevice = (() => {
+    if (sharedScreen) return false;
     try { return !localStorage.getItem('coffee_system_token'); } catch (e) { return true; }
   })();
 
@@ -879,10 +885,11 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         // cookie -- the EA app's webview can wipe one and keep the
         // other on a full quit). /my checks this on load and restores
         // the beacon until the order is done or three hours pass.
-        remember('cupq_active_order', JSON.stringify({
-          n: b.order_number, at: Date.now(),
-        }), 3 * 3600);
+        // Not on a shared screen: the next person would open to it.
         if (isOwnDevice) {
+          remember('cupq_active_order', JSON.stringify({
+            n: b.order_number, at: Date.now(),
+          }), 3 * 3600);
           // Their number and their texts choice, for next time.
           remember('cupq_sms_pref', JSON.stringify({
             phone: phone.trim(), optIn: smsOptIn,
