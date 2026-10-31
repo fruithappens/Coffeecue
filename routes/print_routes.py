@@ -327,6 +327,28 @@ def _sweep_stuck_jobs(db):
 # ---------------------------------------------------------------------------
 
 
+
+def _label_ts():
+    """The time printed on a cup, on the event's clock.
+
+    The server runs TZ=UTC, so a bare datetime.now() put UTC on every cup:
+    10.5 hours off in Adelaide (found by the 31 Oct 2026 audit on demo).
+    The label shows HH:MM from this naive local time as it always did."""
+    try:
+        from utils import event_time
+
+        getter = None
+        try:
+            cs = current_app.config.get("coffee_system")
+            getter = cs._get_setting if cs else None
+        except Exception:
+            getter = None
+        zone = event_time.resolve_zone(getter)
+        return event_time.local_now(zone).replace(tzinfo=None).isoformat()
+    except Exception:
+        return datetime.now().isoformat()
+
+
 def _snapshot_order(db, order_number, station_id=None):
     """Freeze the label data NOW. Never re-read the live order at print
     time — what was queued is what prints."""
@@ -402,7 +424,7 @@ def _snapshot_order(db, order_number, station_id=None):
         # The id as well as the name: milk symbols are a per-station
         # option and the name is free text a barista can rename.
         "station_id": sid,
-        "ts": datetime.now().isoformat(),
+        "ts": _label_ts(),
     }
 
 
@@ -1641,7 +1663,7 @@ def test_print():
             "milk": "",
             "modifiers": ["width ruler below"],
             "station_name": "Setup",
-            "ts": datetime.now().isoformat(),
+            "ts": _label_ts(),
         }
         job_id, _ = _enqueue(db, int(printer_id), payload, job_type="test")
         warning = _offline_note(db, printer_id)
@@ -2438,7 +2460,7 @@ def preview_label():
                 "modifiers": ["Extra hot", "1 sugar"],
                 "station_name": "Coffee Station 1",
                 "station_id": 1,
-                "ts": datetime.now().isoformat(),
+                "ts": _label_ts(),
             }
             if request.args.get("sample") != "1":
                 payload["test"] = True
