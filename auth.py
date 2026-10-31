@@ -252,6 +252,14 @@ def init_app(app):
                 else:
                     # Decode real token
                     decoded_token = decode_token(token)
+
+                    # A refresh token only buys a new access token, at
+                    # /api/auth/refresh (which reads it from the body).
+                    # Taking one as a login made it a 30-day access token
+                    # (31 Oct 2026 audit, SEC-004).
+                    if decoded_token.get('type') == 'refresh':
+                        logger.warning("Refresh token sent as a login; ignored")
+                        return
                     
                     # Get user claims
                     user_id = decoded_token['sub']
