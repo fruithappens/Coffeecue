@@ -2229,6 +2229,7 @@ const DisplayScreen = () => {
           order shows immediately. */}
       {showKiosk && (
         <KioskOrder
+          sharedScreen
           stationId={currentStation && currentStation.id !== 'all' ? currentStation.id : null}
           headerColor={headerColor}
           eventCode={eventCode}
