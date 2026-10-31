@@ -47,8 +47,12 @@ If cupq.app's database is lost or damaged:
    damaged one after emptying it), and copy its `DATABASE_PUBLIC_URL`.
 3. Restore:
    ```bash
-   /opt/homebrew/opt/postgresql@16/bin/pg_restore --no-owner --no-acl -d "<DATABASE_PUBLIC_URL>" ~/expresso/backups/<file>.dump
+   /opt/homebrew/opt/postgresql@16/bin/pg_restore --no-owner --no-acl -j 4 -d "<DATABASE_PUBLIC_URL>" ~/expresso/backups/<name>.dumpdir
    ```
+   Since 31 Oct 2026 a backup is a FOLDER (`.dumpdir`, made 4 tables at a
+   time because Railway's proxy cuts long connections); `pg_restore` reads
+   it as is. Older backups are single `.dump` files: same command, without
+   `-j 4`.
 4. Point the web service's `DATABASE_URL` at it (`${{Postgres.DATABASE_URL}}`
    reference) and redeploy. Check Readiness and place a test order.
 

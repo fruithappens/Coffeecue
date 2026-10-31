@@ -22,6 +22,7 @@ no app password, no failed logins.
 Python 3.9 standard library only (macOS's own python3), so it doesn't
 depend on any project folder or virtualenv.
 """
+import fcntl
 import json
 import os
 import shutil
@@ -157,20 +158,39 @@ def _first_error(stderr):
     return lines[0] if lines else "dump held no table data"
 
 
+def _remove(path):
+    """A dump is a file (.dump, before 31 Oct 2026) or a folder (.dumpdir)."""
+    if path.is_dir():
+        shutil.rmtree(path, ignore_errors=True)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def _size(path):
+    if path.is_dir():
+        return sum(f.stat().st_size for f in path.iterdir() if f.is_file())
+    return path.stat().st_size
+
+
 def dump(url, out):
+    """A DIRECTORY-format dump, 4 tables at a time. Since Railway's 21 Oct 2026
+    incident its public proxy cuts long connections: one single-stream dump
+    failed every try for a day (31 Oct), while this took 61 s. pg_restore reads
+    the folder directly (docs/RESTORE_DRILL.md)."""
     url = _with_keepalive(url)
     last_err = ""
     for i, wait in enumerate(TRIES, 1):
         if wait:
             time.sleep(wait)
-        r = subprocess.run([str(PG / "pg_dump"), url, "-Fc", "-f", str(out)],
-                           capture_output=True, text=True, timeout=3600)
+        _remove(out)
+        r = subprocess.run([str(PG / "pg_dump"), url, "-Fd", "-j", "4", "-Z", "6", "-f", str(out)],
+                           capture_output=True, text=True, timeout=1800)
         tables = verify(out) if r.returncode == 0 and out.exists() else 0
         if tables >= 10:
             return tables
         last_err = _first_error(r.stderr)[:200]
         log(f"RETRY try {i} failed: {last_err}")
-        out.unlink(missing_ok=True)
+        _remove(out)
     raise RuntimeError(last_err or "pg_dump failed")
 
 
@@ -180,12 +200,16 @@ MAX_AGE_DAYS = 14  # the privacy notice (cupq.app/privacy) promises about two we
 def prune(folder, prefix, keep):
     """Keep the newest `keep`, and nothing older than MAX_AGE_DAYS: a Mac that
     slept through some nights used to leave dumps three weeks old."""
-    files = sorted(folder.glob(f"{prefix}*.dump"), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted(_dumps(folder, prefix), key=lambda p: p.stat().st_mtime, reverse=True)
     cutoff = time.time() - MAX_AGE_DAYS * 86400
     gone = [f for i, f in enumerate(files) if i >= keep or (i > 0 and f.stat().st_mtime < cutoff)]
     for old in gone:
-        old.unlink()
+        _remove(old)
     return len(gone)
+
+
+def _dumps(folder, prefix="coffeecue_prod_"):
+    return list(folder.glob(f"{prefix}*.dump")) + list(folder.glob(f"{prefix}*.dumpdir"))
 
 
 def heartbeat(kind, size):
@@ -217,6 +241,14 @@ def save_state(st):
 def run(kind):
     folder = BACKUP_DIR if kind == "nightly" else HOURLY_DIR
     folder.mkdir(parents=True, exist_ok=True)
+    # One backup at a time: on 31 Oct 2026 the nightly (stuck retrying) and an
+    # hourly ran together and fought over the one flaky connection.
+    lock = open(BACKUP_DIR / ".backup.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log(f"SKIP {kind}: another backup is still running")
+        return 0
     st = load_state()
     try:
         url = database_url()
@@ -224,10 +256,10 @@ def run(kind):
             fp = fingerprint(url)
             if fp == st.get("fingerprint"):
                 return 0  # nothing changed since the last good backup: no file, no log line
-        out = folder / f"coffeecue_prod_{datetime.now():%Y-%m-%d_%H%M%S}.dump"
+        out = folder / f"coffeecue_prod_{datetime.now():%Y-%m-%d_%H%M%S}.dumpdir"
         log(f"START {kind} backup -> {out}")
         tables = dump(url, out)
-        size = out.stat().st_size
+        size = _size(out)
         log(f"OK   {kind} dump verified: {tables} tables, {size / 1e6:.1f} MB")
         heartbeat(kind, size)
         time.sleep(2)  # let Postgres count the check-in before fingerprinting
@@ -246,8 +278,8 @@ def run(kind):
 
 def status():
     for label, folder in (("nightly", BACKUP_DIR), ("hourly", HOURLY_DIR)):
-        files = sorted(folder.glob("coffeecue_prod_*.dump"), key=lambda p: p.stat().st_mtime, reverse=True)
-        print(f"{label}: {len(files)} kept" + (f", newest {files[0].name} ({files[0].stat().st_size / 1e6:.1f} MB)" if files else ""))
+        files = sorted(_dumps(folder), key=lambda p: p.stat().st_mtime, reverse=True)
+        print(f"{label}: {len(files)} kept" + (f", newest {files[0].name} ({_size(files[0]) / 1e6:.1f} MB)" if files else ""))
     print("last good:", load_state().get("last_ok", "never"))
     try:
         print("".join(open(LOG).readlines()[-6:]))
