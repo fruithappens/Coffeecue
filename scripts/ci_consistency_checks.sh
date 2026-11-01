@@ -211,6 +211,22 @@ else
   ok "none"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 10: nothing old or debug-only under the frontend's public/ folder.
+# Everything in public/ is copied into the build and served to anyone (the
+# 31 Oct 2026 audit found 81 old debug pages, e.g. emergency-reset.html, live
+# at /static/_archive/...). Old files belong in the root _archive/, which the
+# Docker build leaves out.
+# ---------------------------------------------------------------------------
+note "Check 10: no archive or debug folders in Barista Front End/public"
+hits=$(find "Barista Front End/public" -type d \( -iname '*archive*' -o -iname '*backup*' -o -iname 'test*' \) 2>/dev/null || true)
+if [ -n "$hits" ]; then
+  bad "move these out of public/ (they are served to the world) into the root _archive/:"
+  printf '%s\n' "$hits" | sed 's/^/      /'
+else
+  ok "none"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."
