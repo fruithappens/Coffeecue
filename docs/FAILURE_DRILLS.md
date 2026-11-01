@@ -11,6 +11,11 @@ python testbench/loadtest/remote_siege.py --base https://demo.cupq.app \
     --public --delegates 1000 --seconds 180 --orders 150 --yes-this-is-production
 ```
 
+Since 1 Nov 2026 demo enforces rate limits like cupq.app, and 1,000 phones
+from one machine share one address. Before the run, set
+`RATELIMIT_ENABLED=false` on demo's web service in Railway (it redeploys);
+delete it afterwards so the limits come back.
+
 `--public` orders the way a phone does and needs no staff login. Every
 phone polls its order like the real page; afterwards every accepted order
 is checked on its own tracking page. Clear the test orders with Demo Room >
