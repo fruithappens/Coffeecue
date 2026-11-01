@@ -34,6 +34,79 @@ import useNotices from '../shared/useNotices';
 import NoticeBanner from '../shared/NoticeBanner';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
+// This attendee's pass (utils/order_owner.py on the server): earned by
+// giving the surname EventsAir holds, needed to rename, change the usual
+// or cancel. Seeing your order needs only the number.
+const PASS_KEY = 'cupq_ea_pass';
+const passFor = (id) => {
+  try {
+    const a = JSON.parse(recall(PASS_KEY) || 'null');
+    return a && a.cid === id ? a.p : '';
+  } catch (e) { return ''; }
+};
+
+// Asks for the surname EventsAir holds, once per phone, before a change.
+function SurnamePrompt({ cid, onDone }) {
+  const [surname, setSurname] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!surname.trim()) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await fetch('/api/ea/me/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, surname: surname.trim() }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (b?.success && b.pass) {
+        remember(PASS_KEY, JSON.stringify({ cid, p: b.pass }), 7 * 24 * 3600);
+        onDone(true);
+        return;
+      }
+      setMsg(b?.message || "That surname doesn't match our list.");
+    } catch (er) {
+      setMsg('Network problem. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
+         role="dialog" aria-modal="true" aria-labelledby="surname-title">
+      <form onSubmit={submit}
+            className="w-full max-w-sm bg-white rounded-cq-lg p-5 text-left shadow-xl">
+        <h2 id="surname-title" className="text-lg font-bold text-cq-ink">
+          Just checking it's you
+        </h2>
+        <p className="text-sm text-cq-ink-2 mt-1 mb-3">
+          What's your surname, as you registered for the event? We ask once on this phone.
+        </p>
+        <input
+          className="w-full border border-cq-line rounded-cq px-3 py-3 text-lg"
+          value={surname}
+          onChange={(e) => setSurname(e.target.value)}
+          autoComplete="family-name"
+          aria-label="Surname"
+          autoFocus
+        />
+        {msg && <p className="text-sm text-cq-caramel-deep mt-2" role="alert">{msg}</p>}
+        <div className="flex gap-3 mt-4">
+          <button type="button" className="flex-1 py-3 rounded-cq-lg border border-cq-line"
+                  onClick={() => onDone(false)}>
+            Not now
+          </button>
+          <button type="submit" disabled={busy || !surname.trim()}
+                  className="flex-1 py-3 rounded-cq-lg bg-cq-roast text-white font-semibold disabled:opacity-60">
+            {busy ? 'Checking…' : 'Confirm'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 // Which QR/sign this visit came from. Session, not local: a delegate who
 // scans the foyer poster today and the cart iPad tomorrow is two visits.
 const SRC_KEY = 'coffee_my_src';
@@ -139,6 +212,24 @@ const MyCoffeePage = () => {
     () => paramCid || recall(STORAGE_KEY) || ''
   );
   const [me, setMe] = useState(null);
+  // Open surname prompt: holds the resolver of the change waiting on it.
+  const [surnameAsk, setSurnameAsk] = useState(null);
+  const askSurname = useCallback(
+    () => new Promise((resolve) => setSurnameAsk({ resolve })), []);
+  // A change (rename, usual): sent with this phone's pass; if the server
+  // wants the surname first, ask, then try once more.
+  const fetchWithPass = useCallback(async (url, opts, id) => {
+    const send = () => fetch(url, {
+      ...opts,
+      headers: { ...(opts.headers || {}), 'X-Attendee-Pass': passFor(id) },
+    });
+    let r = await send();
+    if (r.status === 403) {
+      const b = await r.clone().json().catch(() => ({}));
+      if (b?.need_surname && await askSurname()) r = await send();
+    }
+    return r;
+  }, [askSurname]);
   // Event password gate. null = still checking; false = no gate (or
   // already passed on this device); true = must enter it before ordering.
   // Steve's optional "were you invited" layer on top of the event code.
@@ -498,7 +589,8 @@ const MyCoffeePage = () => {
       const q = byPhone
         ? `phone=${encodeURIComponent(id)}`
         : `cid=${encodeURIComponent(id)}`;
-      const r = await fetch(`/api/ea/me?${q}`);
+      const r = await fetch(`/api/ea/me?${q}`,
+        { headers: { 'X-Attendee-Pass': byPhone ? '' : passFor(id) } });
       const b = await r.json();
       if (b?.choose) {
         setChoices(b.choose);
@@ -760,6 +852,11 @@ const MyCoffeePage = () => {
       });
       const b = await r.json();
       if (b?.success) {
+        // This phone placed it, so it may cancel it without the surname.
+        if (b.order_key) {
+          remember('cupq_order_owner',
+            JSON.stringify({ n: b.order_number, k: b.order_key }), 3 * 3600);
+        }
         await load(cid);
       } else {
         setError(b?.message || 'Could not place that order.');
@@ -830,11 +927,11 @@ const MyCoffeePage = () => {
       if (next.sugar) out += `, ${next.sugar}`;
       if (next.chips.length) out += `, ${next.chips.join(', ')}`;
       const usual = next.notes ? `${out.trim()} | ${next.notes}` : out.trim();
-      const r = await fetch('/api/ea/me/usual', {
+      const r = await fetchWithPass('/api/ea/me/usual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cid, usual }),
-      });
+      }, cid);
       const b = await r.json();
       if (b?.success) { setEditing(false); await load(cid); }
       else setError(b?.message || 'Could not save that.');
@@ -848,11 +945,11 @@ const MyCoffeePage = () => {
   const saveUsual = async () => {
     setBusy(true);
     try {
-      const r = await fetch('/api/ea/me/usual', {
+      const r = await fetchWithPass('/api/ea/me/usual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cid, usual: composed() }),
-      });
+      }, cid);
       const b = await r.json();
       if (b?.success) { setEditing(false); await load(cid); }
       else setError(b?.message || 'Could not save that.');
@@ -866,11 +963,11 @@ const MyCoffeePage = () => {
   const saveName = async () => {
     setBusy(true);
     try {
-      const r = await fetch('/api/ea/me/name', {
+      const r = await fetchWithPass('/api/ea/me/name', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cid, name: nameDraft }),
-      });
+      }, cid);
       const b = await r.json();
       if (b?.success) { setEditingName(false); await load(cid); }
       else setError(b?.message || 'Could not save that name.');
@@ -881,8 +978,12 @@ const MyCoffeePage = () => {
     }
   };
 
-  const forget = () => {
+  // "Not you?". Named forgetMe: as `forget` it shadowed the deviceMemory
+  // import, so every forget(...) in this component called itself until the
+  // stack ran out and nothing was ever forgotten.
+  const forgetMe = () => {
     forget(STORAGE_KEY);
+    forget(PASS_KEY);
     localStorage.removeItem(PHONE_KEY);
     setCid(''); setPhone(''); setMe(null); setEntry('');
     setError(''); setChoices(null);
@@ -1331,6 +1432,9 @@ const MyCoffeePage = () => {
                     paddingBottom: BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md">
           <EventHeader brand={brand} className="mb-4" />
+          {surnameAsk && (
+            <SurnamePrompt cid={cid} onDone={(ok) => { surnameAsk.resolve(ok); setSurnameAsk(null); }} />
+          )}
         <NoticeBanner notices={notices} className="mb-4 text-left" />
           <div className={`${copy.tone} text-white rounded-cq-xl p-6 text-center shadow-cq-card
                            ${ready ? 'animate-pulse' : ''}`}>
@@ -1397,7 +1501,14 @@ const MyCoffeePage = () => {
             <BaristaAskCard orderNumber={active.order_number} />
           </div>
           <CancelOrderButton orderNumber={active.order_number} orderKey={active.order_key}
-            status={active.status} />
+            status={active.status}
+            getKey={async () => {
+              if (!await askSurname()) return '';
+              const r = await fetch(`/api/ea/me?cid=${encodeURIComponent(cid)}`,
+                { headers: { 'X-Attendee-Pass': passFor(cid) } });
+              const b = await r.json().catch(() => ({}));
+              return b?.active_order?.order_key || '';
+            }} />
           <p className="text-center text-cq-ink-3 text-sm mt-2">
             Keep this page open — it updates by itself.
           </p>
@@ -1498,6 +1609,9 @@ const MyCoffeePage = () => {
                   paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
       <div className="w-full max-w-md text-center pb-2">
         <EventHeader brand={brand} className="mb-5" />
+        {surnameAsk && (
+            <SurnamePrompt cid={cid} onDone={(ok) => { surnameAsk.resolve(ok); setSurnameAsk(null); }} />
+          )}
         <NoticeBanner notices={notices} className="mb-4 text-left" />
         {editingName ? (
           <div className="mb-5 text-left">
@@ -1581,7 +1695,7 @@ const MyCoffeePage = () => {
           Order something else
         </button>
 
-        <button className="mt-8 text-xs text-cq-ink-3 underline" onClick={forget}>
+        <button className="mt-8 text-xs text-cq-ink-3 underline" onClick={forgetMe}>
           Not {me.first_name}? Start again
         </button>
         <PoweredBy brand={brand} className="mt-10" />
