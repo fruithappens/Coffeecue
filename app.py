@@ -190,6 +190,9 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("expresso")
+# Mobile numbers are masked in every log line (utils/log_privacy.py, SEC-011).
+from utils.log_privacy import install as _mask_numbers_in_logs
+_mask_numbers_in_logs()
 
 
 def _end_startup_transaction(db):

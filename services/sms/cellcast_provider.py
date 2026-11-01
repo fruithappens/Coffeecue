@@ -61,8 +61,8 @@ class CellcastProvider(SMSProvider):
 
     def send(self, to: str, body: str, **opts) -> SendResult:
         if self.testing_mode:
-            logger.info("TESTING_MODE — Cellcast.send stubbed | to=%s body=%s",
-                        to, body[:80])
+            logger.info("TESTING_MODE — Cellcast.send stubbed | to=%s (%d chars)",
+                        to, len(body or ''))
             return SendResult(ok=True, provider=self.name,
                               message_id='testing_mode_message_id')
         if not (self.api_key and self.from_number):

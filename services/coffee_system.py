@@ -589,7 +589,7 @@ class CoffeeOrderSystem:
         phone = self._normalize_phone(phone_number)
 
         # Log incoming message
-        logger.info(f"SMS received from {phone}: {message_body}")
+        logger.info(f"SMS received from {phone} ({len(message_body or '')} chars)")
 
         # Defensive: if a previous request left the shared `self.db`
         # connection in an aborted-transaction state (psycopg2 surfaces
@@ -9551,7 +9551,7 @@ class CoffeeOrderSystem:
     def _restart_conversation(self, phone, message):
         """Restart a conversation from the beginning"""
         # For logging
-        logger.info(f"Restarting conversation for {phone} with message: {message}")
+        logger.info(f"Restarting conversation for {phone} ({len(message or '')} chars)")
 
         # Check if this is a special command - if so, don't restart but handle normally
         message_upper = message.upper().strip()
@@ -11151,7 +11151,7 @@ class CoffeeOrderSystem:
             message_sid = messaging_service.send_message(normalized_phone, message)
 
             if message_sid:
-                logger.info(f"Sent SMS to {normalized_phone}: {message}")
+                logger.info(f"Sent SMS to {normalized_phone} ({len(message or '')} chars)")
                 return True
 
             logger.warning(f"Failed to send SMS to {normalized_phone}")
