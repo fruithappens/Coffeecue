@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
+import { ownerKeyFor } from '../../utils/orderOwner';
 
 // The customer cancels their own order from the tracking page -- but only
 // while it's still QUEUED. Once a barista has started it, the button is
 // gone and the server refuses anyway (mirrors the SMS OOPS rule: too late
 // once it's being made -> see a barista). Two taps, so a stray touch on a
 // phone in a pocket can't scrap a coffee.
-export default function CancelOrderButton({ orderNumber, status, onCancelled }) {
+// orderKey: the owner key when the page got it from the server (/my);
+// otherwise the one this device kept when it placed the order.
+export default function CancelOrderButton({ orderNumber, orderKey, status, onCancelled }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -13,12 +16,17 @@ export default function CancelOrderButton({ orderNumber, status, onCancelled }) 
   // Cancellable only while pending (in the queue, not yet being made).
   const pending = status === 'pending';
   if (!pending && !msg) return null;
+  // Only the phone that placed it can cancel (a friend's share-QR view can't).
+  if (!msg && !(orderKey || ownerKeyFor(orderNumber))) return null;
 
   const doCancel = async () => {
     setBusy(true); setMsg('');
     try {
       const r = await fetch(`/api/orders/${encodeURIComponent(orderNumber)}/customer-cancel`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        { method: 'POST',
+          headers: { 'Content-Type': 'application/json',
+                     'X-Order-Key': orderKey || ownerKeyFor(orderNumber) },
+          body: '{}' });
       const b = await r.json().catch(() => ({}));
       if (r.ok && b.success) {
         setMsg('Your order has been cancelled.');

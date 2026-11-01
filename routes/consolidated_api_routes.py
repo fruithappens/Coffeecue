@@ -4776,6 +4776,23 @@ def cancel_order_barista(order_id):
         return jsonify({"success": False, "message": f"Error cancelling order: {e}"}), 500
 
 
+def _owner_key_refused(order_number, raw_details):
+    """None if the request carries this order's owner key (or its round's),
+    else the 403 to return. See utils/order_owner.py."""
+    from utils.order_owner import key_ok, supplied_key
+    details = raw_details
+    if isinstance(details, str):
+        try:
+            details = json.loads(details)
+        except Exception:
+            details = {}
+    group_id = details.get('group_id') if isinstance(details, dict) else None
+    if key_ok(supplied_key(request), order_number, group_id):
+        return None
+    return jsonify({'success': False, 'not_yours': True,
+                    'message': 'Please see a barista about this order.'}), 403
+
+
 @bp.route('/orders/<order_id>/customer-cancel', methods=['POST'])
 def customer_cancel_order(order_id):
     """The customer cancels their OWN order from the tracking page -- PUBLIC,
@@ -4800,6 +4817,9 @@ def customer_cancel_order(order_id):
         o_id, status, station_id, raw_details = (
             (row[0], row[1], row[2], row[3]) if not isinstance(row, dict)
             else (row['id'], row['status'], row['station_id'], row.get('order_details')))
+        refused = _owner_key_refused(clean_id, raw_details)
+        if refused:
+            return refused
         if status == 'cancelled':
             return jsonify({"success": True, "message": "Already cancelled", "cancelled": True})
         if status != 'pending':
@@ -6342,9 +6362,12 @@ def create_kiosk_order():
         except Exception:
             pass
 
+        from utils.order_owner import order_key
         resp_payload = {
             'success': True,
             'order_number': order_number,
+            # Proof of ownership for cancel / "got it" (utils/order_owner.py).
+            'order_key': order_key(order_number),
             'payment_link': payment_link,
             'awaiting_payment': _initial_status == 'awaiting_payment',
             'station_id': target,
@@ -6483,6 +6506,7 @@ def create_kiosk_order_group():
     # before. The one-per-round ready SMS says "order #<group_id>" and the
     # label/beacon derive the round from it.
     group_id = str(_base) if (_letters and placed) else str(placed[0][0])
+    from utils.order_owner import order_key as _order_key
     try:
         cur = db.cursor()
         for pos, (num, _nm) in enumerate(placed, start=1):
@@ -6508,6 +6532,8 @@ def create_kiosk_order_group():
         # drink (336a). The bare round number (336) is no order's name once
         # a round is lettered; it is returned separately as group_number.
         'order_number': str(placed[0][0]),
+        # The round's key: good for every drink in it (utils/order_owner.py).
+        'order_key': _order_key(group_id),
         'group_number': group_id,
         'orders': [{'order_number': n, 'name': nm} for n, nm in placed],
         'count': len(placed),
@@ -7129,12 +7155,17 @@ def mark_collected_public(order_id):
             pass
         clean_id = clean_order_id(order_id)
         cur = db.cursor()
-        cur.execute("SELECT status FROM orders WHERE order_number = %s", (clean_id,))
+        cur.execute("SELECT status, order_details FROM orders WHERE order_number = %s",
+                    (clean_id,))
         row = cur.fetchone()
         if not row:
             return jsonify({'success': False, 'message': 'not found'}), 404
         status = str((row[0] if not isinstance(row, dict) else row.get('status'))
                      or '').lower()
+        refused = _owner_key_refused(
+            clean_id, row[1] if not isinstance(row, dict) else row.get('order_details'))
+        if refused:
+            return refused
 
         if status in ('picked_up', 'picked-up'):
             return jsonify({'success': True, 'status': 'picked_up',

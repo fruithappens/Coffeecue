@@ -1396,7 +1396,8 @@ const MyCoffeePage = () => {
           <div className="mb-4">
             <BaristaAskCard orderNumber={active.order_number} />
           </div>
-          <CancelOrderButton orderNumber={active.order_number} status={active.status} />
+          <CancelOrderButton orderNumber={active.order_number} orderKey={active.order_key}
+            status={active.status} />
           <p className="text-center text-cq-ink-3 text-sm mt-2">
             Keep this page open — it updates by itself.
           </p>

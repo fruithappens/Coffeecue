@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { pollDelayMs } from '../../utils/pollPace';
 import CancelOrderButton from './CancelOrderButton';
+import { ownerKeyFor } from '../../utils/orderOwner';
 import BaristaAskCard from './BaristaAskCard';
 import { remember, recall, forget } from '../../utils/deviceMemory';
 import { useSearchParams, Navigate } from 'react-router-dom';
@@ -52,9 +53,10 @@ const MobileOrderPage = () => {
     if (!trackNumber) return;
     try {
       const raw = recall('cupq_active_order');
-      if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
+      const a = raw ? (JSON.parse(raw) || {}) : {};
+      if (String(a.n) === String(trackNumber)) {
         remember('cupq_active_order',
-          JSON.stringify({ n: trackNumber, at: Date.now() }), 3 * 3600);
+          JSON.stringify({ n: trackNumber, k: a.k, at: Date.now() }), 3 * 3600);
       }
     } catch (er) { /* private mode */ }
   }, [trackNumber]);
@@ -334,7 +336,7 @@ const MobileOrderPage = () => {
               when the coffee is actually ready -- the server refuses it
               otherwise, so a mis-tap cannot clear a card still on the
               bench. */}
-          {ready && !collected && (
+          {ready && !collected && ownerKeyFor(trackNumber) && (
             <button
               className="w-full mt-4 py-4 rounded-cq-lg bg-cq-ready text-white text-xl font-bold shadow disabled:opacity-60"
               disabled={collecting}
@@ -343,7 +345,8 @@ const MobileOrderPage = () => {
                 try {
                   const r = await fetch(
                     `/api/orders/${encodeURIComponent(trackNumber)}/collected`,
-                    { method: 'POST' });
+                    { method: 'POST',
+                      headers: { 'X-Order-Key': ownerKeyFor(trackNumber) } });
                   const b = await r.json().catch(() => ({}));
                   if (b?.success) { setCollected(true); poll(); }
                 } catch (e) {

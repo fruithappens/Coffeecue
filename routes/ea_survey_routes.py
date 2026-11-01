@@ -1580,8 +1580,12 @@ def ea_me():
                                 lrow[0], lrow[1], lrow[2], lrow[3], lrow[4])
             except Exception as _lead_err:
                 logger.debug(f"beacon lead-cup swap skipped: {_lead_err}")
+            from utils.order_owner import order_key
             active = {
                 'order_number': num,
+                # This page found the order by the caller's own identity,
+                # so it may cancel it (utils/order_owner.py).
+                'order_key': order_key(num),
                 'status': st,
                 'station_id': sid,
                 # Named if the operator named it, numbered if not -- never

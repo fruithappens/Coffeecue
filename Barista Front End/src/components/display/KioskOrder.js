@@ -888,7 +888,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         // Not on a shared screen: the next person would open to it.
         if (isOwnDevice) {
           remember('cupq_active_order', JSON.stringify({
-            n: b.order_number, at: Date.now(),
+            n: b.order_number, k: b.order_key, at: Date.now(),
           }), 3 * 3600);
           // Their number and their texts choice, for next time.
           remember('cupq_sms_pref', JSON.stringify({
