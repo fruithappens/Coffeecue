@@ -1274,7 +1274,7 @@ def ea_test_order():
 # "My coffee" — the attendee's own page (public, like the kiosk)
 # ---------------------------------------------------------------------------
 
-_ATT_COLS = ("ea_contact_id, internal_number, first_name, mobile_e164, "
+_ATT_COLS = ("ea_contact_id, internal_number, first_name, last_name, mobile_e164, "
              "coffee_pref, coffee_pref_local, display_name_local")
 
 
@@ -1580,12 +1580,15 @@ def ea_me():
                                 lrow[0], lrow[1], lrow[2], lrow[3], lrow[4])
             except Exception as _lead_err:
                 logger.debug(f"beacon lead-cup swap skipped: {_lead_err}")
-            from utils.order_owner import order_key
+            from utils.order_owner import order_key, pass_ok, supplied_pass
             active = {
                 'order_number': num,
-                # This page found the order by the caller's own identity,
-                # so it may cancel it (utils/order_owner.py).
-                'order_key': order_key(num),
+                # The cancel key only for a phone holding this attendee's
+                # pass: a typed mobile alone may see the order, not cancel
+                # it (utils/order_owner.py).
+                'order_key': (order_key(num)
+                              if pass_ok(rec.get('ea_contact_id'), supplied_pass(request))
+                              else None),
                 'status': st,
                 'station_id': sid,
                 # Named if the operator named it, numbered if not -- never
@@ -1612,6 +1615,62 @@ def ea_me():
     })
 
 
+def _pass_refused(rec):
+    """None if the caller may change this attendee, else the 403.
+
+    Someone with no surname on record (a guest, or a contact EventsAir sent
+    without one) has nothing to check against, so they pass as before."""
+    from utils.order_owner import pass_ok, supplied_pass
+    if not (rec.get('last_name') or '').strip():
+        return None
+    if pass_ok(rec.get('ea_contact_id'), supplied_pass(request)):
+        return None
+    return jsonify({'success': False, 'need_surname': True,
+                    'message': 'Please confirm your surname first.'}), 403
+
+
+# Wrong surnames per attendee: {cid: [monotonic times]}. One process, so a
+# dict is enough; a restart forgets, which only resets the count.
+_SURNAME_FAILS = {}
+_SURNAME_MAX_FAILS = 5
+_SURNAME_WINDOW = 15 * 60
+
+
+@bp.route('/me/verify', methods=['POST'])
+def ea_me_verify():
+    """The surname EventsAir holds earns this phone the attendee's pass.
+
+    No text, no code: Steve's call (1 Nov 2026) for a low-stakes check. Five
+    wrong answers for one attendee pause it for 15 minutes, so a surname
+    can't be found by trying a list.
+    """
+    import time
+    from utils.order_owner import attendee_pass, same_surname
+    data = request.get_json(silent=True) or {}
+    db = _db()
+    _ensure_tables(db)
+    rec = _find_attendee(db, data.get('cid'), data.get('phone'))
+    if not rec:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    cid = rec.get('ea_contact_id')
+    if not (rec.get('last_name') or '').strip():
+        return jsonify({'success': True, 'pass': attendee_pass(cid)})
+    now = time.monotonic()
+    fails = [t for t in _SURNAME_FAILS.get(cid, []) if now - t < _SURNAME_WINDOW]
+    if len(fails) >= _SURNAME_MAX_FAILS:
+        _SURNAME_FAILS[cid] = fails
+        return jsonify({'success': False, 'locked': True,
+                        'message': 'Too many tries. Please see a barista, '
+                                   'or try again in 15 minutes.'}), 429
+    if same_surname(data.get('surname'), rec.get('last_name')):
+        _SURNAME_FAILS.pop(cid, None)
+        return jsonify({'success': True, 'pass': attendee_pass(cid)})
+    fails.append(now)
+    _SURNAME_FAILS[cid] = fails
+    return jsonify({'success': False,
+                    'message': "That surname doesn't match our list."}), 403
+
+
 @bp.route('/me/usual', methods=['POST'])
 def ea_me_set_usual():
     """Attendee saves/changes their own usual. Stored locally, not in EA."""
@@ -1624,6 +1683,9 @@ def ea_me_set_usual():
     rec = _find_attendee(db, data.get('cid'), data.get('phone'))
     if not rec:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    refused = _pass_refused(rec)
+    if refused:
+        return refused
     try:
         cur = db.cursor()
         cur.execute("UPDATE ea_attendees SET coffee_pref_local = %s "
@@ -1709,6 +1771,9 @@ def ea_me_set_name():
     rec = _find_attendee(db, data.get('cid'), data.get('phone'))
     if not rec:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    refused = _pass_refused(rec)
+    if refused:
+        return refused
     try:
         cur = db.cursor()
         cur.execute("UPDATE ea_attendees SET display_name_local = %s "

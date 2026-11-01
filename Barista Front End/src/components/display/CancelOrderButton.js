@@ -7,8 +7,9 @@ import { ownerKeyFor } from '../../utils/orderOwner';
 // once it's being made -> see a barista). Two taps, so a stray touch on a
 // phone in a pocket can't scrap a coffee.
 // orderKey: the owner key when the page got it from the server (/my);
-// otherwise the one this device kept when it placed the order.
-export default function CancelOrderButton({ orderNumber, orderKey, status, onCancelled }) {
+// otherwise the one this device kept when it placed the order. getKey:
+// a way to earn one on the spot (/my asks for the surname); resolves '' if not.
+export default function CancelOrderButton({ orderNumber, orderKey, status, onCancelled, getKey }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -17,15 +18,18 @@ export default function CancelOrderButton({ orderNumber, orderKey, status, onCan
   const pending = status === 'pending';
   if (!pending && !msg) return null;
   // Only the phone that placed it can cancel (a friend's share-QR view can't).
-  if (!msg && !(orderKey || ownerKeyFor(orderNumber))) return null;
+  if (!msg && !getKey && !(orderKey || ownerKeyFor(orderNumber))) return null;
 
   const doCancel = async () => {
     setBusy(true); setMsg('');
     try {
+      let key = orderKey || ownerKeyFor(orderNumber);
+      if (!key && getKey) key = await getKey();
+      if (!key) { setConfirming(false); return; }
       const r = await fetch(`/api/orders/${encodeURIComponent(orderNumber)}/customer-cancel`,
         { method: 'POST',
           headers: { 'Content-Type': 'application/json',
-                     'X-Order-Key': orderKey || ownerKeyFor(orderNumber) },
+                     'X-Order-Key': key },
           body: '{}' });
       const b = await r.json().catch(() => ({}));
       if (r.ok && b.success) {
