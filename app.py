@@ -1649,49 +1649,9 @@ def create_app():
         """Simple API test endpoint"""
         return jsonify({"status": "success", "message": "API is working"})
     
-    @app.route('/debug/static')
-    def debug_static():
-        """Debug endpoint to check static files"""
-        import os
-        static_dir = os.path.join(app.root_path, 'static')
-        files = []
-        if os.path.exists(static_dir):
-            files = os.listdir(static_dir)[:10]  # Show first 10 files
-        return jsonify({
-            "static_directory": static_dir,
-            "files_found": files,
-            "index_exists": os.path.exists(os.path.join(static_dir, 'index.html'))
-        })
-    
-    @app.route('/debug/users')
-    def debug_users():
-        """Debug endpoint to check what users exist"""
-        try:
-            # Get coffee system from app context
-            coffee_system = current_app.config.get('coffee_system')
-            db = coffee_system.db
-            cursor = db.cursor()
-            
-            # Get all users
-            cursor.execute('SELECT id, username, email, role FROM users')
-            users = []
-            for user in cursor.fetchall():
-                users.append({
-                    'id': user[0],
-                    'username': user[1], 
-                    'email': user[2],
-                    'role': user[3]
-                })
-            
-            return jsonify({
-                "users_count": len(users),
-                "users": users
-            })
-        except Exception as e:
-            return jsonify({
-                "error": str(e)
-            })
-    
+    # /debug/static and /debug/users were public and listed every staff
+    # login with email and role (31 Oct 2026 audit, SEC-002). Removed.
+
     # Special handling for orders endpoints directly
     @app.route('/orders/pending', methods=['GET'])
     def orders_pending():
