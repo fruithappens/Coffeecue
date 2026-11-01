@@ -2,7 +2,7 @@
 Simple Authentication routes for the Expresso Coffee Ordering System
 Only API endpoints, no templates
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, request, jsonify
 from werkzeug.security import check_password_hash
 import logging
 from datetime import datetime
@@ -49,6 +49,14 @@ def api_login():
     
     if not user_data:
         logger.warning(f"Failed login attempt for user: {username}")
+        if getattr(g, 'login_locked', False):
+            # auth.verify_login: ten wrong passwords lock a login briefly.
+            return jsonify({
+                'status': 'error',
+                'locked': True,
+                'message': 'Too many wrong passwords. This login is paused for '
+                           '15 minutes; try again then, or reset your password.'
+            }), 429
         return jsonify({
             'status': 'error',
             'message': 'Invalid username or password'

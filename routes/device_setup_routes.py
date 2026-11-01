@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, g, jsonify, request
 
 from auth import generate_tokens, jwt_required_with_demo, role_required_with_demo
-from security_middleware import limiter
+from security_middleware import _client_ip, limiter
 
 logger = logging.getLogger("expresso.routes.device_setup")
 
@@ -154,7 +154,7 @@ def claim():
         "WHERE code_hash = %s AND used_at IS NULL AND expires_at > NOW() AT TIME ZONE 'UTC' "
         "RETURNING station_id, user_id",
         (
-            (request.headers.get("CF-Connecting-IP") or request.remote_addr or "")[:64],
+            (_client_ip() or "")[:64],
             _hash(code),
         ),
     )

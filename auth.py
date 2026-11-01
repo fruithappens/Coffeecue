@@ -345,6 +345,15 @@ def generate_tokens(user_data):
         logger.error(f"Error generating tokens: {str(e)}")
         raise
 
+# Per-login lockout (audit SEC-005): the rate limit is per address, so a
+# guesser with many addresses could still work through one account. Ten
+# wrong passwords in a row lock that login for 15 minutes (short, so a
+# prankster can't keep someone out for long). The right password while
+# locked is refused too, and says so, rather than revealing it was right.
+LOGIN_LOCK_AFTER = 10
+LOGIN_LOCK_MINUTES = 15
+
+
 def verify_login(username, password):
     """
     Verify login credentials and return user data if valid
@@ -366,14 +375,22 @@ def verify_login(username, password):
         # their login with inconsistent capitalisation (Treenet1 vs treenet1).
         # Usernames are stored lowercase, but matching on LOWER() means any
         # case works. Passwords stay case-sensitive.
-        cursor.execute('SELECT id, username, email, password_hash, role, full_name FROM users WHERE LOWER(username) = LOWER(%s)', (username,))
+        cursor.execute('SELECT id, username, email, password_hash, role, full_name, '
+                       'COALESCE(failed_login_attempts, 0), account_locked_until '
+                       'FROM users WHERE LOWER(username) = LOWER(%s)', (username,))
         user = cursor.fetchone()
         
         if not user:
             logger.warning(f"Failed login attempt for non-existent user: {username}")
             return None
             
-        user_id, user_username, user_email, password_hash, user_role, user_full_name = user
+        (user_id, user_username, user_email, password_hash, user_role, user_full_name,
+         failed_before, locked_until) = user
+
+        if locked_until and locked_until > datetime.now():
+            logger.warning(f"Login refused for {username}: locked until {locked_until}")
+            g.login_locked = True
+            return None
         
         # Check if it's a werkzeug hash (starts with known prefixes)
         if password_hash and any(password_hash.startswith(prefix) for prefix in ['pbkdf2:', 'scrypt:', 'argon2:']):
@@ -392,6 +409,19 @@ def verify_login(username, password):
             
         if not password_correct:
             logger.warning(f"Failed login attempt for user: {username}")
+            failed = int(failed_before or 0) + 1
+            if failed >= LOGIN_LOCK_AFTER:
+                cursor.execute(
+                    "UPDATE users SET failed_login_attempts = 0, account_locked = TRUE, "
+                    "account_locked_until = %s WHERE id = %s",
+                    (datetime.now() + timedelta(minutes=LOGIN_LOCK_MINUTES), user_id))
+                logger.warning(f"Login {username} locked for {LOGIN_LOCK_MINUTES} min "
+                               f"after {failed} wrong passwords")
+                g.login_locked = True
+            else:
+                cursor.execute("UPDATE users SET failed_login_attempts = %s WHERE id = %s",
+                               (failed, user_id))
+            conn.commit()
             return None
         
         # Update last login
