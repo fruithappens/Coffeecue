@@ -148,9 +148,9 @@ def sms_debug():
     """Debug endpoint to test SMS webhook delivery"""
     logger.info("🔍 SMS DEBUG endpoint called!")
     logger.info(f"Method: {request.method}")
-    logger.info(f"Headers: {dict(request.headers)}")
-    logger.info(f"Form data: {dict(request.form) if request.form else 'None'}")
-    logger.info(f"JSON data: {request.get_json() if request.is_json else 'None'}")
+    # Field names only: the values are a customer's number and text (SEC-011).
+    logger.info(f"Form fields: {sorted(request.form.keys()) if request.form else 'None'}")
+    logger.info(f"JSON: {'yes' if request.is_json else 'None'}")
     return {"status": "SMS debug endpoint working", "method": request.method}, 200
 
 @bp.route('/sms', methods=['POST'])
@@ -223,8 +223,9 @@ def _sms_webhook_inner():
     logger.info("🚨 SMS WEBHOOK CALLED! 🚨")
     logger.info(f"Request method: {request.method}")
     logger.info(f"Request URL: {request.url}")
-    logger.info(f"Request headers: {dict(request.headers)}")
-    logger.info(f"Request form data: {dict(request.form)}")
+    # Field names only: the values are a customer's number and text, and the
+    # headers carry the provider's signature (SEC-011).
+    logger.info(f"Request form fields: {sorted(request.form.keys())}")
     logger.info(f"Remote address: {request.remote_addr}")
     
     # Log proxy headers specifically
@@ -290,7 +291,7 @@ def _sms_webhook_inner():
             if not validator.validate(url, params, signature):
                 logger.warning(f"Invalid Twilio webhook signature from {request.remote_addr}")
                 logger.warning(f"URL used for validation: {url}")
-                logger.warning(f"Parameters: {params}")
+                logger.warning(f"Parameter names: {sorted(params.keys())}")
                 try:
                     from services.logging_utils import event as _event
                     _event(
@@ -312,8 +313,7 @@ def _sms_webhook_inner():
             )
         # Log all request information for debugging
         logger.info(f"SMS webhook called with request method: {request.method}")
-        logger.info(f"Request form data: {request.form}")
-        logger.info(f"Request values: {request.values}")
+        logger.info(f"Request form fields: {sorted(request.form.keys())}")
         
         # Get POST data
         from_number = request.values.get('From', '')
@@ -337,24 +337,24 @@ def _sms_webhook_inner():
         if station_match:
             try:
                 station_id = int(station_match.group(1))
-                logger.info(f"Detected station {station_id} in SMS: '{body}'")
+                logger.info(f"Detected station {station_id} in SMS")
             except (ValueError, TypeError):
-                logger.warning(f"Invalid station number format detected in message: '{body}'")
+                logger.warning(f"Invalid station number format detected in message")
         else:
             # Additional check for common station patterns
             if "station 1" in body.lower() or "station one" in body.lower() or "station#1" in body.lower():
                 station_id = 1
-                logger.info(f"Detected station 1 from text pattern in SMS: '{body}'")
+                logger.info(f"Detected station 1 from text pattern in SMS")
             elif "station 2" in body.lower() or "station two" in body.lower() or "station#2" in body.lower():
                 station_id = 2
-                logger.info(f"Detected station 2 from text pattern in SMS: '{body}'")
+                logger.info(f"Detected station 2 from text pattern in SMS")
             elif "station 3" in body.lower() or "station three" in body.lower() or "station#3" in body.lower():
                 station_id = 3
-                logger.info(f"Detected station 3 from text pattern in SMS: '{body}'")
+                logger.info(f"Detected station 3 from text pattern in SMS")
             else:
-                logger.info(f"No station detected in SMS: '{body}'")
+                logger.info("No station detected in SMS")
         
-        logger.info(f"Received SMS from {from_number}: {body}")
+        logger.info(f"Received SMS from {from_number} ({len(body or '')} chars)")
         if sender_name:
             logger.info(f"Sender profile name: {sender_name}")
         
@@ -500,7 +500,7 @@ def _sms_webhook_inner():
         if isinstance(response_message, str) and response_message:
             _remember_inbound_reply(db, from_number, body, response_message)
 
-        logger.info(f"Coffee system returned message: {response_message}")
+        logger.info(f"Coffee system replied ({len(str(response_message or ''))} chars)")
         
         # Update the database with the response
         try:
@@ -518,7 +518,7 @@ def _sms_webhook_inner():
         
         # Return TwiML response
         response = messaging_service.create_response(response_message)
-        logger.info(f"Creating TwiML response: {response}")
+        logger.info(f"Creating TwiML response ({len(str(response))} chars)")
         
         # Make sure we're returning the response with correct content type.
         # NB: do NOT `from flask import Response` here — Response is already
@@ -866,7 +866,7 @@ def send_sms():
         
         if message_sid:
             # Log successful message
-            logger.info(f"Message sent successfully to {to_number}: {message}")
+            logger.info(f"Message sent successfully to {to_number} ({len(message or '')} chars)")
             
             # If this is order-related, log it in the database
             if order_id and coffee_system:

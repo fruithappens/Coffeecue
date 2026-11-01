@@ -55,7 +55,7 @@ class TwilioProvider(SMSProvider):
 
     def send(self, to: str, body: str, **opts) -> SendResult:
         if self.testing_mode:
-            logger.info("TESTING_MODE — Twilio.send stubbed | to=%s body=%s", to, body[:80])
+            logger.info("TESTING_MODE — Twilio.send stubbed | to=%s (%d chars)", to, len(body or ''))
             return SendResult(ok=True, provider=self.name,
                               message_id='testing_mode_message_sid')
         client = self._get_client()
