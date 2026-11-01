@@ -7894,7 +7894,9 @@ def update_all_settings():
 
 @bp.route('/settings', methods=['PATCH'])
 @jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
+# Managers only, like PUT: any key in `settings` can be written here
+# (plan tier, PINs, event access), and barista logins are shared.
+@role_required_with_demo(['admin', 'staff'])
 def update_setting():
     """Update a single setting"""
     try:
