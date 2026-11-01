@@ -4,9 +4,21 @@ Before, the before_request hook decoded any valid token into g.user, so the
 30-day refresh token opened every route an 8-hour access token did."""
 from datetime import timedelta
 
+import pytest
 from flask import Flask, g, jsonify
 
 import auth
+import utils.sessions as sessions
+
+
+@pytest.fixture(autouse=True)
+def _account_7(monkeypatch):
+    # The session check (utils/sessions.py) looks the login up; give it one
+    # rather than whatever database this machine has.
+    monkeypatch.setattr(
+        sessions, "_account",
+        lambda uid: {"role": "admin", "active": True, "tv": 0, "pw": "h"} if str(uid) == "7" else None)
+    monkeypatch.setattr(sessions, "_revoked_set", lambda: set())
 
 
 def _app():

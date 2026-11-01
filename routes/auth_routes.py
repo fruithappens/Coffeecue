@@ -128,6 +128,14 @@ def refresh_token():
                     'message': 'Invalid token type'
                 }), 401
                 
+            # Logged out, or the account changed since (SEC-004).
+            from utils.sessions import check
+            if not check(decoded_token)[0]:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Please log in again'
+                }), 401
+
             user_id = decoded_token['sub']
             # Convert user_id to int since it comes as string from JWT
             user_id_int = int(user_id) if isinstance(user_id, str) else user_id

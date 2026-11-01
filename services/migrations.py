@@ -841,6 +841,23 @@ def _m031_support_request_triage(cur):
     cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS note TEXT")
 
 
+def _m034_session_revocation(cur):
+    """Logins that end when they should (audit SEC-004, 1 Nov 2026).
+    token_version: part of each token's account stamp (utils/sessions.py);
+    bumping it ends every session of that login. revoked_tokens: tokens
+    logged out before they expired, kept until that expiry."""
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS revoked_tokens (
+            jti VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(64),
+            revoked_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            expires_at TIMESTAMP NOT NULL
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expiry ON revoked_tokens (expires_at)")
+
+
 def _m033_password_reset_tokens(cur):
     """Forgot password (16 Oct 2026): one-time links emailed to a login's
     own address. Only the link's hash is kept; it works once and expires."""
@@ -1017,6 +1034,7 @@ MIGRATIONS: list[Migration] = [
     Migration(31, 'support_request_triage',   _m031_support_request_triage),
     Migration(32, 'signup_requests',          _m032_signup_requests),
     Migration(33, 'password_reset_tokens',    _m033_password_reset_tokens),
+    Migration(34, 'session_revocation',       _m034_session_revocation),
 ]
 
 

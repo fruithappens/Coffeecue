@@ -189,6 +189,11 @@ class AuthService {
       ? `?redirect=${encodeURIComponent(currentPath)}` 
       : '';
       
+    // Held for the server call below: it ends these on the server too
+    // (SEC-004). Read before the clearing, which empties them.
+    const endingToken = this.getToken();
+    const endingRefresh = localStorage.getItem(this.refreshKey);
+
     // Clear local storage tokens and user data
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.refreshKey);
@@ -218,8 +223,9 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${this.getToken()}`
+          ...(endingToken ? { 'Authorization': `Bearer ${endingToken}` } : {})
         },
+        body: JSON.stringify(endingRefresh ? { refreshToken: endingRefresh } : {}),
         mode: 'cors'
         // Don't include credentials to avoid CORS issues with wildcard origin
       }).catch(err => {
