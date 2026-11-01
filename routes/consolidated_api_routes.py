@@ -14615,6 +14615,8 @@ def order_receipt(order_number):
             price_val = float(price) if price is not None else 0.0
         except (TypeError, ValueError):
             price_val = 0.0
+        from html import escape as _esc
+        symbol = _esc(str(symbol))
         price_html = (
             f'<div class="row"><span>Total</span>'
             f'<strong>{symbol}{price_val:.2f}</strong></div>'
@@ -14642,6 +14644,17 @@ def order_receipt(order_number):
         except Exception:
             pass
 
+        # Everything below goes into HTML, and name, for_friend and the
+        # options are free text from a public kiosk or phone: escape it all
+        # (31 Oct 2026 audit, SEC-006: a crafted name ran script for staff).
+        event_name = _esc(str(event_name))
+        order_number = _esc(str(order_number))
+        name = _esc(str(name))
+        drink_desc = _esc(drink_desc)
+        extras_str = _esc(extras_str)
+        for_friend = _esc(str(for_friend)) if for_friend else for_friend
+        station_id = _esc(str(station_id))
+        logo = _esc(str(logo)) if str(logo).startswith(('data:image/', 'https://', '/')) else ''
         logo_html = (f'<img src="{logo}" alt="" style="max-height:54px;margin-bottom:8px"/>'
                      if logo else '')
         qr_html = (f'<img src="{qr_data_uri}" alt="Pickup QR" '
