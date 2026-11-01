@@ -28,6 +28,21 @@ logger = logging.getLogger(__name__)
 # them, can't refresh the list, etc.). Bumped to something more
 # event-appropriate.
 _testing = os.getenv('TESTING_MODE', 'False').lower() == 'true'
+# Limits are off only on a laptop copy. demo.cupq.app runs TESTING_MODE
+# (texts stubbed) on the public internet, and TESTING_MODE used to switch
+# every limit off there too: login guessing, kiosk PINs and sign-ups had no
+# cap (found 1 Nov 2026, audit SEC-005; Steve: turn them on). Railway sets
+# RAILWAY_ENVIRONMENT on every server. RATELIMIT_ENABLED=true/false
+# overrides either way (false for a load test on demo:
+# docs/FAILURE_DRILLS.md).
+_on_server = bool(os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+_limits_setting = os.getenv('RATELIMIT_ENABLED', '').strip().lower()
+if _limits_setting in ('true', '1', 'yes'):
+    _limits_on = True
+elif _limits_setting in ('false', '0', 'no'):
+    _limits_on = False
+else:
+    _limits_on = _on_server or not _testing
 # Env override so the operator can dial these without code changes.
 _default_hourly = int(os.getenv('RATELIMIT_HOURLY', '5000'))
 _default_daily = int(os.getenv('RATELIMIT_DAILY', '50000'))
@@ -82,9 +97,9 @@ def _client_ip():
 
 limiter = Limiter(
     key_func=_client_ip,
-    default_limits=[] if _testing else [f"{_default_daily} per day", f"{_default_hourly} per hour"],
+    default_limits=[f"{_default_daily} per day", f"{_default_hourly} per hour"] if _limits_on else [],
     storage_uri="memory://",
-    enabled=not _testing,
+    enabled=_limits_on,
 )
 
 # Public, attendee-facing pages that an event app is expected to EMBED.
