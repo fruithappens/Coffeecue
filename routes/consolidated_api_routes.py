@@ -1780,10 +1780,27 @@ def auth_me():
 
 @bp.route('/auth/logout', methods=['GET', 'POST'])
 def auth_logout():
-    """JWT logout is client-side (drop the token), but the UI still
-    pings this endpoint for telemetry. Acknowledge gracefully so the
-    frontend doesn't think it's offline."""
-    return jsonify({'success': True, 'message': 'logout acknowledged'})
+    """End this login on the server, not just on the device: the access
+    token (Authorization header) and the refresh token (body) are recorded
+    as revoked until they would have expired (utils/sessions.py, SEC-004).
+    Always answers success: the device has dropped the tokens either way."""
+    from flask_jwt_extended import decode_token
+    from utils.sessions import revoke
+    tokens = []
+    auth_header = request.headers.get('Authorization') or ''
+    if auth_header.startswith('Bearer '):
+        tokens.append(auth_header.split(' ', 1)[1].strip())
+    body = request.get_json(silent=True) or {}
+    if isinstance(body, dict) and body.get('refreshToken'):
+        tokens.append(str(body['refreshToken']))
+    ended = 0
+    for t in tokens:
+        try:
+            if revoke(decode_token(t, allow_expired=True)):
+                ended += 1
+        except Exception:
+            pass  # not a token we issued, or already unusable
+    return jsonify({'success': True, 'message': 'logout acknowledged', 'ended': ended})
 
 
 @bp.route('/orders/history', methods=['GET'])

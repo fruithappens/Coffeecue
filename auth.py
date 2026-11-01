@@ -131,6 +131,16 @@ def init_app(app):
             'msg': str(error_message)
         }), 401
     
+    # Every flask-jwt-extended check (verify_jwt_in_request, jwt_required)
+    # asks this: a logged-out token, or one whose account has since been
+    # deleted, deactivated, demoted or had its password reset, is refused
+    # (utils/sessions.py, audit SEC-004).
+    @jwt.token_in_blocklist_loader
+    def token_revoked(_jwt_header, jwt_data):
+        from utils.sessions import check
+        ok, _role = check(jwt_data)
+        return not ok
+
     # Register user loader
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
@@ -260,12 +270,19 @@ def init_app(app):
                     if decoded_token.get('type') == 'refresh':
                         logger.warning("Refresh token sent as a login; ignored")
                         return
+
+                    # Logged out, or the account changed since (SEC-004).
+                    # The role is the account's role now, not the token's.
+                    from utils.sessions import check
+                    ok, role = check(decoded_token)
+                    if not ok:
+                        logger.info("Ended session presented; ignored")
+                        return
                     
                     # Get user claims
                     user_id = decoded_token['sub']
                     username = decoded_token.get('username')
                     email = decoded_token.get('email')
-                    role = decoded_token.get('role')
                     full_name = decoded_token.get('full_name')
                     
                     # Set user in g
@@ -304,6 +321,10 @@ def generate_tokens(user_data):
             'role': user_data.get('role', 'user'),
             'full_name': user_data.get('full_name', '')
         }
+        # The account stamp (utils/sessions.py): a later password reset,
+        # role change or deactivation ends this token.
+        from utils.sessions import stamp_claims
+        claims.update(stamp_claims(identity))
         
         # Create tokens
         access_token = create_access_token(identity=identity, additional_claims=claims)
@@ -463,6 +484,12 @@ def refresh_access_token(refresh_token):
         
         # Decode the refresh token to get user identity
         decoded_token = decode_token(refresh_token)
+        if decoded_token.get('type') != 'refresh':
+            return None
+        from utils.sessions import check, stamp_claims
+        if not check(decoded_token)[0]:
+            logger.info("Refresh with an ended session refused")
+            return None
         user_id = decoded_token['sub']
         
         # Get database connection
@@ -496,6 +523,7 @@ def refresh_access_token(refresh_token):
             'role': user_data.get('role', 'user'),
             'full_name': user_data.get('full_name', '')
         }
+        claims.update(stamp_claims(identity))
         
         # Create new access token
         access_token = create_access_token(identity=identity, additional_claims=claims)
@@ -566,10 +594,12 @@ def role_required_with_demo(roles):
             if hasattr(g, 'user') and g.user:
                 user_role = g.user.get('role', '')
             else:
-                # Get from JWT claims
+                # Get from JWT claims; for a staff login, the account's
+                # role now rather than the one in the token (SEC-004).
                 try:
-                    claims = get_jwt()
-                    user_role = claims.get('role', '')
+                    from utils.sessions import check
+                    ok, user_role = check(get_jwt())
+                    user_role = (user_role or '') if ok else ''
                 except Exception:
                     user_role = ''
             
