@@ -9,6 +9,7 @@ import re
 import bleach
 from functools import wraps
 import logging
+import ipaddress
 import os
 
 logger = logging.getLogger(__name__)
@@ -30,28 +31,53 @@ _testing = os.getenv('TESTING_MODE', 'False').lower() == 'true'
 # Env override so the operator can dial these without code changes.
 _default_hourly = int(os.getenv('RATELIMIT_HOURLY', '5000'))
 _default_daily = int(os.getenv('RATELIMIT_DAILY', '50000'))
-def _client_ip():
-    """Rate-limit key: the REAL client, not the edge in front of us.
+# Cloudflare's own addresses (https://www.cloudflare.com/ips, fetched
+# 1 Nov 2026). Only a request that arrives FROM one of these can vouch for
+# the caller with CF-Connecting-IP.
+_CLOUDFLARE_NETS = [ipaddress.ip_network(n) for n in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+    "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32",
+    "2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
+)]
 
-    cupq.app sits behind Cloudflare, then Railway's proxy. ProxyFix trusts
-    ONE hop (x_for=1), so request.remote_addr resolves to the nearest
-    proxy's view -- a Cloudflare edge address, which changes from request
-    to request. Keyed on that, no bucket ever fills: 11 rapid bad logins
-    from one laptop each landed in a fresh bucket and all came back 401
-    (probed 2026-09-05). Cloudflare always sets CF-Connecting-IP to the
-    true client; fall back to the first X-Forwarded-For entry, then
-    remote_addr, so a deployment behind a different edge still works.
-    """
+
+def _from_cloudflare(addr):
     try:
-        cf = (request.headers.get('CF-Connecting-IP') or '').strip()
-        if cf:
-            return cf
-        xff = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
-        if xff:
-            return xff
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return False
+    return any(ip in net for net in _CLOUDFLARE_NETS)
+
+
+def _client_ip():
+    """Rate-limit key: the REAL client, which the caller can't choose.
+
+    request.remote_addr is the address that connected to Railway's edge
+    (ProxyFix x_for=1 takes the hop Railway appends; anything the caller
+    put in X-Forwarded-For sits before it). Probed 1 Nov 2026 on both
+    copies: through Cloudflare AND straight at the *.up.railway.app
+    address, it is the caller's own address, and made-up CF-Connecting-IP
+    / X-Forwarded-For headers are ignored.
+
+    The old key read CF-Connecting-IP first, from anyone, so a caller
+    going straight to the Railway address could name a fresh bucket on
+    every request and skip the login, PIN, reset and sign-up limits
+    (audit SEC-005). CF-Connecting-IP is now believed only when the
+    connection itself came from Cloudflare (as it did in Sept 2026, when
+    remote_addr was a rotating Cloudflare edge and no bucket ever filled).
+    """
+    remote = get_remote_address()
+    try:
+        if remote and _from_cloudflare(remote):
+            cf = (request.headers.get('CF-Connecting-IP') or '').strip()
+            if cf:
+                return cf
     except Exception:
         pass
-    return get_remote_address()
+    return remote
 
 
 limiter = Limiter(
