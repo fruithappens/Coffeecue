@@ -1231,16 +1231,20 @@ def create_app():
         # rolls back first, so locks/idle-in-transaction are released here
         # (not "whenever the next request turns up") and the connection goes
         # back clean for the next borrower. Runs even if the handler raised.
-        # A request that never touched the DB has no _pooled_db and is a no-op.
+        # A request that never touched the DB has no pooled connection and
+        # is a no-op. Read from the request itself, not g (see the db
+        # property in services/coffee_system.py: an inner test_client
+        # request shares g and must not return the outer's connection).
         try:
-            from flask import g
-            pooled = getattr(g, '_pooled_db', None)
+            from flask import request
+            req = request._get_current_object()
+            pooled = getattr(req, '_cupq_pooled_db', None)
             if pooled is not None:
                 from utils.database import close_connection
                 try:
                     close_connection(pooled)  # rollback + putconn (returns to pool)
                 finally:
-                    g._pooled_db = None
+                    req._cupq_pooled_db = None
         except Exception:
             # Never turn a cleanup failure into a request failure.
             pass

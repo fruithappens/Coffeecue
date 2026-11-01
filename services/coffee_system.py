@@ -10031,11 +10031,18 @@ class CoffeeOrderSystem:
         200 — see the git history for 23 Aug.
         """
         # --- request-scoped pooled connection ---
+        # Kept on the REQUEST, not flask.g: a request made inside another
+        # (/me/order and group orders place drinks through test_client)
+        # shares g with the outer one, so the inner request used the outer's
+        # connection and returned it at its teardown; the outer then returned
+        # it again, the pool refused the duplicate and closed it, and the
+        # next customer request drew a dead connection (500).
         try:
-            from flask import g, has_request_context
+            from flask import has_request_context, request
 
             if has_request_context():
-                conn = getattr(g, "_pooled_db", None)
+                req = request._get_current_object()
+                conn = getattr(req, "_cupq_pooled_db", None)
                 try:
                     if conn is not None and not getattr(conn, "closed", 0):
                         return conn
@@ -10045,7 +10052,7 @@ class CoffeeOrderSystem:
 
                 conn = get_db_connection()
                 if conn is not None:
-                    g._pooled_db = conn
+                    req._cupq_pooled_db = conn
                     return conn
                 # pool unavailable — fall through to the shared singleton
         except Exception as e:
