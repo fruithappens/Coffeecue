@@ -7,6 +7,7 @@ import SponsorWall from './components/display/SponsorWall';
 import SignPage from './components/display/SignPage';
 import MobileOrderPage from './components/display/MobileOrderPage';
 import MyCoffeePage from './components/display/MyCoffeePage';
+import StaffCorner from './components/display/StaffCorner';
 import HowToOrderPage from './components/display/HowToOrderPage';
 import StatusPage from './components/display/StatusPage';
 import DeviceSetupPage from './components/display/DeviceSetupPage';
@@ -567,9 +568,9 @@ function App() {
           <Routes>
             {/* Public routes */}
             {/* cupq.app now opens straight into ordering -- Steve: "just
-                tell someone got to cupq.app and place your order". Staff go
-                to cupq.app/login. */}
-            <Route path="/" element={<MyCoffeePage />} />
+                tell someone got to cupq.app and place your order". Staff tap
+                the small corner button (StaffCorner). */}
+            <Route path="/" element={<><StaffCorner /><MyCoffeePage /></>} />
           
           {/* Direct login route for clear access */}
           
@@ -584,10 +585,10 @@ function App() {
           {/* Scan-to-order: /order = the guest's own phone (WiFi, no
               SIM needed); /how = the delegate splash screen with both
               QR codes. Both public — they ARE the customer entry. */}
-          <Route path="/order" element={<MobileOrderPage />} />
+          <Route path="/order" element={<><StaffCorner /><MobileOrderPage /></>} />
           {/* Personal "my coffee" page — the link that lives in the
               EventsAir app. Static url, identity remembered per device. */}
-          <Route path="/my" element={<MyCoffeePage />} />
+          <Route path="/my" element={<><StaffCorner /><MyCoffeePage /></>} />
           <Route path="/how" element={<HowToOrderPage />} />
           {/* Is this event's coffee working? Public, nothing personal (U4-4). */}
           <Route path="/status" element={<StatusPage />} />
