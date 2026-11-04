@@ -3,6 +3,7 @@ Order Status Update API Routes
 """
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth import writes_need, STAFF_ROLES
 from datetime import datetime
 from psycopg2.extras import RealDictCursor
 import logging
@@ -14,6 +15,7 @@ bp = Blueprint('order_status_api', __name__, url_prefix='/api/orders')
 
 @bp.route('/<order_id>/status', methods=['PUT'])
 @jwt_required()
+@writes_need(STAFF_ROLES)
 def update_order_status(order_id):
     """Update the status of an order"""
     try:

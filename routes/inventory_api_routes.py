@@ -4,6 +4,7 @@ Handles inventory management for stations including stock levels and depletion
 """
 from flask import Blueprint, request, jsonify, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth import writes_need, MANAGER_ROLES, STAFF_ROLES
 from datetime import datetime
 import logging
 
@@ -161,6 +162,7 @@ def get_station_inventory(station_id):
 
 @inventory_api_bp.route('/station/<int:station_id>', methods=['POST'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def update_station_inventory(station_id):
     """Update inventory for a specific station"""
     try:
@@ -250,6 +252,7 @@ def update_station_inventory(station_id):
 
 @inventory_api_bp.route('/deplete', methods=['POST'])
 @jwt_required()
+@writes_need(STAFF_ROLES)
 def deplete_inventory():
     """Deplete inventory when an order is completed"""
     try:
@@ -436,6 +439,7 @@ def get_event_inventory():
 
 @inventory_api_bp.route('/sync', methods=['POST'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def sync_inventory():
     """Sync inventory across all stations"""
     try:
@@ -493,6 +497,7 @@ def sync_inventory():
 
 @inventory_api_bp.route('/emergency-restock', methods=['POST'])
 @jwt_required()
+@writes_need(STAFF_ROLES)
 def emergency_restock():
     """Handle emergency restock requests"""
     try:

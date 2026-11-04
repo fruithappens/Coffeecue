@@ -4,6 +4,7 @@ Handles batch/group order processing
 """
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth import writes_need, STAFF_ROLES
 from datetime import datetime
 import logging
 
@@ -19,6 +20,7 @@ group_order_bp = Blueprint('group_order', __name__, url_prefix='/api/group-order
 
 @group_order_bp.route('/', methods=['POST'])
 @jwt_required()
+@writes_need(STAFF_ROLES)
 def create_group_order():
     """Create multiple orders from a group"""
     try:

@@ -4,6 +4,7 @@ Handles barista schedules and shift management
 """
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth import writes_need, MANAGER_ROLES, STAFF_ROLES
 from datetime import datetime, date, timedelta
 import logging
 
@@ -24,6 +25,7 @@ def _local_today():
 
 @schedule_api_bp.route('/', methods=['POST'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def create_schedule():
     """Create a new schedule/shift"""
     try:
@@ -177,6 +179,7 @@ def get_week_schedules():
 
 @schedule_api_bp.route('/<int:schedule_id>', methods=['PUT'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def update_schedule(schedule_id):
     """Update an existing schedule"""
     try:
@@ -228,6 +231,7 @@ def update_schedule(schedule_id):
 
 @schedule_api_bp.route('/<int:schedule_id>', methods=['DELETE'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def delete_schedule(schedule_id):
     """Delete a schedule"""
     try:
@@ -265,6 +269,7 @@ def delete_schedule(schedule_id):
 
 @schedule_api_bp.route('/check-in/<int:schedule_id>', methods=['POST'])
 @jwt_required()
+@writes_need(STAFF_ROLES)
 def check_in_schedule(schedule_id):
     """Check in for a scheduled shift"""
     try:
