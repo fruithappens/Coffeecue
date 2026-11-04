@@ -9,6 +9,7 @@ import os
 import threading
 from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from auth import current_role, role_allowed, writes_need, MANAGER_ROLES, STAFF_ROLES
 from datetime import datetime, timedelta
 from datetime import timezone as _tz
 import json
@@ -149,12 +150,8 @@ def role_required(roles):
     def decorator(fn):
         @jwt_required_with_demo()
         def wrapper(*args, **kwargs):
-            # Get user claims from JWT
-            claims = get_jwt()
-            user_role = claims.get('role', 'guest')
-            
             # Check if user's role is in the allowed roles
-            if user_role not in roles:
+            if not role_allowed(current_role(), roles):
                 return jsonify({
                     'success': False, 
                     'message': 'Insufficient permissions'
@@ -458,6 +455,7 @@ def _drink_display_name(order_details, default='Coffee'):
 
 @bp.route('/orders', methods=['GET', 'POST'])
 @jwt_required_with_demo()
+@writes_need(STAFF_ROLES)
 def orders():
     """Handle orders - GET for listing all orders, POST for creating new orders"""
     if request.method == 'GET':
@@ -8366,6 +8364,7 @@ def update_station_status(station_id):
 
 @bp.route('/stations/<station_id>/capabilities', methods=['GET', 'POST', 'PUT'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def station_capabilities(station_id):
     """GET or update a station's capabilities JSONB blob.
 
@@ -11202,6 +11201,7 @@ def get_barista_profiles():
 
 @bp.route('/barista-profiles/<name>', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def upsert_barista_profile(name):
     """Save/update one barista profile by name."""
     try:
@@ -11331,6 +11331,7 @@ def get_event_sessions():
 
 @bp.route('/settings/event-sessions', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def upsert_event_sessions():
     """Save event sessions / per-session status. Accepts either
     field independently so e.g. flipping one session to 'in_progress'
@@ -11350,6 +11351,7 @@ def upsert_event_sessions():
 
 @bp.route('/settings/station-inventory-configs', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def upsert_station_inventory_configs():
     """Save per-station inventory config. Accepts:
       { 'configs': {...} }         — enable/disable map
@@ -11503,6 +11505,7 @@ def get_branding_settings():
 
 @bp.route('/settings/branding', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def upsert_branding_settings():
     """Save branding settings. Accepts either `{settings: {...}}` (the
     frontend's current format — sends nested under a `settings` key) or
@@ -12866,6 +12869,7 @@ def upsert_event_inventory():
 # the Support tab Reports panel can render today's metrics live.
 @bp.route('/reports/cup-reconciliation', methods=['GET', 'PUT'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def cup_reconciliation():
     """The venue counts cups; we count orders. This is where the two
     tallies meet (venue config doc section 4).
@@ -13812,6 +13816,7 @@ def event_access_public():
 
 @bp.route('/event-access', methods=['GET', 'PUT'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def event_access_config():
     """The event's ordering code, and whether it is enforced.
 
@@ -13859,6 +13864,7 @@ def event_access_config():
 
 @bp.route('/broadcast', methods=['GET', 'POST', 'DELETE'])
 @jwt_required_with_demo()
+@writes_need(STAFF_ROLES)
 def customer_broadcast():
     """Tell everyone watching their phone that something has gone wrong.
 
@@ -13915,6 +13921,7 @@ def customer_broadcast():
 
 @bp.route('/notifications/hold', methods=['GET', 'PUT'])
 @jwt_required_with_demo()
+@writes_need(STAFF_ROLES)
 def notification_hold():
     """The switch, and what is waiting behind it.
 
@@ -14029,6 +14036,7 @@ def discard_held_notifications():
 
 @bp.route('/notifications/release', methods=['POST'])
 @jwt_required_with_demo()
+@writes_need(STAFF_ROLES)
 def release_notifications():
     """Send every held notification, then turn the hold off.
 
@@ -15775,6 +15783,7 @@ def get_event_stock():
 
 @bp.route('/event-stock', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def upsert_event_stock():
     try:
         coffee_system = current_app.config.get('coffee_system')
@@ -15806,6 +15815,7 @@ def get_station_defaults():
 
 @bp.route('/station-defaults', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def upsert_station_defaults():
     """Replace the entire station-defaults blob (per-station map)."""
     try:

@@ -610,6 +610,48 @@ def jwt_required_with_demo(optional=False):
         return wrapper
     return decorator
 
+# Who may do what (audit finding SEC-003). A route that changes something
+# names one of these; "logged in" alone isn't enough, because barista logins
+# are shared at the cart and handed to QR-set-up tablets.
+ORGANISER_ROLES = ["organizer", "organiser", "event_organizer"]
+MANAGER_ROLES = ["admin", "staff", *ORGANISER_ROLES, "support"]
+STAFF_ROLES = [*MANAGER_ROLES, "barista"]
+
+
+def current_role():
+    """This request's role: the account's role now, not the token's (SEC-004)."""
+    if hasattr(g, 'user') and g.user:
+        return g.user.get('role', '') or ''
+    try:
+        from utils.sessions import check
+        ok, role = check(get_jwt())
+        return (role or '') if ok else ''
+    except Exception:
+        return ''
+
+
+def role_allowed(role, roles):
+    """'staff' in a list has always meant "a manager"; the People screen calls
+    the same login an organizer, so those count wherever staff does."""
+    return role in roles or ('staff' in roles and role in ORGANISER_ROLES)
+
+
+def writes_need(roles):
+    """For a route that also reads: anyone logged in may GET, changes need one
+    of these roles. Goes under the login decorator."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if request.method not in ('GET', 'HEAD', 'OPTIONS') and not role_allowed(current_role(), roles):
+                return jsonify({
+                    'success': False,
+                    'message': 'Insufficient permissions'
+                }), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def role_required_with_demo(roles):
     """
     Custom role decorator that handles both real JWT tokens and demo tokens
@@ -618,23 +660,8 @@ def role_required_with_demo(roles):
         @wraps(fn)
         @jwt_required_with_demo()
         def wrapper(*args, **kwargs):
-            # Get user role from g.user (demo mode) or JWT claims
-            user_role = None
-            
-            if hasattr(g, 'user') and g.user:
-                user_role = g.user.get('role', '')
-            else:
-                # Get from JWT claims; for a staff login, the account's
-                # role now rather than the one in the token (SEC-004).
-                try:
-                    from utils.sessions import check
-                    ok, user_role = check(get_jwt())
-                    user_role = (user_role or '') if ok else ''
-                except Exception:
-                    user_role = ''
-            
             # Check if user's role is in the list of allowed roles
-            if user_role not in roles:
+            if not role_allowed(current_role(), roles):
                 return jsonify({
                     'success': False,
                     'message': 'Insufficient permissions'

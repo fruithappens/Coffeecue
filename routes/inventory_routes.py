@@ -3,6 +3,7 @@ API routes for inventory management
 """
 from flask import Blueprint, jsonify, request, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from auth import writes_need, MANAGER_ROLES, STAFF_ROLES
 import logging
 import json
 from datetime import datetime
@@ -262,6 +263,7 @@ def get_inventory_item(item_id):
 
 @bp.route('/api/inventory/<int:item_id>', methods=['PUT', 'PATCH'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def update_inventory_item(item_id):
     """Update an inventory item"""
     try:
@@ -308,6 +310,7 @@ def update_inventory_item(item_id):
 # Delete inventory item
 @bp.route('/api/inventory/<int:item_id>', methods=['DELETE'])
 @jwt_required_with_demo()
+@writes_need(MANAGER_ROLES)
 def delete_inventory_item(item_id):
     """Delete an inventory item"""
     try:
@@ -539,6 +542,7 @@ def resolve_inventory_alert(alert_id):
 # Adjust stock level
 @bp.route('/api/inventory/<int:item_id>/adjust', methods=['POST'])
 @jwt_required_with_demo()
+@writes_need(STAFF_ROLES)
 def adjust_stock(item_id):
     """Adjust stock level with history tracking"""
     try:

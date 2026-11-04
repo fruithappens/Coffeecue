@@ -25,7 +25,7 @@ from functools import wraps
 # mint) are honoured alongside real signed JWTs. support_role_required
 # below wraps that instead of @jwt_required() so demo-logged-in
 # users can hit Users / diagnostics / emergency endpoints in dev.
-from auth import jwt_required_with_demo
+from auth import MANAGER_ROLES, current_role, jwt_required_with_demo
 
 support_api_bp = Blueprint('support_api', __name__)
 logger = logging.getLogger(__name__)
@@ -38,24 +38,17 @@ def support_role_required(f):
     alongside real signed JWTs (the strict @jwt_required() rejected demo
     tokens, which is why this gate was originally turned off entirely).
 
-    Access model — DENY-LIST, on purpose:
-      This blueprint mixes support-only endpoints (emergency stop, clear
-      queues, diagnostics) with /api/users, which the *Organiser* UI also
-      calls. A strict allow-list risks locking a legitimate manager/admin out
-      over a role-name variant (admin / staff / organizer / organiser /
-      event_organizer all exist in this app). The real risk we must stop is a
-      shared *barista* login reaching Stop-All / Clear-queues / user
-      management. So block the untrusted operational roles (barista, customer,
-      display) and let every manager/admin role through. A tighter
-      per-endpoint allow-list is a sensible future hardening.
+    Access model: an allow-list (SEC-003). This blueprint mixes support-only
+    endpoints (emergency stop, clear queues, diagnostics) with /api/users,
+    which the Organiser UI also calls, so every manager role gets in. A shared
+    barista login, or any role nobody has named, does not.
     """
-    BLOCKED_ROLES = {'barista', 'customer', 'display'}
 
     @wraps(f)
     @jwt_required_with_demo()
     def decorated_function(*args, **kwargs):
-        role = ((getattr(g, 'user', None) or {}).get('role') or '').strip().lower()
-        if role in BLOCKED_ROLES:
+        role = current_role().strip().lower()
+        if role not in MANAGER_ROLES:
             logger.warning(f"Blocked role '{role}' from support endpoint {request.path}")
             return jsonify({
                 'status': 'error',

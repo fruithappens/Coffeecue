@@ -4,6 +4,7 @@ Handles event settings, station settings, and configuration persistence
 """
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth import writes_need, MANAGER_ROLES
 from datetime import datetime, timedelta
 import json
 import logging
@@ -76,6 +77,7 @@ def get_event_settings():
 
 @settings_api_bp.route('/event', methods=['POST'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def update_event_settings():
     """Update event-wide settings"""
     try:
@@ -313,6 +315,7 @@ def get_station_settings(station_id):
 
 @settings_api_bp.route('/station/<int:station_id>', methods=['POST'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def update_station_settings(station_id):
     """Update settings for a specific station"""
     try:
@@ -406,6 +409,7 @@ def get_milk_colors():
 
 @settings_api_bp.route('/milk-colors', methods=['POST'])
 @jwt_required()
+@writes_need(MANAGER_ROLES)
 def update_milk_colors():
     """Update milk color settings"""
     try:
