@@ -76,8 +76,13 @@ def login_check(user_id, code):
     except Exception as e:
         # The columns may not exist yet on a copy mid-upgrade: then nobody
         # has two-step on, and the password alone is the old behaviour.
-        logger.warning("two-step check skipped: %s", e)
-        return None
+        if getattr(e, "pgcode", None) == "42703":  # undefined_column
+            logger.warning("two-step check skipped, columns not there yet: %s", e)
+            return None
+        # Anything else (pool exhausted, a database blip) fails closed: we
+        # can't tell whether this login has two-step on (audit SEC-016).
+        logger.warning("two-step check failed, login refused: %s", e)
+        return "We couldn't check your sign-in just now. Try again in a minute."
     if not row or not row["enabled"]:
         return None
     if not code:
