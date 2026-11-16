@@ -33,7 +33,7 @@ logger = logging.getLogger("expresso.routes.password_reset")
 bp = Blueprint("password_reset", __name__, url_prefix="/api/auth")
 
 LINK_MINUTES = 30
-MIN_PASSWORD = 8
+from utils.login_rules import MIN_PASSWORD  # noqa: E402  (one rule everywhere)
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
 _OUR_HOST = re.compile(r"^(cupq\.app|[a-z0-9-]+\.cupq\.app|localhost|127\.0\.0\.1)(:\d+)?$")
 ANSWER = ("If that login has an email address, a reset link is on its way. "

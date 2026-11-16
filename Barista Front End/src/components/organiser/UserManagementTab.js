@@ -157,6 +157,10 @@ const UserManagementTab = () => {
       return;
     }
 
+    if (userForm.password.length < 8) {
+      showToast('Use at least 8 characters for the password', 'warning');
+      return;
+    }
     if (userForm.password !== userForm.confirmPassword) {
       showToast('The two passwords do not match', 'warning');
       return;

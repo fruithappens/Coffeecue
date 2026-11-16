@@ -176,6 +176,11 @@ def create_user():
                 'message': 'Username already exists'
             }), 400
 
+        from utils.login_rules import password_problem
+        problem = password_problem(data['password'])
+        if problem:
+            return jsonify({'status': 'error', 'message': problem}), 400
+
         # Create user
         password_hash = generate_password_hash(data['password'])
         cursor.execute("""

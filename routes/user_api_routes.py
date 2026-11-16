@@ -108,6 +108,10 @@ def create_user():
             if field not in data:
                 return jsonify({'status': 'error', 'message': f'Missing required field: {field}'}), 400
         
+        from utils.login_rules import password_problem
+        if password_problem(data['password']):
+            return jsonify({'status': 'error', 'message': password_problem(data['password'])}), 400
+
         # Check if username exists
         if User.query.filter_by(username=data['username']).first():
             return jsonify({'status': 'error', 'message': 'Username already exists'}), 400
@@ -259,6 +263,9 @@ def update_user(user_id):
         if 'notes' in data:
             user.notes = data['notes']
         if 'password' in data:
+            from utils.login_rules import password_problem
+            if password_problem(data['password']):
+                return jsonify({'status': 'error', 'message': password_problem(data['password'])}), 400
             user.password_hash = generate_password_hash(data['password'])
         
         user.updated_at = datetime.utcnow()

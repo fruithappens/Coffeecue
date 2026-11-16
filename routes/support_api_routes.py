@@ -748,6 +748,10 @@ def create_user():
         from werkzeug.security import generate_password_hash
         
         data = request.get_json()
+        from utils.login_rules import password_problem
+        problem = password_problem(data.get('password'))
+        if problem:
+            return jsonify({'status': 'error', 'message': problem}), 400
         db = get_db_connection()
         cursor = db.cursor()
         
@@ -804,6 +808,16 @@ def update_user(user_id):
         if 'role' in data:
             updates.append('role = %s')
             params.append(data['role'])
+        # The People screen sends a new password here; it used to be dropped
+        # without a word while the screen said "saved".
+        if data.get('password'):
+            from utils.login_rules import password_problem
+            from werkzeug.security import generate_password_hash
+            problem = password_problem(data['password'])
+            if problem:
+                return jsonify({'status': 'error', 'message': problem}), 400
+            updates.append('password_hash = %s')
+            params.append(generate_password_hash(data['password']))
         
         if updates:
             params.append(user_id)
@@ -819,6 +833,11 @@ def update_user(user_id):
             
             db.commit()
             cursor.close()
+            try:
+                from utils.sessions import forget_account
+                forget_account(user_id)  # a new password or role applies at once
+            except Exception:
+                pass
             
             return jsonify({
                 'status': 'success',
