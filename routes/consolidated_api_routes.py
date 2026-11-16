@@ -2722,6 +2722,7 @@ def station_unlock():
     """
     try:
         from utils.station_unlock import (ATTEMPTS_KEY, MAX_ATTEMPTS,
+                                          MAX_ATTEMPTS_PER_ADDRESS,
                                           SETTING_KEY, is_enabled,
                                           lockout_remaining, record_failure,
                                           verify_code)
@@ -2747,9 +2748,11 @@ def station_unlock():
         # requirement is what makes scripted guessing hopeless; this
         # throttle only has to stop someone picking up the iPad and
         # trying the obvious ones.
+        from security_middleware import _client_ip
         who = str(data.get('device') or request.remote_addr or 'unknown')[:64]
-        for bucket in (who,):
-            wait = lockout_remaining(log.get(bucket))
+        addr = 'ip:' + str(_client_ip() or 'unknown')[:64]
+        for bucket, limit in ((who, MAX_ATTEMPTS), (addr, MAX_ATTEMPTS_PER_ADDRESS)):
+            wait = lockout_remaining(log.get(bucket), limit=limit)
             if wait > 0:
                 return jsonify({
                     'success': False,
@@ -2760,6 +2763,7 @@ def station_unlock():
 
         if not verify_code(code, cfg.get('code_hash')):
             log[who] = record_failure(log.get(who))
+            log[addr] = record_failure(log.get(addr))
             # The global tally is kept but never blocks -- it is there so
             # a burst of failures across many device ids shows up in the
             # log as the scripted attack it would be.
@@ -2775,8 +2779,9 @@ def station_unlock():
         # Success clears the failures for this device, so a barista who
         # fumbled it twice before getting it right is not four tries from
         # a lockout the next time something goes wrong.
-        if who in log:
+        if who in log or addr in log:
             log.pop(who, None)
+            log.pop(addr, None)
             _kv_put(cs.db, ATTEMPTS_KEY, log)
 
         from flask_jwt_extended import create_access_token, create_refresh_token
