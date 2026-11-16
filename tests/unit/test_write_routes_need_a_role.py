@@ -82,3 +82,18 @@ def test_organizers_count_wherever_staff_does():
         assert role_allowed(role, ["admin", "staff"])
         assert _client(role, MANAGER_ROLES).put("/x").status_code == 200
     assert not role_allowed("barista", ["admin", "staff"])
+
+
+# Organiser settings the barista screen only reads (checked 17 Nov 2026).
+ORGANISER_ONLY = {"upsert_event_inventory", "upsert_routing_rules", "transfer_inventory"}
+
+
+def test_organiser_settings_are_closed_to_baristas():
+    src = (ROUTES / "consolidated_api_routes.py").read_text()
+    found = {}
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FunctionDef) and node.name in ORGANISER_ONLY:
+            found[node.name] = " ".join(ast.unparse(d) for d in node.decorator_list)
+    assert set(found) == ORGANISER_ONLY
+    for name, decs in found.items():
+        assert "MANAGER_ROLES" in decs and "barista" not in decs, name

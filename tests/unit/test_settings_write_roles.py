@@ -29,7 +29,9 @@ def _settings_writers():
                 if dec.args[0].value == "/settings" and set(methods) & {"PUT", "PATCH", "POST"}:
                     route = methods
             if name == "role_required_with_demo" and dec.args:
-                roles = [e.value for e in dec.args[0].elts]
+                arg = dec.args[0]
+                # A named list (MANAGER_ROLES) never includes barista.
+                roles = [arg.id] if isinstance(arg, ast.Name) else [e.value for e in arg.elts]
         if route:
             yield node.name, roles
 

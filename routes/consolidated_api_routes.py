@@ -12831,7 +12831,7 @@ def get_event_inventory():
 
 @bp.route('/event-inventory', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
+@role_required_with_demo(MANAGER_ROLES)
 def upsert_event_inventory():
     """Persist the master inventory list. The whole blob is replaced.
 
@@ -15577,7 +15577,7 @@ def get_routing_rules():
 
 @bp.route('/routing-rules', methods=['PUT', 'POST'])
 @jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
+@role_required_with_demo(MANAGER_ROLES)
 def upsert_routing_rules():
     try:
         coffee_system = current_app.config.get('coffee_system')
@@ -15596,7 +15596,7 @@ def upsert_routing_rules():
 
 @bp.route('/inventory/transfer', methods=['POST'])
 @jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
+@role_required_with_demo(MANAGER_ROLES)
 def transfer_inventory():
     """Move stock from one station to another.
 
