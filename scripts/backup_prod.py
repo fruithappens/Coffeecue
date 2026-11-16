@@ -2,7 +2,8 @@
 """Back up cupq.app's database to this Mac (roadmap S1-6, S1-13, S1-14).
 
     python3 backup_prod.py nightly     full dump, keep 14            (launchd, 3:00)
-    python3 backup_prod.py hourly      dump only if anything changed, keep 48 (launchd, hourly)
+    python3 backup_prod.py hourly      dump only if anything changed, keep 48 (launchd, hourly);
+                                       unchanged: check in twice a day so cupq.app knows the copy is current
     python3 backup_prod.py status      newest dumps and the last log lines
     python3 scripts/backup_prod.py install   copy to ~/cupq-backup and point both jobs at it
 
@@ -183,7 +184,12 @@ def dump(url, out):
         if wait:
             time.sleep(wait)
         _remove(out)
-        r = subprocess.run([str(PG / "pg_dump"), url, "-Fd", "-j", "4", "-Z", "6", "-f", str(out)],
+        # caffeinate -i: the Mac starts the 3am job in a short "dark wake"
+        # and went back to sleep a minute later, mid-dump ("server closed the
+        # connection unexpectedly", Oct-Nov 2026). This holds it awake until
+        # pg_dump finishes.
+        r = subprocess.run(["/usr/bin/caffeinate", "-i", str(PG / "pg_dump"), url,
+                            "-Fd", "-j", "4", "-Z", "6", "-f", str(out)],
                            capture_output=True, text=True, timeout=1800)
         tables = verify(out) if r.returncode == 0 and out.exists() else 0
         if tables >= 10:
@@ -227,6 +233,16 @@ def heartbeat(kind, size):
         log(f"WARN check-in with cupq.app failed: {e}")
 
 
+UNCHANGED_CHECKIN_H = 12
+
+
+def _hours_since(iso):
+    try:
+        return (datetime.now() - datetime.fromisoformat(iso)).total_seconds() / 3600
+    except (TypeError, ValueError):
+        return 1e9
+
+
 def load_state():
     try:
         return json.loads(STATE.read_text())
@@ -255,7 +271,15 @@ def run(kind):
         if kind == "hourly":
             fp = fingerprint(url)
             if fp == st.get("fingerprint"):
-                return 0  # nothing changed since the last good backup: no file, no log line
+                # Nothing changed since the last good backup, so it is still a
+                # full copy. Say so twice a day: between events the data sits
+                # still, and cupq.app texted "no good backup" every few hours.
+                if _hours_since(st.get("checked_in") or st.get("last_ok")) >= UNCHANGED_CHECKIN_H:
+                    heartbeat("unchanged", 0)
+                    time.sleep(2)
+                    st.update(fingerprint=fingerprint(url), checked_in=datetime.now().isoformat())
+                    save_state(st)
+                return 0
         out = folder / f"coffeecue_prod_{datetime.now():%Y-%m-%d_%H%M%S}.dumpdir"
         log(f"START {kind} backup -> {out}")
         tables = dump(url, out)
@@ -263,7 +287,8 @@ def run(kind):
         log(f"OK   {kind} dump verified: {tables} tables, {size / 1e6:.1f} MB")
         heartbeat(kind, size)
         time.sleep(2)  # let Postgres count the check-in before fingerprinting
-        st.update(fingerprint=fingerprint(url), last_ok=datetime.now().isoformat(), last_kind=kind)
+        st.update(fingerprint=fingerprint(url), last_ok=datetime.now().isoformat(), last_kind=kind,
+                  checked_in=datetime.now().isoformat())
         save_state(st)
         removed = prune(folder, "coffeecue_prod_", KEEP[kind])
         if removed:
