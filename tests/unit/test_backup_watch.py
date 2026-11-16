@@ -39,14 +39,15 @@ def test_quiet_without_token_or_when_fresh():
         assert run(Cur(fresh), 1000) == (None, [])
 
 
-def test_stale_texts_then_waits_six_hours():
+def test_stale_texts_then_waits_a_day():
     bw._last_alert["at"] = 0.0
     old = datetime.now(timezone.utc) - timedelta(hours=30)
     with patch.dict(os.environ, {"BACKUP_HEARTBEAT_TOKEN": "t"}):
         hit, sent = run(Cur(old), 10_000)
         assert hit[0] == "BACKUP_MISSED" and "30 hours" in sent[0][1]
         assert run(Cur(old), 10_000 + 3600) == (None, [])           # an hour later: quiet
-        assert run(Cur(old), 10_000 + 6 * 3600 + 1)[0] is not None  # six hours later: again
+        assert run(Cur(old), 10_000 + 7 * 3600) == (None, [])       # seven hours: still quiet
+        assert run(Cur(old), 10_000 + 24 * 3600 + 1)[0] is not None  # a day later: again
         # A good backup resets it, so the next miss texts straight away.
         run(Cur(datetime.now(timezone.utc)), 50_000)
         assert run(Cur(old), 50_001)[0] is not None

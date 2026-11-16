@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 KV_KEY = "backup_heartbeat"
 STALE_HOURS = float(os.getenv("BACKUP_STALE_HOURS", "26"))
-REALERT_S = 6 * 3600  # a missed backup texts every 6 hours, not every 15 minutes
+REALERT_S = 24 * 3600  # one text per day of missed backups (was every 6 hours: too many texts)
 
 _last_alert = {"at": 0.0}
 

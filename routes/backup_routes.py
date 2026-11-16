@@ -30,7 +30,7 @@ def heartbeat():
     if not got.startswith("Bearer ") or not hmac.compare_digest(got[7:].strip(), want):
         return jsonify({"success": False, "message": "not allowed"}), 401
     body = request.get_json(silent=True) or {}
-    kind = body.get("kind") if body.get("kind") in ("nightly", "hourly", "manual") else "manual"
+    kind = body.get("kind") if body.get("kind") in ("nightly", "hourly", "unchanged", "manual") else "manual"
     try:
         size = max(0, int(body.get("bytes") or 0))
     except (TypeError, ValueError):

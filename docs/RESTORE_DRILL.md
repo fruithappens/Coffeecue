@@ -14,8 +14,10 @@ newest files). Each run reads the database address from Railway, dumps
 with up to 3 tries, and **checks the file** by listing the tables inside
 it. It needs no app login.
 
-After each good dump the Mac checks in with cupq.app. If none checks in for
-26 hours, cupq.app texts the admin alert number and whoever is on call, and
+After each good dump the Mac checks in with cupq.app, and twice a day when
+nothing has changed (the newest dump is still a full copy). If none checks in
+for 26 hours, cupq.app texts the admin alert number and whoever is on call,
+once a day while it lasts, and
 Runner > Live > Readiness shows "A backup in the last day" in red. A failed
 run also shows a notification on the Mac. Log: `~/expresso/backups/backup.log`.
 
