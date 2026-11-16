@@ -14,7 +14,7 @@ sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-from utils.station_unlock import (MAX_ATTEMPTS, MIN_CODE_LENGTH,  # noqa: E402
+from utils.station_unlock import (MAX_ATTEMPTS, MAX_ATTEMPTS_PER_ADDRESS, MIN_CODE_LENGTH,  # noqa: E402
                                   hash_code, is_enabled, lockout_remaining,
                                   normalise, recent_failures, record_failure,
                                   validate_new_code, verify_code)
@@ -133,7 +133,7 @@ def test_the_attempt_log_cannot_grow_without_bound():
     attempts = []
     for _ in range(200):
         attempts = record_failure(attempts, NOW)
-    assert len(attempts) <= MAX_ATTEMPTS * 2
+    assert len(attempts) <= MAX_ATTEMPTS_PER_ADDRESS * 2
 
 
 def test_the_minimum_is_long_enough_to_stand_without_a_global_lock():
@@ -142,3 +142,14 @@ def test_the_minimum_is_long_enough_to_stand_without_a_global_lock():
     # code itself is long enough that scripted guessing is hopeless, so
     # this pins the length the reasoning depends on.
     assert MIN_CODE_LENGTH >= 8
+
+
+def test_one_address_is_limited_however_often_the_device_id_changes():
+    """SEC-027: the device id is the client's to choose, the address isn't."""
+    from utils.station_unlock import lockout_remaining, record_failure
+    log = None
+    for _ in range(MAX_ATTEMPTS_PER_ADDRESS - 1):
+        log = record_failure(log)
+    assert lockout_remaining(log, limit=MAX_ATTEMPTS_PER_ADDRESS) == 0
+    log = record_failure(log)
+    assert lockout_remaining(log, limit=MAX_ATTEMPTS_PER_ADDRESS) > 0

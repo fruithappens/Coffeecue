@@ -53,6 +53,12 @@ MAX_CODE_LENGTH = 32
 # change its device id at will. The code length above is what stops the
 # script.
 MAX_ATTEMPTS = 5
+# Per CALLER ADDRESS as well (audit SEC-027): the device id is whatever the
+# client sends, so a script changing it was never slowed at all. The address
+# is the real caller's (security_middleware._client_ip, not a header anyone
+# can set). Set well above one person's fumbling, because a whole venue can
+# share one address behind its 4G router.
+MAX_ATTEMPTS_PER_ADDRESS = 30
 LOCKOUT_MINUTES = 15
 ATTEMPT_WINDOW_MINUTES = 15
 
@@ -188,7 +194,7 @@ def recent_failures(attempts, now=None):
     return sorted(out)
 
 
-def lockout_remaining(attempts, now=None):
+def lockout_remaining(attempts, now=None, limit=None):
     """Seconds until unlocking may be tried again. 0 means go ahead.
 
     Locks out only while the failures are still recent, so a device that
@@ -197,7 +203,7 @@ def lockout_remaining(attempts, now=None):
     """
     now = now or datetime.now(timezone.utc)
     recent = recent_failures(attempts, now)
-    if len(recent) < MAX_ATTEMPTS:
+    if len(recent) < (limit or MAX_ATTEMPTS):
         return 0
     unlock_at = recent[-1] + timedelta(minutes=LOCKOUT_MINUTES)
     return max(0, int((unlock_at - now).total_seconds()))
@@ -212,7 +218,7 @@ def record_failure(attempts, now=None):
     now = now or datetime.now(timezone.utc)
     kept = recent_failures(attempts, now)
     kept.append(now)
-    return [w.isoformat() for w in kept[-(MAX_ATTEMPTS * 2) :]]
+    return [w.isoformat() for w in kept[-(MAX_ATTEMPTS_PER_ADDRESS * 2) :]]
 
 
 def is_enabled(setting):
