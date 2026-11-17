@@ -44,6 +44,7 @@ import { playPreset } from '../../services/SoundNotificationService';
 import { event as logEvent } from '../../services/logging';
 
 import SponsorWall from './SponsorWall';
+import BarBoard from './BarBoard';
 import useNotices from '../shared/useNotices';
 import NoticeBanner from '../shared/NoticeBanner';
 
@@ -1496,6 +1497,30 @@ const DisplayScreen = () => {
   // wall TV gives you) was the footer holding the "Order here" button.
   // Fixing the height to the viewport and letting <main> shrink keeps the
   // footer on screen at any aspect ratio.
+  // A tall, narrow bar screen (29" 1920x540 stood upright, or the 43"
+  // 3840x720) gets its own simple stack -- see BarBoard.js (H5-9).
+  // ?bar=1 forces it on any screen, ?bar=0 keeps the normal board.
+  const barParam = searchParams.get('bar');
+  const isBar = !isPickupMode && (barParam === '1'
+    || (barParam !== '0' && aspect >= 2.6 && boardWidth <= 900));
+  const barContent = isBar ? (
+    <BarBoard
+      config={config}
+      station={currentStation}
+      orders={orders}
+      qrSrc={orderQrUrl
+        ? `/api/qr?size=10&data=${encodeURIComponent(withSrc(orderQrUrl, currentStation?.id))}`
+        : ''}
+      smsNumber={config.sms_number ? formatSmsNumber(config.sms_number) : ''}
+      connected={connected}
+      hadResult={hadResult}
+      error={error}
+      ticker={sponsorTicker.enabled && sponsorTicker.sponsors && sponsorTicker.sponsors.length
+        ? <SponsorTicker items={sponsorTicker.sponsors} position="bottom" size={sponsorTicker.size} />
+        : null}
+    />
+  ) : null;
+
   const content = (
     <div className={`h-screen w-full ${hasBg ? '' : theme.bg} ${theme.text}
                      flex flex-col font-sans overflow-hidden`}
@@ -2333,12 +2358,12 @@ const DisplayScreen = () => {
         overflow: 'hidden',
         ...rotationStyle,
       }}>
-        <div style={innerStyle}>{content}</div>
+        <div style={innerStyle}>{barContent || content}</div>
         {adminPanel}
       </div>
     );
   }
-  return <>{content}{adminPanel}</>;
+  return <>{barContent || content}{adminPanel}</>;
 };
 
 // --- Subcomponent: a column of orders ---
