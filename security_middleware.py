@@ -135,6 +135,15 @@ def _is_embeddable(path):
                for p in EMBEDDABLE_PREFIXES)
 
 
+def _inline_script_hashes():
+    try:
+        from utils.page_scripts import inline_script_hashes
+        return inline_script_hashes(current_app.static_folder)
+    except Exception as e:  # never let a header helper break a response
+        logger.warning(f"Could not read inline script fingerprints: {e}")
+        return []
+
+
 def add_security_headers(response):
     """Add comprehensive security headers to all responses"""
     embeddable = _is_embeddable(request.path)
@@ -161,11 +170,11 @@ def add_security_headers(response):
     # Enhanced Content Security Policy
     csp_directives = [
         "default-src 'self'",
-        # No 'unsafe-eval' and no outside script hosts: the built app never
-        # calls eval/new Function and loads nothing from a CDN (checked
-        # across every chunk). Fonts are self-hosted in public/fonts.
+        # No 'unsafe-eval', no outside script hosts and no inline script
+        # except the built pages' own, each allowed by its fingerprint
+        # (utils/page_scripts.py). Fonts are self-hosted in public/fonts.
         # tests/unit/test_page_rules.py keeps these from creeping back.
-        "script-src 'self' 'unsafe-inline'",
+        " ".join(["script-src 'self'"] + _inline_script_hashes()),
         "style-src 'self' 'unsafe-inline'",
         "font-src 'self' data:",
         "img-src 'self' data: https: blob:",
