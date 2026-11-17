@@ -345,45 +345,15 @@ def create_app():
         logger.error(f"Error initializing security features: {e}")
         # Don't fail startup for security feature errors in development
     
-    # Production CORS configuration - restrictive by default
-    allowed_origins = config.CORS_ALLOWED_ORIGINS
-    if isinstance(allowed_origins, str):
-        allowed_origins = [origin.strip() for origin in allowed_origins.split(',')]
-    
-    # Add Railway domain if running on Railway
-    railway_domain = os.getenv('RAILWAY_STATIC_URL', '')
-    if railway_domain:
-        allowed_origins.append(railway_domain)
-        allowed_origins.append(railway_domain.replace('https://', 'http://'))  # Both protocols
-    
-    # Railway's own public domain, so a browser on the deployed site is
-    # always allowed. Deliberately NOT a wildcard: the previous code did
-    # `allowed_origins.append('*')` here "for same-origin requests", but
-    # same-origin requests never consult CORS at all — the wildcard bought
-    # the app's own UI nothing while granting every other site on the
-    # internet access. It also silently defeated CORS_ALLOWED_ORIGINS:
-    # setting that variable correctly did not help, because '*' was
-    # appended back on every Railway boot. The startup smell-check below
-    # was therefore warning about a state this code guaranteed.
-    # Escape hatch: if tightening this ever breaks a deployment that
-    # genuinely serves its frontend from another domain, CORS_ALLOW_ANY_ORIGIN
-    # restores the old behaviour without a code change or redeploy-to-fix.
-    # Off by default — it is the insecure option, so it has to be asked for.
-    if os.getenv('CORS_ALLOW_ANY_ORIGIN', '').lower() == 'true':
+    # Only this copy's own address (and CORS_ALLOWED_ORIGINS) on a server;
+    # the dev server on a laptop. CORS_ALLOW_ANY_ORIGIN=true is the old,
+    # insecure escape hatch (utils/allowed_sites.py).
+    from utils.allowed_sites import allowed_sites
+    allowed_origins = allowed_sites()
+    if '*' in allowed_origins:
         logger.warning("CORS_ALLOW_ANY_ORIGIN=true — every origin is allowed. "
                        "Intended as a temporary unblock, not a setting to leave on.")
-        allowed_origins.append('*')
 
-    for var in ('RAILWAY_PUBLIC_DOMAIN', 'RAILWAY_STATIC_URL'):
-        domain = (os.getenv(var) or '').strip()
-        if not domain:
-            continue
-        host = domain.replace('https://', '').replace('http://', '').strip('/')
-        for scheme in ('https://', 'http://'):
-            candidate = f"{scheme}{host}"
-            if candidate not in allowed_origins:
-                allowed_origins.append(candidate)
-    
     CORS(app,
          resources={r"/*": {"origins": allowed_origins}},
          supports_credentials=config.CORS_SUPPORTS_CREDENTIALS)
@@ -464,12 +434,13 @@ def create_app():
     # Initialize SocketIO with permissive CORS settings
     socketio = SocketIO(
         app, 
-        cors_allowed_origins="*", 
+        # The same sites as the API (SEC-012), not "*".
+        cors_allowed_origins=allowed_origins, 
         async_mode='eventlet',
         logger=True,
         engineio_logger=False  # Reduce socket.io engine logs
     )
-    logger.info("SocketIO initialized with permissive CORS settings")
+    logger.info("SocketIO initialized; allowed sites: %s", allowed_origins)
     
     # Initialize core services
     try:
