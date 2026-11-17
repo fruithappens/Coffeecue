@@ -51,6 +51,16 @@ import NoticeBanner from '../shared/NoticeBanner';
 // the barista's): one event per outage, sent once the server is back.
 let _wasConnected = true;
 let _lostAt = null;
+// A signed-in device (a barista iPad showing the board) can use the
+// authenticated order feed as a fallback; a public wall screen cannot.
+export const hasLoginToken = () => {
+  try {
+    return !!(localStorage.getItem('coffee_system_token')
+      || localStorage.getItem('coffee_auth_token')
+      || localStorage.getItem('token'));
+  } catch (e) { return false; }
+};
+
 const _noteConnected = (flag) => {
   try {
     const on = !!flag;
@@ -924,7 +934,12 @@ const DisplayScreen = () => {
   }, [settings, smsPhoneNumber]);
 
   // --- Load stations ---
+  // Retried until it works: a board switched on while the venue wifi is
+  // down used to fail this once and sit on its error until someone
+  // reloaded it (DIS-001). stationsRetry ticks to try again.
+  const [stationsRetry, setStationsRetry] = useState(0);
   useEffect(() => {
+    let retryTimer = null;
     (async () => {
       try {
         // PUBLIC screen: the station list must come from a public source.
@@ -960,11 +975,13 @@ const DisplayScreen = () => {
           throw new Error('No stations found');
         }
       } catch (e) {
-        setError('Failed to load stations: ' + (e.message || 'Unknown'));
+        setError('Not connected - trying again.');
         setConnected(_noteConnected(false)); setHadResult(true);
+        retryTimer = setTimeout(() => setStationsRetry(n => n + 1), DISPLAY_POLL_MS);
       }
     })();
-  }, [stationId]);
+    return () => { if (retryTimer) clearTimeout(retryTimer); };
+  }, [stationId, stationsRetry]);
 
   // --- Load orders for the current station + auto-refresh ---
   // WHICH CART DO I WALK TO?
@@ -1098,6 +1115,16 @@ const DisplayScreen = () => {
           // Fall through to the authenticated path below.
         }
         if (inProgressAll === null) {
+          // DIS-001: a public board (no login) whose feed failed must
+          // KEEP the list it has. The signed-in fallback below can't work
+          // without a login: it fails, answers from an empty local backup,
+          // and the board drew "nothing brewing" over a full queue the
+          // moment venue wifi blinked -- while marking itself connected.
+          // Throwing lands in the catch below: last list stays on screen,
+          // the "not connected" strip shows, and the next poll recovers.
+          if (!hasLoginToken()) {
+            throw new Error('Connection lost - showing the last list.');
+          }
           [pendingAll, inProgressAll, completedAll] = await Promise.all([
             (OrderDataService.getPendingOrders ? OrderDataService.getPendingOrders(loadOpts) : Promise.resolve([])),
             OrderDataService.getInProgressOrders(loadOpts),
@@ -1147,7 +1174,8 @@ const DisplayScreen = () => {
         setConnected(_noteConnected(true)); setHadResult(true);
         setLoading(false);
       } catch (e) {
-        setError('Failed to load orders: ' + (e.message || 'Unknown'));
+        // Orders are deliberately NOT cleared here: the last list stays up.
+        setError('Connection lost - showing the last list.');
         setConnected(_noteConnected(false)); setHadResult(true);
         setLoading(false);
       }
