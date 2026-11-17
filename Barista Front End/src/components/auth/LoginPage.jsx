@@ -357,7 +357,9 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .login-button {
-          background-color: #B8764A;
+          /* caramel-deep: white on #B8764A is 3.7:1, under WCAG AA's 4.5
+             (scripts/a11y_check.py); #955A33 is 5.5:1. */
+          background-color: #955A33;
           color: white;
           border: none;
           padding: 10px 20px;
@@ -368,7 +370,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .login-button:hover {
-          background-color: #955A33;
+          background-color: #7A4828;
         }
         
         .login-button.loading {
