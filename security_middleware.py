@@ -161,9 +161,13 @@ def add_security_headers(response):
     # Enhanced Content Security Policy
     csp_directives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
+        # No 'unsafe-eval' and no outside script hosts: the built app never
+        # calls eval/new Function and loads nothing from a CDN (checked
+        # across every chunk). Fonts are self-hosted in public/fonts.
+        # tests/unit/test_page_rules.py keeps these from creeping back.
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self' data:",
         "img-src 'self' data: https: blob:",
         "connect-src 'self' ws: wss:",
         # Display background videos are stored as data: URLs (uploaded clips)
