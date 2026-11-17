@@ -153,6 +153,59 @@ jobs:
           python scripts/order_journey_check.py http://127.0.0.1:5001 || {
             echo "---- server log (last 120 lines) ----"; tail -120 server.log; exit 1; }
 
+  accessibility:
+    name: Accessibility
+    # Every customer page, phone and screen size, through axe-core's WCAG
+    # 2.0/2.1 A + AA rules (roadmap A7-2). Fails on anything not already in
+    # scripts/a11y_baseline.json (empty when this started: keep it that way).
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: "Barista Front End/package-lock.json"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Build the screens
+        working-directory: "Barista Front End"
+        run: |
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+          CI=false npm run build
+      - name: Install server and browser
+        run: |
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+          cp -R "Barista Front End/build/." static/
+      - name: Check the customer pages
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          TESTING_MODE: "True"
+          JWT_SECRET_KEY: ci-only-not-a-secret
+          SECRET_KEY: ci-only-not-a-secret
+          PORT: "5001"
+        run: |
+          python run_server.py > server.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:5001/api/health && break
+            sleep 2
+          done
+          python scripts/a11y_check.py http://127.0.0.1:5001
+
   event-freeze:
     name: Event freeze
     # Fails while cupq.app is serving an event or the organiser has frozen
