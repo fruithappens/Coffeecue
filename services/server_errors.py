@@ -13,6 +13,7 @@ transaction of the request that failed.
 """
 import logging
 import os
+import json
 import threading
 import time
 
@@ -64,10 +65,60 @@ def record(method, path, status, message, stack=None):
         return False
 
 
+PLAIN = "Something went wrong on our side. It has been logged; please try again."
+
+
+_written = None
+
+
+def _written_messages():
+    """Every string literal in the app's Python: messages someone wrote on
+    purpose ("Could not place your order. Please see a barista.")."""
+    global _written
+    if _written is None:
+        import ast
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        found = set()
+        for path in [root / "app.py", *root.glob("routes/*.py"), *root.glob("services/*.py")]:
+            try:
+                tree = ast.parse(path.read_text())
+            except (OSError, SyntaxError):
+                continue
+            found.update(n.value for n in ast.walk(tree)
+                         if isinstance(n, ast.Constant) and isinstance(n.value, str))
+        _written = found
+    return _written
+
+
+def _plain(response, body):
+    """Swap exception text in a 500 for a plain sentence (audit SEC-026).
+
+    About 180 handlers return str(e), which can name tables, columns and
+    library internals. A message written in the code is kept as it is; only
+    text that isn't (an exception's) is replaced. The detail is not lost:
+    record() above has it, shown in Runner > System > Diagnostics. Only 500,
+    the "we didn't expect this" answer; deliberate 502/503s are left alone.
+    """
+    if not isinstance(body, dict):
+        return
+    changed = False
+    for field in ("message", "error", "msg", "details"):
+        value = body.get(field)
+        if isinstance(value, str) and value and value not in _written_messages():
+            body[field] = PLAIN
+            changed = True
+    if changed:
+        response.set_data(json.dumps(body))
+
+
 def install(app):
     """Hook into Flask: handled 500s (after_request) and unhandled
     exceptions (got_request_exception)."""
     from flask import got_request_exception, request
+
+    _written_messages()  # read once at startup (about 0.3 s), not during a request
 
     @app.after_request
     def _record_5xx(response):
@@ -80,6 +131,8 @@ def install(app):
                 threading.Thread(
                     target=record, daemon=True,
                     args=(request.method, request.path, response.status_code, message)).start()
+                if response.status_code == 500 and response.is_json:
+                    _plain(response, body)
         except Exception:
             pass
         return response
