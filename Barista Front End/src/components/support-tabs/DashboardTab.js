@@ -7,6 +7,8 @@ import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
 import ApiServiceClass from '../../services/ApiService';
 import { askConfirm, askText } from '../shared/ConfirmDialog';
+import openAuthedPage from '../../utils/openAuthedPage';
+
 
 const api = new ApiServiceClass();
 
@@ -471,25 +473,11 @@ const TodayReport = () => {
   // Opens the printable summary in a new tab. The backend renders an
   // inline-styled HTML page; operator hits Cmd+P → Save as PDF → emails
   // the file to the client. Cheaper than adding a server-side PDF lib.
-  const handlePrint = () => {
-    // Use the JWT-aware URL. Authorization header isn't sent on
-    // window.open, so we add the token as a fallback query param —
-    // backend's jwt_required_with_demo decorator accepts ?jwt=… via
-    // flask_jwt_extended's locations config in app.py. If not, the
-    // operator will be prompted to log in (acceptable demo UX).
-    const token = localStorage.getItem('coffee_auth_token') || '';
-    const url = `/api/reports/today/print${token ? `?jwt=${encodeURIComponent(token)}` : ''}`;
-    window.open(url, '_blank', 'noopener');
-  };
+  const handlePrint = () => openAuthedPage('/api/reports/today/print');
 
   // Same printable, post-event framing (heading + "share with client"
   // CTA). One-click "I'm done, give me a summary I can email" path.
-  const handlePostEvent = () => {
-    const token = localStorage.getItem('coffee_auth_token') || '';
-    const base = '/api/reports/today/print?view=post';
-    const url = `${base}${token ? `&jwt=${encodeURIComponent(token)}` : ''}`;
-    window.open(url, '_blank', 'noopener');
-  };
+  const handlePostEvent = () => openAuthedPage('/api/reports/today/print?view=post');
 
   // Email the post-event summary straight to the client. Gracefully
   // tells the operator to Save-as-PDF instead if SMTP isn't configured
