@@ -87,16 +87,21 @@ const EnhancedScheduleManagement = () => {
   const applyLocks = async (wanted) => {
     setLockError('');
     const failed = [];
+    const changed = {};
     for (const st of stations) {
       if (!(st.id in wanted) || wanted[st.id] === isStationLocked(st)) continue;
+      const status = wanted[st.id] ? 'maintenance' : 'active';
       try {
-        await StationsService.updateStationStatus(st.id, wanted[st.id] ? 'maintenance' : 'active');
+        const saved = await StationsService.updateStationStatus(st.id, status);
+        changed[st.id] = (saved && saved.status) || status;
       } catch (e) {
         failed.push(st.name || `Station ${st.id}`);
       }
     }
     if (failed.length) setLockError(`Could not change: ${failed.join(', ')}. Try again.`);
-    await loadStations();
+    // Apply the server's answers directly: the station list is throttled
+    // and a re-read within a few seconds can return the previous list.
+    setStations(prev => prev.map(st => (st.id in changed ? { ...st, status: changed[st.id] } : st)));
   };
   const [preOrderWindows, setPreOrderWindows] = useState({});
   const [emergencyOverride, setEmergencyOverride] = useState(false);
@@ -142,10 +147,13 @@ const EnhancedScheduleManagement = () => {
   // Load stations
   const loadStations = async () => {
     try {
+      // getStations() resolves to the list itself. Reading `.stations`
+      // off it left this screen with no stations at all, so the Station
+      // Control panel showed nothing to lock.
       const response = await StationsService.getStations();
-      if (response && response.stations) {
-        setStations(response.stations);
-        
+      const list = Array.isArray(response) ? response : (response && response.stations);
+      if (Array.isArray(list)) {
+        setStations(list);
       }
     } catch (error) {
       console.error('Error loading stations:', error);
