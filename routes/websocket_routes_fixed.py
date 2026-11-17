@@ -88,8 +88,15 @@ def _extract_role(auth):
 
     try:
         decoded = decode_token(token)
-        role = (decoded.get('role') or '').lower() or 'public'
-        return role
+        # The same "has this login ended?" check every API route gets
+        # (SEC-004): logged out, password changed, role changed, removed.
+        # The role is the account's role now, not the token's.
+        from utils.sessions import check
+        ok, role = check(decoded)
+        if not ok:
+            logger.info("WebSocket connect rejected — that login has ended.")
+            return None
+        return (role or '').lower() or 'public'
     except Exception as e:
         if _testing_mode():
             logger.warning(

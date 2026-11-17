@@ -323,10 +323,9 @@ def create_app():
         init_security_monitoring(app)
         logger.info("Security monitoring initialized")
         
-        # Enhanced JWT security with blacklisting
-        from jwt_security import init_jwt_security
-        init_jwt_security(app)
-        logger.info("JWT security features initialized")
+        # Ended logins are refused by auth.py's blocklist loader and
+        # utils/sessions.py (SEC-004). jwt_security.py's hook read the token
+        # before it was verified, so it never did anything; removed.
         
         # Database security and encryption - temporarily disabled due to bytes encoding issue
         # from database_security import init_database_security
