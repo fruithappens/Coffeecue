@@ -25,5 +25,10 @@ def test_no_debug_routes_in_app():
 
 
 def test_no_unprefixed_sms_send_test():
-    # The staff version is /api/sms/send-test, behind a login and a role.
+    # The organiser's test text is /api/sms/test, managers only (readiness_api).
     assert "/sms/send-test" not in _route_paths("routes/sms_routes.py")
+
+
+def test_baristas_cannot_text_any_number():
+    # SEC-017: /api/sms/send-test let a barista login text any number.
+    assert "/sms/send-test" not in _route_paths("routes/consolidated_api_routes.py")

@@ -781,8 +781,8 @@ def sms_templates():
 # /sms/send-test used to live here with an optional login: anyone could
 # text any number from the event's line, and given an order number it
 # looked up and echoed that customer's mobile (31 Oct 2026 audit, SEC-001).
-# Staff use POST /api/sms/send-test (consolidated_api_routes), which needs
-# a login and a role.
+# Organisers send a test text with POST /api/sms/test (readiness_api.py),
+# which needs a manager login.
 
 @bp.route('/sms/send', methods=['POST'])
 @jwt_required_with_demo()

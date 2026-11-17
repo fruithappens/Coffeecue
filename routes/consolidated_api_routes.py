@@ -10014,26 +10014,10 @@ def sms_unblock_number():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@bp.route('/sms/send-test', methods=['POST'])
-@jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
-def send_test_sms():
-    """Send a test SMS message"""
-    try:
-        data = request.json
-        to_number = data.get('to')
-        message = data.get('message', 'This is a test message from the Expresso Coffee System')
-        
-        # Forward to the actual implementation
-        from routes.sms_routes import send_test_sms as test_sms_handler
-        return test_sms_handler()
-    
-    except Exception as e:
-        logger.error(f"Error sending test SMS: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f"Error sending test SMS: {str(e)}"
-        }), 500
+# /sms/send-test lived here and let barista logins text any number; it
+# forwarded to a handler that no longer exists, so it only ever answered 500
+# (audit SEC-017). The organiser's test text is POST /api/sms/test
+# (readiness_api.py, managers only).
 
 # ============================================================================
 # CHAT ENDPOINTS
