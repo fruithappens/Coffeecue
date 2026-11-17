@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Calendar, Clock, Plus, Trash2, Users, Coffee, Lock, Unlock, AlertTriangle,
   PlayCircle, PauseCircle, Bell, Timer, Shield, UserCheck, ChevronLeft,
@@ -70,7 +70,34 @@ const EnhancedScheduleManagement = () => {
   
   // Real-time state
   const [sessionStatuses, setSessionStatuses] = useState({});
-  const [stationLocks, setStationLocks] = useState({});
+  // A station is locked when the SERVER says it isn't taking orders.
+  // This used to be a list kept in this one browser (X7-13): the lock
+  // showed here, but the server still sent orders to the station and no
+  // other screen knew. Now a lock sets the station's status, the same
+  // 'maintenance' the barista's own pause button uses, and the server's
+  // order routing skips it.
+  const isStationLocked = (st) => !!st && !!st.status
+    && !['active', 'open'].includes(String(st.status).toLowerCase());
+  const stationLocks = useMemo(
+    () => Object.fromEntries(stations.map(st => [st.id, isStationLocked(st)])),
+    [stations]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [lockError, setLockError] = useState('');
+  // Bring each station to the wanted locked/unlocked state on the server,
+  // then re-read the list so every screen shows the server's answer.
+  const applyLocks = async (wanted) => {
+    setLockError('');
+    const failed = [];
+    for (const st of stations) {
+      if (!(st.id in wanted) || wanted[st.id] === isStationLocked(st)) continue;
+      try {
+        await StationsService.updateStationStatus(st.id, wanted[st.id] ? 'maintenance' : 'active');
+      } catch (e) {
+        failed.push(st.name || `Station ${st.id}`);
+      }
+    }
+    if (failed.length) setLockError(`Could not change: ${failed.join(', ')}. Try again.`);
+    await loadStations();
+  };
   const [preOrderWindows, setPreOrderWindows] = useState({});
   const [emergencyOverride, setEmergencyOverride] = useState(false);
   
@@ -119,11 +146,6 @@ const EnhancedScheduleManagement = () => {
       if (response && response.stations) {
         setStations(response.stations);
         
-        // Initialize station locks from localStorage
-        const savedLocks = localStorage.getItem('station_locks');
-        if (savedLocks) {
-          setStationLocks(JSON.parse(savedLocks));
-        }
       }
     } catch (error) {
       console.error('Error loading stations:', error);
@@ -230,8 +252,7 @@ const EnhancedScheduleManagement = () => {
       [stationId]: !stationLocks[stationId]
     };
     
-    setStationLocks(newLocks);
-    localStorage.setItem('station_locks', JSON.stringify(newLocks));
+    await applyLocks({ [stationId]: newLocks[stationId] });
     
     // Notify stations
     const message = newLocks[stationId] ? 
@@ -256,8 +277,7 @@ const EnhancedScheduleManagement = () => {
       unlockedStations[station.id] = false;
     });
     
-    setStationLocks(unlockedStations);
-    localStorage.setItem('station_locks', JSON.stringify(unlockedStations));
+    await applyLocks(unlockedStations);
     
     // Notify all stations
     await MessageService.broadcastToStations({
@@ -603,6 +623,7 @@ const EnhancedScheduleManagement = () => {
             <div className="mb-4">
               <h3 className="text-lg font-semibold mb-2">Station Control Panel</h3>
               <p className="text-cq-ink-2">Lock/unlock stations to control order flow during breaks</p>
+              {lockError && <p className="text-cq-alert font-medium mt-1">{lockError}</p>}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -666,8 +687,7 @@ const EnhancedScheduleManagement = () => {
                   onClick={() => {
                     const locked = {};
                     stations.forEach(s => locked[s.id] = true);
-                    setStationLocks(locked);
-                    localStorage.setItem('station_locks', JSON.stringify(locked));
+                    applyLocks(locked);
                   }}
                   className="px-4 py-2 bg-cq-alert hover:bg-cq-alert text-white rounded-cq-md"
                 >
@@ -677,8 +697,7 @@ const EnhancedScheduleManagement = () => {
                   onClick={() => {
                     const unlocked = {};
                     stations.forEach(s => unlocked[s.id] = false);
-                    setStationLocks(unlocked);
-                    localStorage.setItem('station_locks', JSON.stringify(unlocked));
+                    applyLocks(unlocked);
                   }}
                   className="px-4 py-2 bg-cq-ready hover:bg-cq-ready text-white rounded-cq-md"
                 >
@@ -689,8 +708,7 @@ const EnhancedScheduleManagement = () => {
                     // Keep one station open (first available)
                     const locked = {};
                     stations.forEach((s, i) => locked[s.id] = i !== 0);
-                    setStationLocks(locked);
-                    localStorage.setItem('station_locks', JSON.stringify(locked));
+                    applyLocks(locked);
                   }}
                   className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-cq-md"
                 >
