@@ -13,6 +13,7 @@ import {
   Package, Ban, Timer, Smartphone, Banknote,
 } from 'lucide-react';
 import AuthService from '../../services/AuthService';
+import openAuthedPage from '../../utils/openAuthedPage';
 
 const authHeaders = () => {
   const t = AuthService.getToken ? AuthService.getToken() : null;
@@ -166,12 +167,12 @@ export default function ReportTab() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
                    className="border-2 border-cq-line rounded-cq-md px-3 py-2" />
           </label>
-          <a href={`/api/reports/today/print?view=post&from=${from}&to=${to || from}`}
-             target="_blank" rel="noreferrer"
+          <button type="button"
+             onClick={() => openAuthedPage(`/api/reports/today/print?view=post&from=${from}&to=${to || from}`)}
              className="px-4 py-2.5 rounded-cq-md border-2 border-cq-line text-cq-ink-2
                         hover:border-cq-caramel flex items-center gap-1.5">
             <Printer className="w-4 h-4" /> Print or save as PDF
-          </a>
+          </button>
           <button type="button" onClick={emailIt}
                   className="px-4 py-2.5 rounded-cq-md border-2 border-cq-line text-cq-ink-2
                              hover:border-cq-caramel flex items-center gap-1.5">
