@@ -25,6 +25,7 @@ fast. The end-to-end check (start two servers, watch pg_stat_activity)
 lives in the test bench.
 """
 
+import glob
 import os
 import sys
 
@@ -169,15 +170,19 @@ class TestBootPathHasNoDDL:
     """
 
     def test_coffee_system_does_not_alter_tables_on_boot(self):
-        path = os.path.join(
+        services = os.path.join(
             os.path.dirname(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             ),
             "services",
-            "coffee_system.py",
         )
-        with open(path, encoding="utf-8") as f:
-            source = f.read()
+        # The class file plus its methods split into services/coffee/.
+        paths = [os.path.join(services, "coffee_system.py")] + sorted(
+            glob.glob(os.path.join(services, "coffee", "*.py")))
+        source = ""
+        for path in paths:
+            with open(path, encoding="utf-8") as f:
+                source += f.read() + "\n"
 
         # Inspect the SQL actually handed to .execute(), not the file
         # text — the comments and docstrings in that module explain this

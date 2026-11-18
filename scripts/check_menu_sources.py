@@ -22,9 +22,11 @@ Adding a name to ALLOWED is a deliberate decision: it means "this
 function is a menu accessor and knows about BOTH stores."
 """
 import ast
+import glob
 import sys
 
-TARGET = "services/coffee_system.py"
+# The text bot: the class file plus its methods split into services/coffee/.
+TARGETS = ["services/coffee_system.py"] + sorted(glob.glob("services/coffee/*.py"))
 TABLES = ("inventory_items",)
 
 ALLOWED = {
@@ -51,10 +53,16 @@ ALLOWED = {
 
 
 def main():
-    src = open(TARGET, encoding="utf8").read()
-    tree = ast.parse(src)
     offenders = []
 
+    for target in TARGETS:
+        offenders += _offenders(target)
+    return _report(offenders)
+
+
+def _offenders(target):
+    offenders = []
+    tree = ast.parse(open(target, encoding="utf8").read())
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -70,13 +78,16 @@ def main():
             # "does this table exist?" is a schema probe, not a menu read.
             if "INFORMATION_SCHEMA" in upper:
                 continue
-            offenders.append((node.name, sub.lineno))
+            offenders.append((target, node.name, sub.lineno))
+    return offenders
 
+
+def _report(offenders):
     if offenders:
         print("FAIL: functions querying a menu table directly instead of "
               "using an accessor:")
-        for name, line in sorted(set(offenders)):
-            print(f"    {TARGET}:{line}  in {name}()")
+        for target, name, line in sorted(set(offenders)):
+            print(f"    {target}:{line}  in {name}()")
         print("\n  These must call one of the _get_available_* accessors, which")
         print("  consult the Organiser's event_inventory blob FIRST. Reading")
         print("  inventory_items directly is how the menu ends up offering")

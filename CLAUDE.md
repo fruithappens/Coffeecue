@@ -48,8 +48,12 @@ Never deploy during an event (the Event freeze check enforces this).
   same blueprint, loaded by the list at the end of the core file. A new
   area file goes on that list (a test checks). New features still get
   their own blueprint file.
-- `services/`: `coffee_system.py` (the text bot and order logic, 11,600
-  lines), `nlp.py`, `sms_wording.py` (editable bot replies), `sms/`
+- `services/`: `coffee_system.py` (the text bot and order logic: the
+  `CoffeeOrderSystem` class with its setup, `handle_sms` and constants,
+  1,000 lines; its other methods are mixins in `services/coffee/` --
+  conversation, friends, commands, menu, placing, stock, wait_times,
+  sms_guard, state, staff -- and a test refuses a method defined twice),
+  `nlp.py`, `sms_wording.py` (editable bot replies), `sms/`
   providers, `service_watch.py` (minute-by-minute alerts),
   `admin_alerts.py`, `on_call.py`, `backup_watch.py`, `migrations.py`
   (numbered schema migrations; add the next number).
