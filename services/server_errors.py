@@ -83,7 +83,7 @@ def _written_messages():
         found = set()
         # routes/api/ holds the /api endpoints split out of consolidated_api_routes.
         for path in [root / "app.py", *root.glob("routes/*.py"), *root.glob("routes/api/*.py"),
-                     *root.glob("services/*.py")]:
+                     *root.glob("services/*.py"), *root.glob("services/coffee/*.py")]:
             try:
                 tree = ast.parse(path.read_text())
             except (OSError, SyntaxError):
