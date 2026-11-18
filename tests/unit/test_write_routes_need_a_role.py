@@ -26,7 +26,8 @@ CHECKS_INSIDE = {
 
 
 def _login_only_writes():
-    for path in sorted(ROUTES.glob("*.py")):
+    # routes/api/ holds the /api endpoints split out of consolidated_api_routes.
+    for path in sorted(ROUTES.glob("*.py")) + sorted(ROUTES.glob("api/*.py")):
         for node in ast.walk(ast.parse(path.read_text())):
             if not isinstance(node, ast.FunctionDef):
                 continue
@@ -89,9 +90,9 @@ ORGANISER_ONLY = {"upsert_event_inventory", "upsert_routing_rules", "transfer_in
 
 
 def test_organiser_settings_are_closed_to_baristas():
-    src = (ROUTES / "consolidated_api_routes.py").read_text()
     found = {}
-    for node in ast.walk(ast.parse(src)):
+    files = [ROUTES / "consolidated_api_routes.py", *sorted(ROUTES.glob("api/*.py"))]
+    for node in (n for f in files for n in ast.walk(ast.parse(f.read_text()))):
         if isinstance(node, ast.FunctionDef) and node.name in ORGANISER_ONLY:
             found[node.name] = " ".join(ast.unparse(d) for d in node.decorator_list)
     assert set(found) == ORGANISER_ONLY

@@ -6,12 +6,13 @@ settings table holds the plan tier, PINs and event-access config.
 import ast
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parents[2] / "routes" / "consolidated_api_routes.py"
+ROUTES = Path(__file__).resolve().parents[2] / "routes"
+# The /api endpoints: the core file plus the area files split out of it.
+SRCS = [ROUTES / "consolidated_api_routes.py", *sorted(ROUTES.glob("api/*.py"))]
 
 
 def _settings_writers():
-    tree = ast.parse(SRC.read_text())
-    for node in ast.walk(tree):
+    for node in (n for src in SRCS for n in ast.walk(ast.parse(src.read_text()))):
         if not isinstance(node, ast.FunctionDef):
             continue
         route = roles = None

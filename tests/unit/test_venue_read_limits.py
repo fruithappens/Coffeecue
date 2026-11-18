@@ -17,7 +17,7 @@ import security_middleware as sm  # noqa: E402
 
 def _all_route_paths():
     paths = set()
-    for f in glob.glob("routes/*.py") + ["app.py"]:
+    for f in glob.glob("routes/*.py") + glob.glob("routes/api/*.py") + ["app.py"]:
         src = open(f).read()
         prefix = ""
         m = re.search(r"Blueprint\([^)]*url_prefix=['\"]([^'\"]+)['\"]", src)

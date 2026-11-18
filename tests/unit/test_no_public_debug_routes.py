@@ -31,4 +31,6 @@ def test_no_unprefixed_sms_send_test():
 
 def test_baristas_cannot_text_any_number():
     # SEC-017: /api/sms/send-test let a barista login text any number.
-    assert "/sms/send-test" not in _route_paths("routes/consolidated_api_routes.py")
+    api = ["routes/consolidated_api_routes.py"] + sorted(
+        str(f.relative_to(ROOT)) for f in (ROOT / "routes" / "api").glob("*.py"))
+    assert all("/sms/send-test" not in _route_paths(f) for f in api)

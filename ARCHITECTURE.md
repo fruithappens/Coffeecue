@@ -59,7 +59,7 @@ only snake_case → frontend filter `o.stationId` was undefined →
 every order got filtered out → "my orders disappeared".
 
 `/api/orders/pending` and `/api/orders/in-progress` are now both
-compliant. New endpoints should follow `routes/consolidated_api_routes.py`
+compliant. New endpoints should follow `routes/api/order_queue.py`
 patterns for those.
 
 ## 3. Status → action endpoints
