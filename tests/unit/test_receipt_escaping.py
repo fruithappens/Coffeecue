@@ -3,7 +3,7 @@ from datetime import datetime
 
 from flask import Flask
 
-from routes import consolidated_api_routes as api
+from routes.api import customer_orders as api
 
 
 class _Cursor:

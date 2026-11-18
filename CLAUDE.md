@@ -41,8 +41,13 @@ Never deploy during an event (the Event freeze check enforces this).
 - `app.py` (create_app, blueprint registration), `run_server.py`,
   `auth.py`, `config.py`, `security_middleware.py` (rate limits, CORS),
   `security_monitoring.py` (request logs), `ensure_admin_user.py`.
-- `routes/`: one blueprint per area. `consolidated_api_routes.py` is the
-  old giant (16,700 lines); new endpoints go in their own file.
+- `routes/`: one blueprint per area. `consolidated_api_routes.py` (4,200
+  lines) owns the `/api` blueprint and the shared helpers (`_kv_get`,
+  `_kv_put`, `_event_timezone`...); its 180 endpoints live in
+  `routes/api/<area>.py` (orders, display, stations, settings...) on that
+  same blueprint, loaded by the list at the end of the core file. A new
+  area file goes on that list (a test checks). New features still get
+  their own blueprint file.
 - `services/`: `coffee_system.py` (the text bot and order logic, 11,600
   lines), `nlp.py`, `sms_wording.py` (editable bot replies), `sms/`
   providers, `service_watch.py` (minute-by-minute alerts),

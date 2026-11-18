@@ -7,7 +7,9 @@ from flask import Flask
 
 from utils.order_owner import key_ok, order_key
 
-ROUTES = Path(__file__).resolve().parents[2] / "routes" / "consolidated_api_routes.py"
+_R = Path(__file__).resolve().parents[2] / "routes"
+# The /api endpoints: the core file plus the area files split out of it.
+ROUTES = [_R / "consolidated_api_routes.py", *sorted(_R.glob("api/*.py"))]
 
 
 def _app(secret="s1"):
@@ -39,9 +41,8 @@ def test_key_depends_on_the_secret():
 
 
 def test_public_order_actions_check_the_key():
-    tree = ast.parse(ROUTES.read_text())
     wanted = {"customer_cancel_order", "mark_collected_public"}
-    for node in ast.walk(tree):
+    for node in (n for f in ROUTES for n in ast.walk(ast.parse(f.read_text()))):
         if isinstance(node, ast.FunctionDef) and node.name in wanted:
             calls = {
                 getattr(c.func, "id", None)
