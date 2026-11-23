@@ -18,6 +18,15 @@ from auth import jwt_required_with_demo, role_required_with_demo
 logger = logging.getLogger("expresso.routes.station_api")
 
 # Create blueprint
+
+def _event_weekday(coffee_system):
+    """Today's weekday (0=Monday) where the event is. The server runs on
+    UTC, so its own clock is the next day for an Australian morning."""
+    from utils import event_time as _et
+
+    getter = getattr(coffee_system, "_get_setting", None) if coffee_system else None
+    return _et.local_now(_et.resolve_zone(getter)).weekday()
+
 bp = Blueprint('station_api', __name__)
 
 # Get current user ID helper
@@ -167,7 +176,7 @@ def get_station(station_id):
             formatted_station['last_updated_formatted'] = formatted_station['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
         
         # Get today's schedule for this station
-        today = datetime.now().weekday()  # 0=Monday, 6=Sunday
+        today = _event_weekday(coffee_system)  # 0=Monday, in the event's time
         cursor = db.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
             SELECT * FROM station_schedule 
@@ -802,7 +811,7 @@ def get_todays_schedule():
         db = coffee_system.db
         
         # Get today's day of week (0=Monday, 6=Sunday)
-        today = datetime.now().weekday()
+        today = _event_weekday(coffee_system)  # the event's day, not UTC's
         
         # Get schedules for today
         schedules = StationSchedule.get_schedules_by_day(db, today)

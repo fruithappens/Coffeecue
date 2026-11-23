@@ -1110,8 +1110,13 @@ class PlacingMixin:
                 f"Station assignment requested: VIP={is_vip}, milk_type={milk_type}"
             )
 
-            # First check if we're in a break period or not
-            current_time = datetime.now()
+            # First check if we're in a break period or not. In the EVENT's
+            # time: breaks are entered as the venue's clock times, and the
+            # server runs on UTC, so datetime.now() put a 10:30 Adelaide
+            # break at 21:00 the day before (test bench, breaks suite).
+            from utils import event_time as _et
+
+            current_time = _et.local_now(_et.resolve_zone(self._get_setting))
             current_hour = current_time.hour
             current_minute = current_time.minute
             current_day = current_time.weekday()  # 0=Monday, 6=Sunday

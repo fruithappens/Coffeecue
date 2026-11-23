@@ -258,7 +258,11 @@ def get_settings():
             'remindAfterDelay': 'true',
             'reminderDelay': '30',  # seconds
             'showNameOnDisplay': 'true',
-            'defaultWaitTime': '10'  # minutes
+            'defaultWaitTime': '10',  # minutes
+            # Runner > Menu > Event Stock reads this to show the saved dose.
+            # It was missing from this list, so the field always showed 22g
+            # whatever had been saved -- and saving the page put it back.
+            'beans_grams_per_shot': '22',
         }
         
         # Merge saved settings with defaults

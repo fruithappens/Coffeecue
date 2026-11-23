@@ -414,6 +414,16 @@ class InventoryItem:
             elif 'current_quantity' in update_data and 'amount' not in update_data:
                 update_data['amount'] = update_data['current_quantity']
 
+            # Only real columns. Field names come from the request and go
+            # into the SQL text, so anything else is dropped: 'status' (worked
+            # out on read, not stored) used to fail the whole update, and an
+            # arbitrary key was an injection route.
+            columns = set(current_item.keys()) - {'id', 'created_at', 'created_by'}
+            dropped = [k for k in update_data if k not in columns]
+            if dropped:
+                logger.info(f"Inventory update {item_id}: ignoring {dropped}")
+            update_data = {k: v for k, v in update_data.items() if k in columns}
+
             # Generate SET clause
             set_clauses = []
             values = []
