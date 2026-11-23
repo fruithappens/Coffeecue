@@ -7,6 +7,12 @@ inventory reads slipped past the guarded ones (X7-4): a fix went into the
 copy that never ran. 36 addresses had two or three handlers; all are now
 down to one, and this check keeps it that way.
 
+Placeholders count as the same address whatever their converter or name:
+/inventory/<int:item_id> and /inventory/<item_id> clash. Flask sends
+numeric ids to the int one and everything else to the string one, so the
+string copy only runs for odd input and nobody notices it is broken (that
+is how five dead /inventory/<item_id> handlers survived until 23 Nov 2026).
+
 Builds the real app (needs a database: CI gives this job its own empty
 Postgres) and reads its routing table, so it sees exactly what the server
 serves, including blueprints registered conditionally.
@@ -16,6 +22,7 @@ serves, including blueprints registered conditionally.
 import collections
 import inspect
 import os
+import re
 import sys
 
 os.environ.setdefault("TESTING_MODE", "True")
@@ -33,29 +40,67 @@ def where(app, endpoint):
         return "?"
 
 
+# Clashes that were already there when placeholder shapes started counting
+# (23 Nov 2026). Each pairs an int route in routes/station_api_routes.py or
+# routes/chat_routes.py with a string or renamed copy in routes/api/. They
+# are reported but do not fail the check; clear them one area at a time and
+# delete the line. Anything not on this list fails.
+KNOWN = {
+    ("DELETE", "/api/chat/messages/<>"),
+    ("DELETE", "/api/schedule/breaks/<>"),
+    ("DELETE", "/api/schedule/shifts/<>"),
+    ("GET", "/api/schedule/barista/<>"),
+    ("GET", "/api/schedule/date/<>"),
+    ("GET", "/api/stations/<>"),
+    ("GET", "/api/stations/<>/stats"),
+    ("PATCH", "/api/stations/<>/status"),
+    ("POST", "/api/stations/<>/capabilities"),
+    ("PUT", "/api/schedule/breaks/<>"),
+    ("PUT", "/api/schedule/shifts/<>"),
+}
+
+
+def shape(path):
+    """The address with every placeholder blanked: <int:a>, <b>, <path:c> -> <>."""
+    return re.sub(r"<[^>]+>", "<>", path)
+
+
 def main():
     from app import create_app
 
     app, _ = create_app()
     pairs = collections.defaultdict(list)
+    rules = {}
     for rule in app.url_map.iter_rules():
         for method in sorted((rule.methods or set()) - {"HEAD", "OPTIONS"}):
-            pairs[(method, rule.rule)].append(rule.endpoint)
+            pairs[(method, shape(rule.rule))].append(rule.endpoint)
+            rules[(method, rule.endpoint)] = rule.rule
     dups = {k: v for k, v in pairs.items() if len(v) > 1}
-    print(f"{len(pairs)} method+address pairs, {len(dups)} with more than one handler")
+    new = {k: v for k, v in dups.items() if k not in KNOWN}
+    print(f"{len(pairs)} method+address pairs, {len(dups)} with more than one handler"
+          f" ({len(dups) - len(new)} known, {len(new)} new)")
+    gone = sorted(KNOWN - set(dups))
+    for method, path in gone:
+        print(f"  cleared, delete from KNOWN: {method} {path}")
     if not dups:
         return 0
     adapter = app.url_map.bind("localhost")
     for (method, path), endpoints in sorted(dups.items()):
-        import re
-
-        try:
-            served, _ = adapter.match(re.sub(r"<[^>]+>", "X1", path), method=method)
-        except Exception:
-            served = "?"
+        # Probe with a number and a word: converters split them differently.
+        served = set()
+        for probe in ("1", "x"):
+            try:
+                served.add(adapter.match(path.replace("<>", probe), method=method)[0])
+            except Exception:
+                pass
         print(f"\n{method} {path}")
         for e in endpoints:
-            print(f"  {'SERVES' if e == served else 'never runs'}: {e} ({where(app, e)})")
+            how = "SERVES" if served == {e} else "serves some ids" if e in served else "never runs"
+            print(f"  {how}: {e} {rules[(method, e)]} ({where(app, e)})")
+        if (method, path) in KNOWN:
+            print("  (known, on the KNOWN list)")
+    if not new:
+        return 0
     print("\nOne handler per address. Remove the route line from the copy that never runs,"
           " or give the new one a different address.")
     return 1
