@@ -13,6 +13,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X, Shuffle, LogOut, PanelLeftClose, PanelLeft, HelpCircle } from 'lucide-react';
 import { AreaMark, SidebarNav, TabBar, Button } from '../../design';
 import { NAV, TABS, DEFAULT_TAB, TITLES, SECTIONS, readHash } from './runnerNav';
+import RunnerSearch, { SearchButton } from './RunnerSearch';
 import useStations from '../../hooks/useStations';
 import AuthService from '../../services/AuthService';
 import OrderDataService from '../../services/OrderDataService';
@@ -109,6 +110,20 @@ const RunnerInterface = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  // Search (Steve: "I just struggle to find stuff"). Ctrl/Cmd+K or "/"
+  // opens it from anywhere in the Runner, except while typing in a field.
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const currentUser = AuthService.getCurrentUser();
   const userLabel = (currentUser && (currentUser.username || currentUser.full_name)) || 'admin';
 
@@ -223,6 +238,8 @@ const RunnerInterface = () => {
   return (
     <div className="cq min-h-screen flex">
       <ToastManager />
+      <RunnerSearch open={searchOpen} onClose={() => setSearchOpen(false)}
+        onOpen={({ section, tab }) => { go(section); if (tab) setTabBySection((t) => ({ ...t, [section]: tab })); }} />
 
       {/* Sidebar — desktop */}
       <div className="hidden md:flex flex-col border-r border-cq-line bg-cq-milk">
@@ -267,6 +284,7 @@ const RunnerInterface = () => {
             onClick={() => setMobileNavOpen(true)} aria-label="Open the menu"><Menu size={22} /></button>
           <h1 className="text-2xl font-extrabold truncate">{title}</h1>
           <div className="flex-1" />
+          <SearchButton onClick={() => setSearchOpen(true)} />
           {activeSection !== 'help' && (
             <button type="button" onClick={() => { setHelpArticle(activeSection); go('help'); }}
               aria-label={`Help with ${title}`}
