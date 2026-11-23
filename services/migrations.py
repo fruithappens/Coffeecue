@@ -841,6 +841,29 @@ def _m031_support_request_triage(cur):
     cur.execute("ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS note TEXT")
 
 
+def _m035_inventory_history_notes(cur):
+    """Stock adjustments write a note into inventory_history, but tables
+    made by an older schema have no notes column. Every Adjust (the
+    organiser's Stock screen, the live stock panel) then failed with
+    'column "notes" does not exist', the quantity never changed, and an
+    item could sit below its minimum still showing "good" (test bench,
+    alerts suite). Add the column where it is missing."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS inventory_history (
+            id SERIAL PRIMARY KEY,
+            item_id INTEGER,
+            previous_amount NUMERIC(10, 2),
+            new_amount NUMERIC(10, 2),
+            change_reason VARCHAR(100),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by INTEGER
+        )
+    """)
+    cur.execute("ALTER TABLE inventory_history ADD COLUMN IF NOT EXISTS notes TEXT")
+    cur.execute("ALTER TABLE inventory_history ADD COLUMN IF NOT EXISTS created_by INTEGER")
+
+
 def _m034_session_revocation(cur):
     """Logins that end when they should (audit SEC-004, 1 Nov 2026).
     token_version: part of each token's account stamp (utils/sessions.py);
@@ -1035,6 +1058,7 @@ MIGRATIONS: list[Migration] = [
     Migration(32, 'signup_requests',          _m032_signup_requests),
     Migration(33, 'password_reset_tokens',    _m033_password_reset_tokens),
     Migration(34, 'session_revocation',       _m034_session_revocation),
+    Migration(35, 'inventory_history_notes',  _m035_inventory_history_notes),
 ]
 
 
