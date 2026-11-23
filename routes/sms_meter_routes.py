@@ -1,7 +1,8 @@
 """The runner's Text meter: how many texts this event has used, the cap,
 and what the cap has held back. All the counting lives in
-services/sms_meter.py; this file only reads it out and saves the two
-things an organiser can change (the cap, and when the count starts)."""
+services/sms_meter.py; this file only reads it out and saves the three
+things an organiser can change (the cap, the Texts off switch, and when
+the count starts)."""
 import logging
 
 from flask import Blueprint, jsonify, request
@@ -93,6 +94,43 @@ def put_cap():
                     "success": False,
                     "status": "error",
                     "message": "Could not save the cap.",
+                }
+            ),
+            500,
+        )
+
+
+@bp.route("/sms/meter/texts-off", methods=["PUT"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin", "staff"])
+def put_texts_off():
+    """Body: {"texts_off": true|false}. On: no automatic texts, and the
+    ordering screens stop asking for a mobile (see sms_meter.set_texts_off)."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data.get("texts_off"), bool):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": "texts_off must be true or false.",
+                }
+            ),
+            400,
+        )
+    try:
+        sms_meter.set_texts_off(data["texts_off"], by=_who())
+        return jsonify(
+            {"success": True, "status": "success", "data": sms_meter.snapshot()}
+        )
+    except Exception as e:
+        logger.error(f"sms meter texts-off save failed: {e}")
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": "Could not save the switch.",
                 }
             ),
             500,
