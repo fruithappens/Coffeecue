@@ -291,7 +291,8 @@ def suite_inventory_crud(rn):
     try:
         pc, pb, _ = c.post("/api/inventory",
                            {"name": f"{BENCH_TAG} Test Syrup", "category": "other",
-                            "unit": "bottles", "capacity": 10, "amount": 5})
+                            "unit": "bottles", "capacity": 10, "amount": 5,
+                            "current_quantity": 5})
         body = pb if isinstance(pb, dict) else {}
         item = body.get("item") or body.get("data") or body
         item_id = item.get("id") if isinstance(item, dict) else None

@@ -9,6 +9,7 @@ import re
 import sqlite3
 from datetime import datetime
 from services.sms_wording import say
+from utils.milk import BLACK_MILKS
 from utils.station_label import station_label
 from services.coffee_system import (  # noqa: F401  (defined above the mixin imports)
     _NOT_A_NAME,
@@ -240,7 +241,13 @@ class ConversationMixin:
                     available_milks = self._all_available_milks_lowercased()
                 except Exception:
                     available_milks = None  # Treat unknown as "no restriction"
-                if available_milks is not None and milk:
+                # A black coffee has no milk to run out of: "no milk isn't
+                # on at any station" was sent to every long-black regular.
+                is_black = (
+                    str(milk or "").strip().lower().removesuffix(" milk").strip()
+                    in BLACK_MILKS
+                )
+                if available_milks is not None and milk and not is_black:
                     milk_lc = str(milk).strip().lower()
                     # Canonicalise common synonyms before comparing
                     milk_canon = {
@@ -273,9 +280,16 @@ class ConversationMixin:
                     drink_label = f"decaf {drink}" if decaf else drink
                     sugar_text = f", {sugar}" if sugar else ""
                     strength_text = f" ({strength})" if strength else ""
+                    _m = str(milk).strip()
+                    if _m.lower().removesuffix(" milk").strip() in BLACK_MILKS:
+                        milk_text = ""
+                    elif _m.lower().endswith(" milk"):
+                        milk_text = f" with {_m}"
+                    else:
+                        milk_text = f" with {_m} milk"
                     return (
                         f"What can I get you today, {name}? Your usual "
-                        f"{size} {drink_label} with {milk} milk{sugar_text}"
+                        f"{size} {drink_label}{milk_text}{sugar_text}"
                         f"{strength_text}?"
                     )
 
