@@ -104,7 +104,8 @@ def _capable_ids(active_stations, milk):
     for s in active_stations:
         mt = [str(x).lower().replace(" milk", "")
               for x in ((s.get("capabilities") or {}).get("milk_types") or [])]
-        if not mt or not m or m in ("no milk",) or m in mt:
+        # "no milk" shortened is "no": black coffee, any station makes it.
+        if not mt or m.strip() in ("", "no", "no milk", "none", "black") or m in mt:
             out.append(s.get("id") or s.get("station_id"))
     return out
 

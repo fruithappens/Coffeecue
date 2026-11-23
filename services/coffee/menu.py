@@ -6,6 +6,8 @@ MenuMixin, so self.<method>() reaches them exactly as before.
 """
 import json
 import re
+
+from utils.milk import BLACK_MILKS
 from services.coffee_system import (  # noqa: F401  (defined above the mixin imports)
     _milk_key,
     _unique_milk_keys,
@@ -111,7 +113,7 @@ class MenuMixin:
             if not isinstance(caps, dict):
                 return True
             req_milk = (milk_type or "").lower().replace(" milk", "").strip()
-            if req_milk and req_milk not in ("no milk", "none", "black", ""):
+            if req_milk and req_milk not in BLACK_MILKS:
                 mt = [
                     str(m).lower().replace(" milk", "")
                     for m in (caps.get("milk_types") or [])
