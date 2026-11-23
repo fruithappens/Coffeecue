@@ -27,7 +27,8 @@ Never deploy during an event (the Event freeze check enforces this).
   cupq.app isn't frozen. Dockerfile; `python run_server.py`, eventlet, one
   process. Cloudflare in front.
 - `main` is protected: Frontend build, Backend syntax, Python unit tests,
-  Consistency checks, One handler per address, Event freeze must pass.
+  Consistency checks, One handler per address, Event freeze, Order journey,
+  Accessibility must pass.
   No approvals needed. Branch each PR off `main`; never stack PRs.
 - Railway API: `scripts/railway_api.py` (token in `~/.zshrc`, never print
   it). Rollback: `scripts/rollback.py` (`docs/ROLLBACK.md`). New client
