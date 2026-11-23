@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Gauge, Loader, AlertTriangle, RotateCcw, Save } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
-import { Panel, DataTable, TableRow, Cell, Empty, TextField, Button } from '../../design';
+import { Panel, DataTable, TableRow, Cell, Empty, TextField, Button, Toggle } from '../../design';
 import { askConfirm } from '../shared/ConfirmDialog';
 import { showToast } from '../shared/Toast';
 
@@ -96,6 +96,24 @@ export default function SmsMeterTab() {
     }
   };
 
+  const setTextsOff = async (off) => {
+    if (off && !(await askConfirm({
+      title: 'Turn texts off?',
+      message: 'No automatic texts go out, the order screens stop asking for a mobile, and the boards stop showing a number to text. Customers watch their phone page and the board.',
+      confirmLabel: 'Turn texts off',
+    }))) return;
+    setBusy(true);
+    try {
+      const resp = await apiRef.current.put('/sms/meter/texts-off', { texts_off: off });
+      if (take(resp)) showToast(off ? 'Texts are off' : 'Texts are on', 'success');
+      else showToast((resp && resp.message) || 'Could not save the switch', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Could not save the switch', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const newCount = async () => {
     if (!(await askConfirm({
       title: 'Start a new count?',
@@ -134,13 +152,16 @@ export default function SmsMeterTab() {
 
   const { used, cap, allowance, state, totals } = m;
   const tierName = TIER_NAMES[m.plan_tier] || null;
-  const headline = {
+  const headline = m.texts_off
+    ? 'Texts are off - nothing automatic is sent, and customers are not asked for a mobile.'
+    : {
     uncapped: 'No cap set - texts are counted but never stopped.',
     ok: `${fmt(m.remaining)} texts left before the cap.`,
     warn: `Past ${Math.round(m.warn_at * 100)}% - "we've started your coffee" texts and reminders have stopped. Ready texts still go.`,
     capped: 'Cap reached - automatic texts have stopped. Customers see their order on the board and their phone page.',
   }[state];
-  const headlineTone = state === 'capped' ? 'bg-cq-alert-wash text-cq-alert'
+  const headlineTone = m.texts_off ? 'bg-cq-wash text-cq-ink-2'
+    : state === 'capped' ? 'bg-cq-alert-wash text-cq-alert'
     : state === 'warn' ? 'bg-cq-warn-wash text-cq-ink'
     : 'bg-cq-caramel-wash text-cq-ink-2';
 
@@ -175,6 +196,18 @@ export default function SmsMeterTab() {
             character, which makes a text cost double. Keep wording plain.
           </p>
         ) : null}
+      </Panel>
+
+      <Panel title="Texts off">
+        <div className="flex items-start gap-4 flex-wrap">
+          <p className="text-sm text-cq-ink-2 max-w-[52ch] flex-1">
+            For an event with no texts: customers order on their phone or the
+            kiosk without giving a mobile, and watch their phone page and the
+            board. No automatic texts are sent, and no screen shows a number to
+            text. Texts staff send by hand still go.
+          </p>
+          <Toggle on={!!m.texts_off} onChange={setTextsOff} disabled={busy} labels={['Texts on', 'Texts off']} />
+        </div>
       </Panel>
 
       <Panel title="Cap">

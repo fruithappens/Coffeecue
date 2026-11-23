@@ -278,6 +278,9 @@ def get_display_config():
             except Exception:
                 pass
 
+        from services import sms_meter as _sms_meter
+        _texts_off = _sms_meter.texts_off(getattr(coffee_system, 'db', None) if coffee_system else None)
+
         return _revalidating_json({
             "success": True,
             "config": {
@@ -298,7 +301,11 @@ def get_display_config():
                 "display_touch_ordering": disp['display_touch_ordering'],
                 "ready_sound": disp['ready_sound'],
                 "beacon_sound": disp['beacon_sound'],
-                "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
+                # "Texts off" (Text meter): this event runs on phones and
+                # the board alone, so no screen shows a number to text and
+                # the ordering screens skip "Want a text when it's ready?".
+                "texts_off": _texts_off,
+                "sms_number": '' if _texts_off else (config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', '')),
                 # The event's ordering code, so the poster page can stamp
                 # it into the QR it prints. Public because it is printed
                 # on a poster -- it identifies an event, it does not

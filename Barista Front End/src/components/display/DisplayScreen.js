@@ -920,7 +920,10 @@ const DisplayScreen = () => {
       setConfig(prev => ({
         ...prev,
         event_name: prev.event_name || settings.displaySettings.eventName,
-        sms_number: smsPhoneNumber || prev.sms_number || settings.displaySettings.smsNumber,
+        // "Texts off" (Text meter): no number to text, whatever this
+        // device remembers.
+        sms_number: serverConfigRef.current?.texts_off ? ''
+          : (smsPhoneNumber || prev.sms_number || settings.displaySettings.smsNumber),
         sponsor: {
           enabled: settings.displaySettings.showSponsor,
           name: settings.displaySettings.sponsorName,

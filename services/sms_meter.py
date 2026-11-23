@@ -278,6 +278,8 @@ def decide(kind, body=None):
         conn = _conn()
         cur = conn.cursor()
         cfg = _read_config(cur)
+        if cfg.get("texts_off"):
+            return False, "held: texts are off for this event"
         cap = _effective_cap(cfg, _allowance(conn))
         if cap is None:
             return True, None
@@ -428,6 +430,7 @@ def snapshot():
             "allowance": allowance,
             "cap": cap,
             "cap_is_custom": cfg.get("cap") is not None,
+            "texts_off": bool(cfg.get("texts_off")),
             "warn_at": WARN_AT,
             "state": state,
             "used": used,
@@ -456,6 +459,47 @@ def set_cap(cap, by=None):
         _write_config(conn, cfg, by)
     finally:
         _release(conn)
+
+
+def set_texts_off(off, by=None):
+    """The event's "Texts off" switch: an event run on phones and the board
+    alone. Every automatic text is held (like the cap at zero), and the
+    ordering screens stop asking for a mobile and hide the SMS number --
+    see texts_off(). Staff texts and replies to a customer who texts in
+    still go: a person chose those, as with the cap."""
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        cfg = _read_config(cur)
+        cfg["texts_off"] = bool(off)
+        _write_config(conn, cfg, by)
+    finally:
+        _release(conn)
+
+
+def texts_off(db=None):
+    """Is the "Texts off" switch on? For the public screens. Never raises:
+    an error reads as off, so ordering keeps its text option."""
+    conn = None
+    try:
+        if db is not None:
+            cur = db.cursor()
+            try:
+                return bool(_read_config(cur).get("texts_off"))
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                return False
+        conn = _conn()
+        return bool(_read_config(conn.cursor()).get("texts_off"))
+    except Exception as e:
+        logger.debug("sms_meter: texts_off read failed: %s", e)
+        return False
+    finally:
+        if conn is not None:
+            _release(conn)
 
 
 def start_new_count(by=None):

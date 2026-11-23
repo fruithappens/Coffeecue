@@ -112,6 +112,9 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // source the poster page uses. Absent is fine -- the line just drops
   // the text option rather than showing a blank.
   const [smsNumber, setSmsNumber] = useState('');
+  // "Texts off" (Runner > Text meter): this event sends no texts, so the
+  // "Want a text when it's ready?" step is skipped -- see goTo.
+  const [textsOff, setTextsOff] = useState(false);
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -124,6 +127,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         const ec = String(cfg.event_code || '').trim();
         if (!dead && ec) setCfgEventCode(ec);
         if (!dead) setBadgeScanOn(!!cfg.badge_scan);
+        if (!dead) setTextsOff(cfg.texts_off === true);
       } catch (e) { /* the strip works without it */ }
     })();
     return () => { dead = true; };
@@ -195,6 +199,15 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
 
   const [history, setHistory] = useState([]);
   const goTo = (next) => {
+    // Texts off: no text will ever come, so never ask for a number. Same
+    // as tapping "No number": on to the name (or past it, when the event
+    // app or a badge already said who this is).
+    if (next === 'phone' && textsOff) {
+      setPhone('');
+      setEaSuggest(null);
+      if (eaIdentity && name.trim()) { afterName(); return; }
+      next = 'name';
+    }
     setHistory((h) => [...h, step]);
     setStep(next);
   };
