@@ -52,6 +52,7 @@ import { markSwitchedView } from '../../utils/switchedView';
 import SystemHealthTab from '../support-tabs/SystemHealthTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
 import EnquiriesTab from '../support-tabs/EnquiriesTab';
+import SalesTab from '../support-tabs/SalesTab';
 import FleetBoard from '../support-tabs/FleetBoard';
 import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
@@ -215,6 +216,7 @@ const RunnerInterface = () => {
           Crashes tab was the same panel twice. */}
       {activeSection === 'system' && activeTab === 'diagnostics' && <DiagnosticsTab />}
       {activeSection === 'system' && activeTab === 'enquiries' && <EnquiriesTab />}
+      {activeSection === 'system' && activeTab === 'sales' && <SalesTab />}
       {activeSection === 'system' && activeTab === 'fleet' && <FleetBoard />}
 
       {activeSection === 'eventsair' && <EventsAirTab />}
