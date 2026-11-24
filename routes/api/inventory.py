@@ -867,6 +867,18 @@ def create_inventory_item():
                 'message': "Name, category, current_quantity, and unit are required"
             }), 400
         
+        # Numbers, and no minimum means 0. A create without
+        # minimum_threshold used to crash comparing the quantity with None
+        # (HTTP 500, test bench inv_crud).
+        try:
+            current_quantity = float(current_quantity)
+            minimum_threshold = float(minimum_threshold) if minimum_threshold not in (None, '') else 0.0
+        except (TypeError, ValueError):
+            return jsonify({
+                'success': False,
+                'message': "current_quantity and minimum_threshold must be numbers"
+            }), 400
+
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db

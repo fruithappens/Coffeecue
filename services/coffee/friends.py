@@ -498,38 +498,12 @@ class FriendsMixin:
                 phone, friend_order, friend_name, is_friend_order=True
             )
 
-            # Store friend's order preferences for future ordering
-            try:
-                cursor = self.db.cursor()
-                cursor.execute(
-                    """
-                    INSERT INTO customer_preferences
-                    (phone, name, preferred_drink, preferred_milk, preferred_size, preferred_sugar, last_order_date, is_friend_of, friend_phone)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (phone, name) DO UPDATE SET
-                        preferred_drink = EXCLUDED.preferred_drink,
-                        preferred_milk = EXCLUDED.preferred_milk,
-                        preferred_size = EXCLUDED.preferred_size,
-                        preferred_sugar = EXCLUDED.preferred_sugar,
-                        last_order_date = EXCLUDED.last_order_date
-                """,
-                    (
-                        f"{phone}_{friend_name}",  # Use a composite key to store friend orders
-                        friend_name,
-                        friend_order.get("type"),
-                        friend_order.get("milk"),
-                        friend_order.get("size"),
-                        friend_order.get("sugar"),
-                        datetime.now(),
-                        primary_name,
-                        phone,
-                    ),
-                )
-                self.db.commit()
-                logger.info(f"Stored friend preferences for {friend_name}")
-            except Exception as e:
-                logger.error(f"Error storing friend preferences: {str(e)}")
-                # Continue even if this fails - it's non-critical
+            # (A friend's preferences used to be "stored" here under the key
+            # phone + "_" + name. It never worked -- the phone column holds 20
+            # characters, the ON CONFLICT (phone, name) has no matching key,
+            # and two columns it wrote do not exist -- nothing read it back,
+            # and the swallowed error left the request's connection in a
+            # failed transaction. Removed.)
 
             # Ask if they want to order for another friend
             # Set state to a special "awaiting_friend_decision" state to handle the response

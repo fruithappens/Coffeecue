@@ -418,6 +418,17 @@ def suite_breaks(rn):
                 server_now = None
     if pn:
         c.post(f"/api/orders/{pn}/cancel")
+    # Breaks are matched in the EVENT's time (utils/event_time), which can
+    # differ from the order timestamps (stored in UTC). Prefer the event
+    # clock the on-call endpoint reports.
+    try:
+        _oc, ob, _ = c.get("/api/settings/on-call")
+        ev = (ob or {}).get("event_now")
+        if ev:
+            from datetime import datetime as _dt2
+            server_now = _dt2.strptime(ev, "%Y-%m-%d %H:%M")
+    except Exception:
+        pass
     if server_now is None:
         return out + [R("breaks", "break-window routing", "warn",
                         "couldn't read server time from a probe order")]

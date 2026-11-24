@@ -323,7 +323,26 @@ def suite_features_flow(rn):
     no7 = None
     try:
         _sc, sb, _ = c.get("/api/settings")
-        cfg = (sb or {}).get("settings") or (sb or {}).get("data") or {}
+        def _find(o, key):
+            # The settings response nests by group on some versions; find
+            # the key wherever it is (a missed read used to assume 22g and
+            # fail a correct 11g event, Nov 2026).
+            if isinstance(o, dict):
+                if key in o and not isinstance(o[key], (dict, list)):
+                    return o[key]
+                for v in o.values():
+                    hit = _find(v, key)
+                    if hit is not None:
+                        return hit
+            elif isinstance(o, list):
+                for v in o:
+                    if isinstance(v, dict) and v.get("key") == key and "value" in v:
+                        return v["value"]
+                    hit = _find(v, key)
+                    if hit is not None:
+                        return hit
+            return None
+        cfg = {"beans_grams_per_shot": _find(sb or {}, "beans_grams_per_shot")}
         try:
             dose_kg = float(cfg.get("beans_grams_per_shot") or 22) / 1000.0
         except (TypeError, ValueError):

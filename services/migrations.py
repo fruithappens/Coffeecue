@@ -864,6 +864,31 @@ def _m035_inventory_history_notes(cur):
     cur.execute("ALTER TABLE inventory_history ADD COLUMN IF NOT EXISTS created_by INTEGER")
 
 
+def _m036_sms_messages_received_at(cur):
+    """sms_messages tables made by an older schema have created_at but no
+    received_at, which Runner > Messages' dropped-texts check reads: it
+    failed with a 500 on those databases, so a text that was accepted but
+    never processed (a real customer whose order did not land) could not
+    be seen. Add the column and fill it from created_at."""
+    cur.execute("SELECT to_regclass('public.sms_messages')")
+    if cur.fetchone()[0] is None:
+        return
+    cur.execute("""
+        ALTER TABLE sms_messages
+        ADD COLUMN IF NOT EXISTS received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    """)
+    cur.execute("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'sms_messages' AND column_name = 'created_at'
+    """)
+    if cur.fetchone():
+        cur.execute("""
+            UPDATE sms_messages SET received_at = created_at
+            WHERE created_at IS NOT NULL
+              AND (received_at IS NULL OR received_at > created_at + INTERVAL '1 minute')
+        """)
+
+
 def _m034_session_revocation(cur):
     """Logins that end when they should (audit SEC-004, 1 Nov 2026).
     token_version: part of each token's account stamp (utils/sessions.py);
@@ -1059,6 +1084,7 @@ MIGRATIONS: list[Migration] = [
     Migration(33, 'password_reset_tokens',    _m033_password_reset_tokens),
     Migration(34, 'session_revocation',       _m034_session_revocation),
     Migration(35, 'inventory_history_notes',  _m035_inventory_history_notes),
+    Migration(36, 'sms_messages_received_at', _m036_sms_messages_received_at),
 ]
 
 
