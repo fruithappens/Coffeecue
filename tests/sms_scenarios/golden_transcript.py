@@ -70,6 +70,11 @@ EXTRA = [
     ["hi", "{NAME}", "usual"],
     ["hi", "X"],
     ["hi", "{NAME}", "large cappuccino with soy", "maybe"],
+    # Named milks and sweeteners (24 Nov 2026).
+    ["hi", "{NAME}", "latte with a2 milk"],
+    ["hi", "{NAME}", "latte no milk"],
+    ["hi", "{NAME}", "latte with equal"],
+    ["hi", "{NAME}", "cappuccino with almond milk"],
 ]
 
 

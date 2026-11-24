@@ -15,6 +15,18 @@ from services.coffee_system import (  # noqa: F401  (defined above the mixin imp
 )
 
 
+
+def _words_overlap(a, b):
+    """True when one milk name is the other's whole words: 'oat' ~ 'oat milk',
+    'lactose free' ~ 'lactose free milk', but 'oat' !~ 'goat'."""
+    a, b = (a or "").strip().lower(), (b or "").strip().lower()
+    if not a or not b:
+        return False
+    return bool(
+        re.search(r"\b" + re.escape(a) + r"\b", b)
+        or re.search(r"\b" + re.escape(b) + r"\b", a)
+    )
+
 class MenuMixin:
     def _all_available_milks_lowercased(self):
         """Return a set of milk names (lowercase) available at ANY
@@ -86,7 +98,7 @@ class MenuMixin:
         if not makeable:  # None or empty → no restriction
             return True
         for cap in makeable:
-            if mt == cap or mt in cap or cap in mt:
+            if mt == cap or _words_overlap(mt, cap):
                 return True
         return False
 
@@ -1240,8 +1252,9 @@ class MenuMixin:
             if requested_milk == available_clean:
                 return True
 
-            # Check for partial matches (e.g., "oat" matches "oat milk")
-            if requested_milk in available_clean or available_clean in requested_milk:
+            # Whole-word partial matches ("oat" ~ "oat milk"), never
+            # inside a word ("oat" is not "goat").
+            if _words_overlap(requested_milk, available_clean):
                 return True
 
         return False
