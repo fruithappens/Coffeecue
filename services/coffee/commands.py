@@ -485,33 +485,41 @@ class CommandsMixin:
             _where = station_label(self.db, station_id) or f"Station {station_id}"
 
             # Build the status response
-            status_messages = {
-                "pending": f"Your order #{order_number} ({order_summary}) is pending at {_where}. You've been waiting {wait_time_minutes} minutes.",
-                "in-progress": f"Your order #{order_number} ({order_summary}) is being made at {_where}. You've been waiting {wait_time_minutes} minutes.",
-                "completed": f"Your order #{order_number} ({order_summary}) is ready for pickup at {_where}!",
-            }
-
-            response = status_messages.get(
-                status,
-                f"Your order #{order_number} ({order_summary}) is {status} at {_where}.",
+            fields = dict(
+                order_number=order_number,
+                order=order_summary,
+                station=_where,
+                waited=wait_time_minutes,
             )
-
-            # Add estimated time for pending orders
-            if status == "pending":
-                # Get station estimated wait time
-                cursor.execute(
-                    "SELECT wait_time FROM station_stats WHERE station_id = %s",
-                    (station_id,),
+            if status == "completed":
+                response = say("status_ready", **fields)
+            elif status in ("pending", "in-progress"):
+                response = say(
+                    "status_pending" if status == "pending" else "status_making",
+                    **fields,
                 )
-                station_result = cursor.fetchone()
-
-                if station_result:
-                    estimated_wait = station_result[0]
-                else:
-                    estimated_wait = 15  # Default
-
-                time_left = max(0, estimated_wait - wait_time_minutes)
-                response += f" Estimated completion in {time_left} more minutes."
+                # Same estimate as the phone page: this order's own place in
+                # the queue and recent real make times. It used to be a
+                # station-wide wait less the minutes waited, which told
+                # anyone in a slow queue "0 more minutes". No time when there
+                # is nothing to base one on.
+                left = None
+                try:
+                    left = self._estimate_ready_minutes(
+                        station_id, order_number, status
+                    )
+                except Exception as est_err:
+                    logger.warning("status estimate failed (non-fatal): %s", est_err)
+                    try:
+                        self.db.rollback()
+                    except Exception:
+                        pass
+                if left:
+                    response += " " + say("status_time_left", minutes=left)
+            else:
+                response = (
+                    f"Your order #{order_number} ({order_summary}) is {status} at {_where}."
+                )
 
             # Add linked order info if any
             if friend_orders:
@@ -1492,18 +1500,14 @@ class CommandsMixin:
                 # They just ordered — prioritise that order; don't force them
                 # into a brand-new order flow.
                 self._set_conversation_state(phone, "completed")
-                return (
-                    f"VIP status activated{name_greeting}! Your order "
-                    f"#{bumped_number} is now priority - we'll make it next. "
-                    f"Text us anytime to order again."
-                )
+                return say("vip_bumped", who=name_greeting, order_number=bumped_number)
 
             # No pending order — VIP applies to their next order. Route through
             # the NAME step (not coffee-type) so a reply like "Vic flat white"
             # still captures the name; the VIP flag rides along via the saved
             # is_vip we just set (read back in _confirm_order).
             self._set_conversation_state(phone, "awaiting_name", {"vip": True})
-            return f"VIP status activated{name_greeting}! Your orders will be prioritised. What's your name and order?"
+            return say("vip_activated", who=name_greeting)
 
         except Exception as e:
             logger.error(f"Error processing VIP code: {str(e)}")

@@ -358,10 +358,7 @@ class FriendsMixin:
                 },
             )
             order_summary = self.nlp.format_order_summary(friend_order)
-            return (
-                f"For {friend_name}: {order_summary}.\n"
-                f"Reply YES to confirm, EDIT to change, or NO to cancel."
-            )
+            return say("friend_confirm", friend=friend_name, order=order_summary)
         else:
             # If no size was found, prompt again
             sizes = self._friend_sizes(friend_order)
@@ -427,10 +424,7 @@ class FriendsMixin:
         # Format order summary
         order_summary = self.nlp.format_order_summary(friend_order)
 
-        return (
-            f"Great! Here's the order for {friend_name}: {order_summary}\n"
-            f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
-        )
+        return say("friend_confirm_long", friend=friend_name, order=order_summary)
 
     def _handle_awaiting_friend_decision(self, phone, message, state):
         """Handle the user's response after being asked if they want to order for another friend"""
@@ -459,9 +453,11 @@ class FriendsMixin:
                 total_line = self._format_group_total(
                     [primary_order] + list(group_orders)
                 )
-                return (
-                    f"Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed."
-                    f"{total_line}\nThey'll be ready together - we'll SMS you the pickup location."
+                return say(
+                    "friend_group_confirmed",
+                    name=primary_name,
+                    count=total_orders,
+                    price=total_line,
                 )
             else:
                 return say("friend_flow_confirmed", name=primary_name)
@@ -607,11 +603,7 @@ class FriendsMixin:
                 },
             )
             total_so_far = len(group_orders) + 1  # +1 for the primary order
-            return (
-                f"{order_response}\n\n"
-                f"That's {total_so_far} coffees in your group order.\n"
-                f"Reply FRIEND to add another or NO to finish."
-            )
+            return f"{order_response}\n\n" + say("friend_count_so_far", count=total_so_far)
 
         elif message_upper == "NO" or message_upper == "N" or message_upper == "CANCEL":
             # Cancel the friend's order but keep the group context
@@ -676,9 +668,11 @@ class FriendsMixin:
             if total_orders == 1:
                 return f"{not_added} " + say("friend_flow_confirmed", name=primary_name)
             total_line = self._format_group_total([primary_order] + list(confirmed_orders))
-            return (
-                f"{not_added} Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed."
-                f"{total_line}\nThey'll be ready together - we'll SMS you the pickup location."
+            return f"{not_added} " + say(
+                "friend_group_confirmed",
+                name=primary_name,
+                count=total_orders,
+                price=total_line,
             )
 
         else:

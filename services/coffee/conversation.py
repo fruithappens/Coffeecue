@@ -101,10 +101,7 @@ class ConversationMixin:
                 self._set_conversation_state(
                     phone, "awaiting_coffee_type", {"name": name}
                 )
-                return (
-                    f"Hi {name}! You're registered for {self.event_name} - "
-                    "what coffee would you like?"
-                )
+                return say("welcome_registered", name=name, event=self.event_name)
 
             usual_suggestions = self._get_usual_order_suggestion(phone, name)
             if usual_suggestions:
@@ -120,7 +117,7 @@ class ConversationMixin:
                 # The suggestion already greets by name ("...today, {name}?"),
                 # so don't add the name again or it reads "Welcome back, Bart!
                 # ...today, Bart?" (Steve, live test).
-                return f"Welcome back! {usual_suggestions}"
+                return say("welcome_back") + f" {usual_suggestions}"
             else:
                 # Start a new conversation state without suggestion context
                 self._set_conversation_state(
@@ -268,11 +265,7 @@ class ConversationMixin:
                             milk,
                             phone,
                         )
-                        return (
-                            f"Hi {name}! What can I get you today? "
-                            f"(Just letting you know - {milk} isn't on at any "
-                            f"station right now.)"
-                        )
+                        return say("usual_milk_not_on", name=name, milk=milk)
 
             if drink:
                 # Build a suggestion message with full fidelity
@@ -287,10 +280,10 @@ class ConversationMixin:
                         milk_text = f" with {_m}"
                     else:
                         milk_text = f" with {_m} milk"
-                    return (
-                        f"What can I get you today, {name}? Your usual "
-                        f"{size} {drink_label}{milk_text}{sugar_text}"
-                        f"{strength_text}?"
+                    return say(
+                        "usual_offer",
+                        name=name,
+                        order=f"{size} {drink_label}{milk_text}{sugar_text}{strength_text}",
                     )
 
             # If no preferences, check previous orders
@@ -335,9 +328,9 @@ class ConversationMixin:
                     )[:2]
 
                     if len(most_common) == 1:
-                        return f"What type of coffee would you like today? Your usual {most_common[0][0]}?"
+                        return say("usual_one_drink", drink=most_common[0][0])
                     elif len(most_common) == 2:
-                        return f"What type of coffee would you like today? Your usual {most_common[0][0]} or perhaps a {most_common[1][0]}?"
+                        return say("usual_two_drinks", drink=most_common[0][0], other=most_common[1][0])
 
             return None
 
@@ -653,11 +646,15 @@ class ConversationMixin:
         _sponsor = str(self._get_setting_fresh("sponsor_line", "") or "").strip()
         _sponsor_tail = f"\n{_sponsor}" if _sponsor else ""
         return (
-            f"{prefix}{order_response}\n"
-            f"That's: {summary}.{self.SUGAR_SELF_SERVE_NOTE if sugar_redirect else ''}"
-            f"{self._format_price_tail(od)} "
-            f"Wrong? CHANGE or OOPS. Add another with FRIEND."
-            f"{_sponsor_tail}"
+            prefix
+            + say(
+                "order_recap",
+                placed=order_response,
+                order=summary,
+                sugar_note=self.SUGAR_SELF_SERVE_NOTE if sugar_redirect else "",
+                price=self._format_price_tail(od),
+            )
+            + _sponsor_tail
         )
 
     def _default_milk(self):
@@ -928,23 +925,23 @@ class ConversationMixin:
         if not placed:
             if refusal:
                 return refusal
-            return (
-                "Sorry, I couldn't place that group order just now. "
-                "Please try sending one coffee at a time."
-            )
+            return say("group_failed")
 
         lines = [f"#{num}: {self.nlp.format_order_summary(od)}" for num, od in placed]
         # Say which coffees did NOT go through; they used to just be missing
         # from the list.
         for od in resolved[len(placed):]:
-            lines.append(f"Not ordered: {self.nlp.format_order_summary(od)}")
+            lines.append(
+                say("group_not_ordered", order=self.nlp.format_order_summary(od))
+            )
         total_line = self._format_group_total([od for _, od in placed])
-        return (
-            f"Got it {name}! {len(placed)} coffees ordered together:\n"
-            + "\n".join(lines)
-            + (self.SUGAR_SELF_SERVE_NOTE + "\n" if multi_sugar_redirect else "")
-            + f"{total_line}\n"
-            "Same station, ready together. Wrong? CHANGE or OOPS."
+        return say(
+            "group_placed",
+            name=name,
+            count=len(placed),
+            orders="\n".join(lines),
+            sugar_note=self.SUGAR_SELF_SERVE_NOTE + "\n" if multi_sugar_redirect else "",
+            price=total_line,
         )
 
     def _handle_awaiting_name(self, phone, message, state):
@@ -1257,10 +1254,11 @@ class ConversationMixin:
             if strength:
                 summary += f" ({strength})"
 
-            return (
-                f"Great, {name}! Here's your usual order: {summary}"
-                f"{self._format_price_tail(usual_order)}\n"
-                f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
+            return say(
+                "usual_confirm",
+                name=name,
+                order=summary,
+                price=self._format_price_tail(usual_order),
             )
         else:
             # No usual order found
@@ -1736,14 +1734,12 @@ class ConversationMixin:
         if said_milk and said_milk != order_details.get("milk"):
             if not self._milk_is_makeable(said_milk):
                 available = self._get_available_milk_types() or []
-                return (f"Sorry, we don't have {said_milk} at any station today. "
-                        f"Milks: {', '.join(available)}. What size? ({', '.join(available_sizes)})")
+                return say("milk_none_ask_size", milk=said_milk, milks=", ".join(available), sizes=", ".join(available_sizes))
             order_details["milk"] = said_milk
             if not size:
                 self._set_conversation_state(
                     phone, "awaiting_size", {"name": name, "order_details": order_details})
-                return (f"Got it - {order_details.get('type', 'coffee')} with {said_milk} milk. "
-                        f"What size? ({', '.join(available_sizes)})")
+                return say("milk_changed_ask_size", drink=order_details.get("type", "coffee"), milk=said_milk, sizes=", ".join(available_sizes))
 
         # Also check for simple size indicators
         if not size:
@@ -1867,10 +1863,7 @@ class ConversationMixin:
             sugar = new_details.get("sugar")
 
         if not sugar:
-            return (
-                "Sorry, I didn't catch that. How much sugar? "
-                "Reply a number (0-9), 'half', or 'quarter'."
-            )
+            return say("ask_sugar")
 
         # They gave an explicit sugar — record it and auto-place (no YES step).
         order_details["sugar"] = sugar
@@ -1896,17 +1889,12 @@ class ConversationMixin:
             # Order is complete - end the conversation
             self._set_conversation_state(phone, "completed")
 
-            return (
-                f"{order_response}\n"
-                f"Tip: add a friend's coffee anytime by texting FRIEND."
-            )
+            return f"{order_response}\n" + say("friend_tip")
 
         elif message_upper == "NO" or message_upper == "N" or message_upper == "CANCEL":
             # Cancel the order
             self._set_conversation_state(phone, "awaiting_coffee_type", {"name": name})
-            return (
-                f"Order cancelled. What type of coffee would you like instead, {name}?"
-            )
+            return say("cancelled_ask_again", name=name)
 
         elif message_upper.startswith("EDIT") or message_upper.startswith("CHANGE"):
             # Targeted edit ("edit milk to oat") modifies only that
@@ -1920,18 +1908,15 @@ class ConversationMixin:
                 temp_data["order_details"] = updated_details
                 self._set_conversation_state(phone, "awaiting_confirmation", temp_data)
                 order_summary = self.nlp.format_order_summary(updated_details)
-                return (
-                    f"Updated - {change_summary}.\n"
-                    f"Here's your order now: {order_summary}"
-                    f"{self._format_price_tail(updated_details)}\n"
-                    f"Reply YES to confirm, NO to cancel, or EDIT to change something else."
+                return say(
+                    "edit_updated",
+                    change=change_summary,
+                    order=order_summary,
+                    price=self._format_price_tail(updated_details),
                 )
             # Bare EDIT — restart from coffee type
             self._set_conversation_state(phone, "awaiting_coffee_type", {"name": name})
-            return (
-                f"Let's change that order, {name}. What type of coffee would you like?\n"
-                f'Tip: you can also say e.g. "edit milk to oat" to change just one thing.'
-            )
+            return say("edit_restart", name=name)
 
         elif (
             message_upper == "FRIEND"
@@ -1951,9 +1936,7 @@ class ConversationMixin:
                     ),  # Keep same station for group orders
                 },
             )
-            return (
-                "Great! Let's add a coffee for your friend. What's your friend's name?"
-            )
+            return say("friend_start")
 
         elif (
             message_upper == "NO FRIEND"
@@ -2220,7 +2203,7 @@ class ConversationMixin:
                     )
                     # The suggestion already greets by name, so don't add it
                     # again (would read "Welcome back, Bart! ...today, Bart?").
-                    return f"Welcome back! {usual_suggestions}"
+                    return say("welcome_back") + f" {usual_suggestions}"
                 else:
                     # Just welcome them back and ask for coffee
                     self._set_conversation_state(

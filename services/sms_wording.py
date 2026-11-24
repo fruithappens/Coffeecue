@@ -368,6 +368,224 @@ CATALOG = {
         {"friend": "the friend's name"},
         "We asked them to confirm a friend's coffee and the answer wasn't clear.",
     ),
+    "order_placed": (
+        "Order #{order_number} confirmed. {queue}",
+        {"order_number": "the order number", "queue": "their place in the queue"},
+        "The first line once an order is placed.",
+    ),
+    "order_placed_one_station": (
+        "Order #{order_number} confirmed. {milk} is at {station} only. {queue}",
+        {"order_number": "the order number", "milk": "their milk", "station": "the station", "queue": "their place in the queue"},
+        "As above, when only one station has their milk.",
+    ),
+    "queue_vip": (
+        "VIP order - we'll prioritise it and text you when it's ready.",
+        {},
+        "Their place in the queue, for a VIP.",
+    ),
+    "queue_first": (
+        "You're #1 in line, starting shortly.",
+        {},
+        "Their place in the queue, when they're next.",
+    ),
+    "queue_position": (
+        "You're #{position} in line (~{wait} min wait).",
+        {"position": "their place in the queue", "wait": "minutes"},
+        "Their place in the queue.",
+    ),
+    "queue_wait": (
+        "Estimated wait time: {wait} minutes.",
+        {"wait": "minutes"},
+        "The wait, when we can't tell their place in the queue.",
+    ),
+    "moved_cant_make": (
+        "Note: {asked_station} can't make this order, so it was routed to {station}.",
+        {"asked_station": "the station they asked for", "station": "the station"},
+        "Added when the station they asked for can't make it.",
+    ),
+    "moved_not_available": (
+        "Note: {asked_station} isn't available right now, so your order was routed to {station}.",
+        {"asked_station": "the station they asked for", "station": "the station"},
+        "Added when the station they asked for isn't open.",
+    ),
+    "order_recap": (
+        "{placed}\nThat's: {order}.{sugar_note}{price} Wrong? CHANGE or OOPS. Add another with FRIEND.",
+        {"placed": "the order number and place in the queue", "order": "the order, e.g. large oat latte", "sugar_note": "'sugar is help-yourself', when that's on", "price": "the price line, on its own line; empty when prices are off"},
+        "The whole reply to a text order. Keep {placed} and {order}.",
+    ),
+    "price_free": (
+        "Your drink is complimentary today. Enjoy!",
+        {},
+        "The price line, when there's nothing to pay.",
+    ),
+    "price_total": (
+        "Total: {total}, pay at the counter when you collect.",
+        {"total": "the price"},
+        "The price line, when prices are on.",
+    ),
+    "price_group_total": (
+        "Group total: {total} for {count}, pay at the counter on collection.",
+        {"total": "the price", "count": "e.g. 3 coffees"},
+        "The price line for a group.",
+    ),
+    "group_placed": (
+        "Got it {name}! {count} coffees ordered together:\n{orders}{sugar_note}{price}\nSame station, ready together. Wrong? CHANGE or OOPS.",
+        {"name": "their first name", "count": "how many coffees", "orders": "the coffees, one per line", "sugar_note": "'sugar is help-yourself', when that's on", "price": "the price line, on its own line; empty when prices are off"},
+        "They ordered several coffees in one text. Keep {orders}.",
+    ),
+    "group_not_ordered": (
+        "Not ordered: {order}",
+        {"order": "the order, e.g. large oat latte"},
+        "A line in the group reply for a coffee that couldn't be ordered.",
+    ),
+    "group_failed": (
+        "Sorry, I couldn't place that group order just now. Please try sending one coffee at a time.",
+        {},
+        "None of a group's coffees could be ordered.",
+    ),
+    "milk_none_can_make": (
+        "Sorry {who}none of our stations can make {milk} right now. What milk would you like instead? ({milks}, or 'no milk')",
+        {"who": "their name and ', ', or nothing", "milk": "the milk they asked for", "milks": "the milks on offer"},
+        "Their milk just ran out everywhere.",
+    ),
+    "drink_none_can_make": (
+        "Sorry {who}we can't make that one right now. What milk would you like? ({milks}, or 'no milk')",
+        {"who": "their name and ', ', or nothing", "milks": "the milks on offer"},
+        "No station can make the drink as asked.",
+    ),
+    "milk_none_ask_size": (
+        "Sorry, we don't have {milk} at any station today. Milks: {milks}. What size? ({sizes})",
+        {"milk": "the milk they asked for", "milks": "the milks on offer", "sizes": "the sizes on offer"},
+        "We asked for a size and they named a milk we don't have.",
+    ),
+    "milk_changed_ask_size": (
+        "Got it - {drink} with {milk} milk. What size? ({sizes})",
+        {"drink": "their drink", "milk": "their milk", "sizes": "the sizes on offer"},
+        "We asked for a size and they changed the milk.",
+    ),
+    "ask_sugar": (
+        "Sorry, I didn't catch that. How much sugar? Reply a number (0-9), 'half', or 'quarter'.",
+        {},
+        "We asked about sugar and the answer wasn't clear.",
+    ),
+    "welcome_registered": (
+        "Hi {name}! You're registered for {event} - what coffee would you like?",
+        {"name": "their first name", "event": "the event's name"},
+        "First text from someone on the registration list.",
+    ),
+    "welcome_back": (
+        "Welcome back!",
+        {},
+        "Comes before the offer of their usual.",
+    ),
+    "usual_offer": (
+        "What can I get you today, {name}? Your usual {order}?",
+        {"name": "their first name", "order": "the order, e.g. large oat latte"},
+        "A returning customer says hi.",
+    ),
+    "usual_milk_not_on": (
+        "Hi {name}! What can I get you today? (Just letting you know - {milk} isn't on at any station right now.)",
+        {"name": "their first name", "milk": "their usual milk"},
+        "A returning customer whose usual milk isn't on.",
+    ),
+    "usual_one_drink": (
+        "What type of coffee would you like today? Your usual {drink}?",
+        {"drink": "their usual drink"},
+        "A returning customer with one regular drink.",
+    ),
+    "usual_two_drinks": (
+        "What type of coffee would you like today? Your usual {drink} or perhaps a {other}?",
+        {"drink": "their usual drink", "other": "their second favourite"},
+        "A returning customer with two regular drinks.",
+    ),
+    "usual_confirm": (
+        "Great, {name}! Here's your usual order: {order}{price}\nWould you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)",
+        {"name": "their first name", "order": "the order, e.g. large oat latte", "price": "the price line, on its own line; empty when prices are off"},
+        "They asked for their usual.",
+    ),
+    "friend_tip": (
+        "Tip: add a friend's coffee anytime by texting FRIEND.",
+        {},
+        "Added after they confirm their usual.",
+    ),
+    "cancelled_ask_again": (
+        "Order cancelled. What type of coffee would you like instead, {name}?",
+        {"name": "their first name"},
+        "They said NO to confirming.",
+    ),
+    "edit_updated": (
+        "Updated - {change}.\nHere's your order now: {order}{price}\nReply YES to confirm, NO to cancel, or EDIT to change something else.",
+        {"change": "what changed", "order": "the order, e.g. large oat latte", "price": "the price line, on its own line; empty when prices are off"},
+        "They changed one thing before confirming.",
+    ),
+    "edit_restart": (
+        "Let's change that order, {name}. What type of coffee would you like?\nTip: you can also say e.g. \"edit milk to oat\" to change just one thing.",
+        {"name": "their first name"},
+        "They said EDIT before confirming.",
+    ),
+    "friend_start": (
+        "Great! Let's add a coffee for your friend. What's your friend's name?",
+        {},
+        "They said FRIEND instead of confirming their own.",
+    ),
+    "friend_confirm": (
+        "For {friend}: {order}.\nReply YES to confirm, EDIT to change, or NO to cancel.",
+        {"friend": "the friend's name", "order": "the order, e.g. large oat latte"},
+        "A friend's coffee is complete.",
+    ),
+    "friend_confirm_long": (
+        "Great! Here's the order for {friend}: {order}\nWould you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)",
+        {"friend": "the friend's name", "order": "the order, e.g. large oat latte"},
+        "A friend's coffee is complete, after the sugar question.",
+    ),
+    "friend_count_so_far": (
+        "That's {count} coffees in your group order.\nReply FRIEND to add another or NO to finish.",
+        {"count": "how many coffees"},
+        "Added after a friend's coffee is placed.",
+    ),
+    "friend_group_confirmed": (
+        "Thanks, {name}! Your group order of {count} coffees has been confirmed.{price}\nThey'll be ready together - we'll SMS you the pickup location.",
+        {"name": "their first name", "count": "how many coffees", "price": "the price line, on its own line; empty when prices are off"},
+        "They finished adding friends.",
+    ),
+    "status_pending": (
+        "Your order #{order_number} ({order}) is pending at {station}. You've been waiting {waited} minutes.",
+        {"order_number": "the order number", "order": "the order, e.g. large oat latte", "station": "the station", "waited": "minutes since they ordered"},
+        "STATUS, still in the queue.",
+    ),
+    "status_making": (
+        "Your order #{order_number} ({order}) is being made at {station}. You've been waiting {waited} minutes.",
+        {"order_number": "the order number", "order": "the order, e.g. large oat latte", "station": "the station", "waited": "minutes since they ordered"},
+        "STATUS, being made.",
+    ),
+    "status_ready": (
+        "Your order #{order_number} ({order}) is ready for pickup at {station}!",
+        {"order_number": "the order number", "order": "the order, e.g. large oat latte", "station": "the station", "waited": "minutes since they ordered"},
+        "STATUS, ready.",
+    ),
+    "status_time_left": (
+        "Ready in about {minutes} min.",
+        {"minutes": "minutes to go"},
+        "Added to STATUS when we can estimate it.",
+    ),
+    "vip_bumped": (
+        "VIP status activated{who}! Your order #{order_number} is now priority - we'll make it next. Text us anytime to order again.",
+        {"who": "', ' and their name, or nothing", "order_number": "the order number"},
+        "They sent the VIP code with a coffee already in the queue.",
+    ),
+    "vip_activated": (
+        "VIP status activated{who}! Your orders will be prioritised. What's your name and order?",
+        {"who": "', ' and their name, or nothing"},
+        "They sent the VIP code before ordering.",
+    ),
+}
+
+# An order's number and contents must reach the customer whatever the wording.
+REQUIRED = {
+    "order_placed": {"order_number"},
+    "order_placed_one_station": {"order_number"},
+    "order_recap": {"placed", "order"},
+    "group_placed": {"orders"},
 }
 
 _cache = {"at": 0.0, "value": {}}
@@ -421,11 +639,15 @@ def problems(key, text):
     if len(text) > MAX_LEN:
         return f"longer than {MAX_LEN} characters"
     try:
-        extra = placeholders(text) - set(CATALOG[key][1])
+        used = placeholders(text)
+        extra = used - set(CATALOG[key][1])
     except ValueError:
         return "a { or } that isn't part of a placeholder"
     if extra:
         return "unknown placeholder: " + ", ".join("{" + e + "}" for e in sorted(extra))
+    missing = REQUIRED.get(key, set()) - used
+    if missing:
+        return "must include " + ", ".join("{" + m + "}" for m in sorted(missing))
     return None
 
 
