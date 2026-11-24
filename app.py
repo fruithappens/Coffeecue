@@ -1895,7 +1895,7 @@ def create_app():
         try:
             return send_from_directory(static_dir, filename)
         except Exception as e:
-            logger.error(f"Error serving static file {filename}: {e}")
+            logger.info(f"Static file not found: {filename}")  # scanners probe /.env etc.
             return jsonify({"error": f"Static file not found: {filename}"}), 404
     
     # Also handle requests to /static/js/ for React chunk files

@@ -127,7 +127,14 @@ class SecureErrorHandler:
         """
         # Log the full error details for debugging (server-side only)
         if isinstance(error, Exception):
-            logger.error(f"Error occurred: {str(error)}", exc_info=True)
+            # A 4xx (a scanner probing /.env, a wrong method) is the
+            # caller's mistake, not ours: one INFO line, no traceback, so
+            # real errors aren't buried (Nov 2026: a 405 took 20 lines).
+            code = getattr(error, "code", None)
+            if isinstance(code, int) and 400 <= code < 500:
+                logger.info(f"Client error {code}: {str(error)[:200]}")
+            else:
+                logger.error(f"Error occurred: {str(error)}", exc_info=True)
             error_message = str(error)
         else:
             error_message = str(error)

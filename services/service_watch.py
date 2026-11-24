@@ -20,6 +20,7 @@ connection, so a slow check can't hold up an order.
 import logging
 import os
 import threading
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +269,7 @@ class ServiceWatch:
 
     def _run(self):
         self._stop.wait(90)  # let the app finish booting
+        last_sweep = None
         while not self._stop.is_set():
             try:
                 with self.app.app_context():
@@ -276,4 +278,30 @@ class ServiceWatch:
                     logger.warning("[service-watch] alerted: %s", [c for c, _ in raised])
             except Exception as e:
                 logger.warning("[service-watch] tick error: %s", e)
+            # Hourly (and once at boot): close orders left waiting from an
+            # earlier day so they never top the next event's queue.
+            if last_sweep is None or time.monotonic() - last_sweep >= 3600:
+                last_sweep = time.monotonic()
+                sweep_stale_orders()
             self._stop.wait(self.interval_s)
+
+
+def sweep_stale_orders():
+    """services/stale_orders.close_stale on a short connection of its own."""
+    conn = None
+    try:
+        conn = _connect()
+        if conn is None:
+            return []
+        from services.stale_orders import close_stale
+
+        return close_stale(conn)
+    except Exception as e:
+        logger.warning("[service-watch] stale-order sweep failed: %s", e)
+        return []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
