@@ -6,6 +6,7 @@ import EightySixBoard from '../barista-tabs/EightySixBoard';
 import { ToastManager, showToast } from '../shared/Toast';
 import SmsHealthBanner from '../shared/SmsHealthBanner';
 import AuthService from '../../services/AuthService';
+import { isAdminLogin } from '../../utils/switchedView';
 import printService from '../../services/PrintService';
 import BroadcastDialog from '../dialogs/BroadcastDialog';
 import StationChooser from './StationChooser';
@@ -149,6 +150,9 @@ const BaristaInterface = () => {
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 30000); return () => clearInterval(t); }, []);
   const unlocked = unlockedUntil > nowTick;
+  // The PIN keeps barista logins out of station admin and the Runner. An
+  // admin's own login is already past that, so it never asks them (Steve).
+  const adminLogin = isAdminLogin();
   const unlockedMinutes = unlocked ? Math.max(1, Math.ceil((unlockedUntil - nowTick) / 60000)) : 0;
   const unlockNow = () => { const until = Date.now() + UNLOCK_MINUTES * 60000; setUnlockedUntil(until); setNowTick(Date.now()); try { sessionStorage.setItem('coffee_cue_unlocked_until', String(until)); } catch (e) { /* ignore */ } };
   const lockNow = () => { setUnlockedUntil(0); try { sessionStorage.removeItem('coffee_cue_unlocked_until'); } catch (e) { /* ignore */ } };
@@ -2637,6 +2641,7 @@ const BaristaInterface = () => {
         open={adminOpen}
         onClose={() => setAdminOpen(false)}
         unlocked={unlocked}
+        adminLogin={adminLogin}
         unlockedMinutes={unlockedMinutes}
         onUnlock={unlockNow}
         onLock={lockNow}

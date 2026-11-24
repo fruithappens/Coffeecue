@@ -15,3 +15,8 @@ export const clearSwitchedView = () => {
 export const hasSwitchedView = () => {
   try { return sessionStorage.getItem(KEY) === '1'; } catch (e) { return false; }
 };
+
+export const isAdminLogin = () => {
+  try { return (JSON.parse(localStorage.getItem('coffee_system_user') || '{}').role || '').toLowerCase() === 'admin'; }
+  catch (e) { return false; }
+};

@@ -6,7 +6,7 @@ import { ChevronDown, Lock, Unlock, Plus } from 'lucide-react';
 import { AreaMark, StationChip } from '../../../design';
 import { WATCH_CAP } from './StationPicker';
 import AdminViewSwitcher from '../../shared/AdminViewSwitcher';
-import { hasSwitchedView } from '../../../utils/switchedView';
+import { hasSwitchedView, isAdminLogin } from '../../../utils/switchedView';
 
 const Status = ({ items }) => (
   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold leading-none">
@@ -76,9 +76,9 @@ export default function QueueHeader({
         </button>
         {showChips ? <div className="hidden sm:flex items-center gap-2 flex-wrap">{chips}</div> : null}
         <div className="flex-1" />
-        {/* Only for someone who came here through Switch view: back to the
-            Runner or Screens without the PIN. */}
-        {hasSwitchedView() ? <AdminViewSwitcher embedded /> : null}
+        {/* An admin login, or someone who came here through Switch view:
+            back to the Runner or Screens without the PIN. */}
+        {isAdminLogin() || hasSwitchedView() ? <AdminViewSwitcher embedded /> : null}
         <button
           type="button"
           onClick={onOpenAdmin}
