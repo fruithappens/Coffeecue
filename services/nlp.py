@@ -48,6 +48,18 @@ def _optional_query(db, sql):
             _MISSING_TABLES.add("stock_items")
         return None
 
+
+# Words that come before "milk" without naming one: "with milk", "extra milk".
+_NOT_A_MILK_NAME = frozenset({
+    "a", "an", "and", "any", "bit", "cold", "dash", "drop", "extra", "foam",
+    "frothy", "half", "hot", "in", "iced", "less", "little", "more", "my",
+    "normal", "of", "on", "or", "own", "plus", "some", "splash", "steamed",
+    "the", "usual", "warm", "with", "without", "your",
+})
+
+# Sweeteners people name instead of counting sugars.
+_NAMED_SWEETENERS = ("honey", "stevia", "equal", "splenda", "agave", "maple syrup")
+
 class NLPService:
     """Service for processing coffee orders using robust pattern matching"""
     
@@ -624,7 +636,7 @@ class NLPService:
     def _extract_milk_type(self, message):
         """Extract milk type from message"""
         # Handle explicit 'no milk' or 'black' first
-        for variation in self.milks["no milk"]:
+        for variation in ["no milk"] + self.milks["no milk"]:
             if re.search(r'\b' + re.escape(variation) + r'\b', message):
                 return "no milk"
         
@@ -633,17 +645,31 @@ class NLPService:
             if canonical == "no milk":  # Already handled
                 continue
                 
-            if canonical in message:
+            # Whole words only: 'oat' is inside 'goat' (a goat milk order
+            # was confirmed as oat, 24 Nov 2026).
+            if re.search(r'\b' + re.escape(canonical) + r'\b', message):
                 return canonical
             
             for variation in variations:
                 if re.search(r'\b' + re.escape(variation) + r'\b', message):
                     return canonical
-        
+
+        # A milk we don't know ('goat milk', 'camel milk') is kept as named,
+        # so the order is refused or asked about, never quietly full cream.
+        named = re.search(r'\b([a-z0-9]*[a-z][a-z0-9]*)\s+milk\b', message)
+        if named and named.group(1) not in _NOT_A_MILK_NAME:
+            return named.group(1)
+
         return None
     
     def _extract_sugar(self, message):
         """Extract sugar preference from message"""
+        # A sweetener named outright ('with honey') is kept by name so the
+        # event's sweetener list decides; it used to vanish from the order.
+        named = re.search(r'\b(' + '|'.join(_NAMED_SWEETENERS) + r')\b', message)
+        if named:
+            return named.group(1)
+
         # Check for numeric sugar patterns (e.g., "2 sugars", "3 sugar")
         num_sugar_match = re.search(r'(\d+)\s*(?:sugar|sugars|sweetener)', message)
         if num_sugar_match:
