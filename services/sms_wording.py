@@ -292,6 +292,77 @@ CATALOG = {
         {"name": "their first name", "station": "where to collect it"},
         "They confirmed their usual order.",
     ),
+    # Batch 4 (24 Nov 2026): ordering for a friend (FRIEND).
+    "friend_name_invalid": (
+        "Please enter a valid name for your friend (2-50 characters).",
+        {},
+        "The friend's name they sent was too short or too long.",
+    ),
+    "friend_ask_drink": (
+        "Thanks! What type of coffee would {friend} like?",
+        {"friend": "the friend's name"},
+        "We have the friend's name and need their drink.",
+    ),
+    "friend_unsure_drink": (
+        "I'm not sure what coffee {friend} would like. Please specify a coffee type like latte, cappuccino, flat white, etc.",
+        {"friend": "the friend's name"},
+        "We couldn't tell which drink the friend wants.",
+    ),
+    "friend_got_it_ask_size": (
+        "Got it - {order} for {friend}. What size? ({sizes})",
+        {"order": "the friend's drink and milk", "friend": "the friend's name", "sizes": "the sizes on offer"},
+        "We have the friend's drink and milk and need the size.",
+    ),
+    "friend_ask_size": (
+        "What size {drink} would {friend} like? ({sizes})",
+        {"drink": "the friend's drink", "friend": "the friend's name", "sizes": "the sizes on offer"},
+        "We have the friend's milk and need the size.",
+    ),
+    "friend_milk_unrecognised": (
+        "I didn't recognize that milk type. Please choose from: {milks}, or no milk.",
+        {"milks": "the milks on today"},
+        "Their answer to the friend's milk question wasn't a milk.",
+    ),
+    "friend_size_unrecognised": (
+        "I didn't recognize that size. Please choose {sizes} for {friend}'s coffee.",
+        {"sizes": "the sizes on offer", "friend": "the friend's name"},
+        "Their answer to the friend's size question wasn't a size.",
+    ),
+    "friend_sugar_unclear": (
+        "Sorry, I didn't catch how much sugar for {friend}. Reply 'none', '1', '2', '3', or 'half'.",
+        {"friend": "the friend's name"},
+        "Their answer to the friend's sugar question wasn't a sugar.",
+    ),
+    "friend_flow_confirmed": (
+        "Thanks, {name}! Your order has been confirmed.\nWe'll SMS you when it's ready with the pickup location.",
+        {"name": "their first name"},
+        "They finished ordering for friends with just one coffee.",
+    ),
+    "friend_ask_another": (
+        "Great! Let's add another coffee. What's your friend's name?",
+        {},
+        "They want to add another friend's coffee.",
+    ),
+    "friend_another_or_no": (
+        "Please reply FRIEND to order for another friend, or NO to finish.",
+        {},
+        "We asked if they want another friend's coffee and the answer wasn't clear.",
+    ),
+    "friend_cancelled_next": (
+        "Order for {friend} cancelled. What's the name of another friend you'd like to order for? (or type DONE to finish)",
+        {"friend": "the friend's name"},
+        "They cancelled a friend's coffee.",
+    ),
+    "friend_change": (
+        "Let's change {friend}'s order. What type of coffee would {friend} like?",
+        {"friend": "the friend's name"},
+        "They asked to change a friend's coffee.",
+    ),
+    "friend_confirm_prompt": (
+        "Please reply YES to confirm {friend}'s order, NO to cancel, EDIT to change it, or DONE to finish the group order.",
+        {"friend": "the friend's name"},
+        "We asked them to confirm a friend's coffee and the answer wasn't clear.",
+    ),
 }
 
 _cache = {"at": 0.0, "value": {}}

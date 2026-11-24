@@ -37,6 +37,8 @@ SAMPLE = {
     "station": "Station 1",
     "sweetener": "honey",
     "off_menu": "",
+    "friend": "Sam",
+    "order": "latte with oat milk",
 }
 
 
