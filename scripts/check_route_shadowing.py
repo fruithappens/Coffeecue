@@ -41,23 +41,10 @@ def where(app, endpoint):
 
 
 # Clashes that were already there when placeholder shapes started counting
-# (23 Nov 2026). Each pairs an int route in routes/station_api_routes.py or
-# routes/chat_routes.py with a string or renamed copy in routes/api/. They
-# are reported but do not fail the check; clear them one area at a time and
-# delete the line. Anything not on this list fails.
-KNOWN = {
-    ("DELETE", "/api/chat/messages/<>"),
-    ("DELETE", "/api/schedule/breaks/<>"),
-    ("DELETE", "/api/schedule/shifts/<>"),
-    ("GET", "/api/schedule/barista/<>"),
-    ("GET", "/api/schedule/date/<>"),
-    ("GET", "/api/stations/<>"),
-    ("GET", "/api/stations/<>/stats"),
-    ("PATCH", "/api/stations/<>/status"),
-    ("POST", "/api/stations/<>/capabilities"),
-    ("PUT", "/api/schedule/breaks/<>"),
-    ("PUT", "/api/schedule/shifts/<>"),
-}
+# (23 Nov 2026), all cleared 24 Nov 2026. If one ever has to be tolerated,
+# add ("METHOD", "/shape/<>") here with a comment saying why. Anything not
+# on this list fails.
+KNOWN = set()
 
 
 def shape(path):

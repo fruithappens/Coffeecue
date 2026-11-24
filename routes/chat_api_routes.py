@@ -196,6 +196,10 @@ def delete_chat_message(message_id):
     
     except Exception as e:
         logger.error(f"Error deleting chat message {message_id}: {str(e)}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({
             'success': False,
             'error': str(e)

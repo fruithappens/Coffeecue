@@ -98,7 +98,6 @@ def list_customer_questions():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-
 @bp.route('/customer-questions/<int:qid>/reply', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
@@ -202,7 +201,6 @@ def reply_to_customer_question(qid):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-
 @bp.route('/sms/simulate', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -252,7 +250,6 @@ def simulate_sms():
     except Exception as e:
         logger.error(f"simulate_sms error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 
 @bp.route('/sms/health', methods=['GET'])
@@ -396,7 +393,6 @@ def send_sms():
         }), 500
 
 
-
 @bp.route('/sms/dropped', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -460,7 +456,6 @@ def sms_dropped():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-
 @bp.route('/sms/log', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -515,7 +510,6 @@ def sms_log():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-
 @bp.route('/sms/blocklist', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -530,7 +524,6 @@ def sms_blocklist_get():
     except Exception as e:
         logger.error(f"sms_blocklist_get failed: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 
 @bp.route('/sms/block', methods=['POST'])
@@ -557,7 +550,6 @@ def sms_block_number():
     except Exception as e:
         logger.error(f"sms_block_number failed: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 
 @bp.route('/sms/unblock', methods=['POST'])
@@ -657,7 +649,6 @@ def get_chat_messages():
         }), 500
 
 
-
 @bp.route('/chat/messages', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
@@ -724,7 +715,6 @@ def create_chat_message():
         }), 500
 
 
-
 @bp.route('/chat/messages/<message_id>', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
@@ -773,44 +763,6 @@ def get_chat_message(message_id):
             'success': False,
             'message': f"Error fetching chat message: {str(e)}"
         }), 500
-
-
-
-@bp.route('/chat/messages/<message_id>', methods=['DELETE'])
-@jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
-def delete_chat_message(message_id):
-    """Delete a specific chat message"""
-    try:
-        # Get coffee system from app context
-        coffee_system = current_app.config.get('coffee_system')
-        db = coffee_system.db
-        
-        # Delete the message
-        cursor = db.cursor()
-        cursor.execute('DELETE FROM chat_messages WHERE id = %s RETURNING id', (message_id,))
-        
-        result = cursor.fetchone()
-        db.commit()
-        
-        if not result:
-            return jsonify({
-                'success': False,
-                'message': f'Message with ID {message_id} not found'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'message': f'Message {message_id} deleted successfully'
-        })
-    
-    except Exception as e:
-        logger.error(f"Error deleting chat message {message_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f"Error deleting chat message: {str(e)}"
-        }), 500
-
 
 
 @bp.route('/chat/stations', methods=['GET'])
@@ -893,7 +845,6 @@ def get_chat_stations():
         })
 
 
-
 @bp.route('/notifications/hold', methods=['GET', 'PUT'])
 @jwt_required_with_demo()
 @writes_need(STAFF_ROLES)
@@ -929,7 +880,6 @@ def notification_hold():
     except Exception as e:
         logger.error(f"notification_hold error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 
 @bp.route('/notifications/hold/discard', methods=['POST'])
@@ -977,7 +927,6 @@ def discard_held_notifications():
         except Exception:
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 
 @bp.route('/notifications/release', methods=['POST'])
@@ -1068,7 +1017,6 @@ def release_notifications():
         except Exception:
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 
 @bp.route('/sms/templates', methods=['GET'])
