@@ -939,11 +939,7 @@ class MenuMixin:
                     # For the caller to count (utils/refusals.py): what
                     # stopped it, in the terms the report groups by.
                     self._last_refusal = {"reason": "86", "item": ", ".join(_names)}
-                    return False, (
-                        f"Sorry, we can't make {drink} right now - "
-                        f"the barista has marked {', '.join(_names)} "
-                        f"unavailable."
-                    )
+                    return False, say("cant_make_marked", drink=drink, items=", ".join(_names))
                 if _verdict == "on":
                     return True, ""
             # Unlimited-stock mode means "this event does not refuse for
@@ -965,10 +961,7 @@ class MenuMixin:
                 return True, ""
             drink = str(od.get("type") or "that")
             self._last_refusal = {"reason": "stock", "item": ", ".join(missing)}
-            return False, (
-                f"Sorry, we can't make {drink} right now - "
-                f"we've run out of {', '.join(missing)}."
-            )
+            return False, say("cant_make_run_out", drink=drink, items=", ".join(missing))
         except Exception as e:
             logger.error(f"check_order_makeable failed (allowing order): {e}")
             return True, ""
@@ -1233,7 +1226,7 @@ class MenuMixin:
             name = str(self._get_setting_fresh("venue_cafe_name", "") or "").strip()
         except Exception:
             name = ""
-        return f" Or grab it yourself from the {name}." if name else ""
+        return " " + say("get_it_elsewhere", venue=name) if name else ""
 
     def _is_valid_milk_type(self, requested_milk, available_milks):
         """Check if the requested milk type is valid and in stock"""
@@ -1269,7 +1262,7 @@ class MenuMixin:
         Output: e.g. "Sugar: 0-3 (just text the number)"
         """
         if not sweeteners:
-            return "Sweetener: none"
+            return say("menu_no_sweetener")
 
         names = [s[0] for s in sweeteners if s and s[0]]
         # Pull out the "N sugar" variants — extract the integer.
@@ -1321,9 +1314,9 @@ class MenuMixin:
             bits.append(", ".join(non_sugar_names))
 
         return (
-            f"Sugar: {', '.join(bits)} (just text the number)"
+            say("menu_sugar", sugars=", ".join(bits))
             if bits
-            else "Sweetener: none"
+            else say("menu_no_sweetener")
         )
 
     def _get_available_sweeteners(self):

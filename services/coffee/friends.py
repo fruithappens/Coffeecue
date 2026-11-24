@@ -77,10 +77,7 @@ class FriendsMixin:
                     },
                 )
 
-                return (
-                    f"I see {friend_name} usually orders: {order_summary}\n"
-                    f"Would you like to order this again? (Reply YES or tell me what {friend_name} would like instead)"
-                )
+                return say("friend_usual_offer", friend=friend_name, order=order_summary)
 
         except Exception as e:
             logger.error(f"Error checking for previous friend order: {str(e)}")
@@ -135,10 +132,7 @@ class FriendsMixin:
             # Format order summary
             order_summary = self.nlp.format_order_summary(friend_order)
 
-            return (
-                f"Great! Here's the order for {friend_name}: {order_summary}\n"
-                f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
-            )
+            return say("friend_usual_confirm", friend=friend_name, order=order_summary)
 
         else:
             # They want to specify a different order
@@ -229,10 +223,7 @@ class FriendsMixin:
             phone, "awaiting_friend_confirmation", shared_state
         )
         order_summary = self.nlp.format_order_summary(order_details)
-        return (
-            f"For {friend_name}: {order_summary}.\n"
-            f"Reply YES to confirm, EDIT to change, or NO to cancel."
-        )
+        return say("friend_order_check", friend=friend_name, order=order_summary)
 
     def _friend_sizes(self, order):
         """The sizes this event pours, for the friend's size question."""

@@ -55,6 +55,22 @@ SAMPLE = {
     "change": "milk is now oat",
     "waited": "4",
     "minutes": "6",
+    'drinks': 'latte, flat white, cappuccino, long black, espresso, mocha',
+    'sugars': '0-3 sugars',
+    'example': 'small oat latte',
+    'usual': 'large latte with oat',
+    'examples': '"small oat latte", "flat white", "chai latte"',
+    'elsewhere': '',
+    'venue': 'Foyer Cafe',
+    'bean': 'decaf',
+    'beans': 'house blend',
+    'sweeteners': 'sugar, no sugar',
+    'items': 'oat milk',
+    'missing': 'milk, size',
+    'time': '10:40',
+    'link': 'https://cupq.app/track?id=123',
+    'since': 'November 2026',
+    'reason': "we don't have oat milk",
 }
 
 

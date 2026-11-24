@@ -783,7 +783,9 @@ class CoffeeOrderSystem(
 
 
     # Plain ASCII (SMS segment cost rule).
-    SUGAR_SELF_SERVE_NOTE = " Sugar is help-yourself at the counter."
+    @property
+    def SUGAR_SELF_SERVE_NOTE(self):
+        return " " + say("sugar_self_serve")
 
 
     # The standard espresso-based drink menu — returned when coffee

@@ -1,6 +1,7 @@
 """
 Routes for handling SMS messages from Twilio with PostgreSQL support
 """
+from services.sms_wording import say
 from flask import Blueprint, request, jsonify, current_app, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -329,7 +330,7 @@ def _sms_webhook_inner():
         if not from_number or not body:
             logger.error("Missing required fields in SMS webhook")
             resp = MessagingResponse()
-            resp.message("Sorry, we couldn't process your message. Please try again.")
+            resp.message(say("message_unreadable"))
             return str(resp)
         
         # Capture metadata - look for sender name in ProfileName field if available
@@ -371,7 +372,7 @@ def _sms_webhook_inner():
         if not coffee_system or not messaging_service:
             logger.error("Coffee system or messaging service not available")
             resp = MessagingResponse()
-            resp.message("Sorry, our ordering system is currently unavailable. Please try again later.")
+            resp.message(say("system_down"))
             return str(resp)
 
         # SMS abuse / cost protection — BEFORE any reply work. Every inbound SMS
@@ -421,7 +422,7 @@ def _sms_webhook_inner():
                 logger.error(f"Failed to reset conversation state: {str(reset_err)}")
             
             resp = MessagingResponse()
-            resp.message("You have successfully been re-subscribed to coffee order messages. What's your first name?")
+            resp.message(say("resubscribed"))
             return str(resp)
             
         if body_upper == 'HELP' or body_upper == 'INFO':
@@ -556,16 +557,13 @@ def _sms_webhook_inner():
 # they can take rather than an apology. Plain ASCII only: non-ASCII turns
 # the SMS into UCS-2 and doubles the cost of every segment.
 _RECOVERY_BY_STATE = {
-    'awaiting_name': "Sorry, we dropped that one. What's your first name?",
-    'awaiting_coffee_type': "Sorry, we dropped that one. What coffee would you like?",
-    'awaiting_milk': "Sorry, we dropped that one. Which milk would you like?",
-    'awaiting_size': "Sorry, we dropped that one. What size would you like?",
-    'awaiting_sugar': "Sorry, we dropped that one. How many sugars?",
-    'awaiting_confirmation': ("Sorry, we dropped that one - your order is still "
-                              "waiting. Reply YES to confirm it."),
+    'awaiting_name': "retry_name",
+    'awaiting_coffee_type': "retry_drink",
+    'awaiting_milk': "retry_milk",
+    'awaiting_size': "retry_size",
+    'awaiting_sugar': "retry_sugar",
+    'awaiting_confirmation': "retry_confirm",
 }
-_RECOVERY_DEFAULT = ("Sorry, we dropped that one. Please send your last message "
-                     "again and we'll pick up where you left off.")
 
 
 def _recovery_prompt(phone):
@@ -576,15 +574,15 @@ def _recovery_prompt(phone):
     """
     try:
         if not phone:
-            return _RECOVERY_DEFAULT
+            return say('retry_last')
         coffee_system = current_app.config.get('coffee_system')
         if not coffee_system:
-            return _RECOVERY_DEFAULT
+            return say('retry_last')
         state = coffee_system._get_conversation_state(phone) or {}
-        return _RECOVERY_BY_STATE.get(state.get('state'), _RECOVERY_DEFAULT)
+        return say(_RECOVERY_BY_STATE.get(state.get('state'), 'retry_last'))
     except Exception as recovery_err:
         logger.warning(f"recovery prompt lookup failed: {recovery_err}")
-        return _RECOVERY_DEFAULT
+        return say('retry_last')
 
 def _process_inbound_via_provider(provider_name: str):
     """Shared handler for non-Twilio inbound webhooks (ClickSend, Cellcast,
@@ -670,9 +668,7 @@ def _process_inbound_via_provider(provider_name: str):
         ) or ''
     except Exception as e:
         logger.exception(f"{provider_name} handle_sms failed: {e}")
-        response_text = (
-            "Sorry, our system is having a moment. Please try again."
-        )
+        response_text = say("system_moment")
 
     # Reply via the same provider that received the message (so the
     # customer's reply chain stays on one number). Out-of-band: this
