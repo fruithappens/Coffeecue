@@ -47,7 +47,8 @@ def test_every_say_in_the_bot_has_a_catalogue_entry():
 
     root = Path(__file__).resolve().parents[2]
     used = set()
-    for f in [root / "services" / "coffee_system.py", *(root / "services" / "coffee").glob("*.py")]:
+    for f in [root / "services" / "coffee_system.py", *(root / "services" / "coffee").glob("*.py"),
+              root / "services" / "pickup_reminder.py", root / "routes" / "sms_routes.py"]:
         used |= set(re.findall(r"\bsay\(\s*[\"']([a-z_]+)[\"']", f.read_text()))
     assert used, "no say() calls found"
     assert used - set(w.CATALOG) == set()
@@ -74,3 +75,55 @@ def test_recap_reads_as_before():
         assert w.say("order_recap", placed="Order #7 confirmed.", order="latte", price="\nTotal: $5") == (
             "Order #7 confirmed.\nThat's: latte.\nTotal: $5 Wrong? CHANGE or OOPS. Add another with FRIEND."
         )
+
+
+def test_retry_prompts_exist():
+    from routes.sms_routes import _RECOVERY_BY_STATE
+
+    assert set(_RECOVERY_BY_STATE.values()) <= set(w.CATALOG)
+
+
+def test_texts_are_plain_ascii():
+    for key, (default, _, _) in w.CATALOG.items():
+        assert default.isascii(), key
+
+
+def test_a_reminder_keeps_its_order_number_and_station():
+    assert "{order_number}" in w.problems("reminder", "Come and get it, {name}")
+    with _with({"reminder": "Come and get it, {name}"}):
+        text = w.say("reminder", name="Sam", order="latte", order_number="7", station="Cart 1")
+    assert "#7" in text and "Cart 1" in text
+
+
+def test_change_works_whatever_the_cancel_text_says():
+    # CHANGE used to look for the word "cancelled" in the cancel reply.
+    from services.coffee.commands import CommandsMixin
+
+    class Cur:
+        def execute(self, sql, args=None):
+            self.sql = sql
+
+        def fetchone(self):
+            if "SELECT status" in self.sql:
+                return (self.status,)
+            return ("55", 1)
+
+    class Bot(CommandsMixin):
+        def __init__(self, status):
+            self.cur = Cur()
+            self.cur.status = status
+            self.db = self
+            self.conversation_states = {}
+
+        def cursor(self, *a, **k):
+            return self.cur
+
+        def rollback(self):
+            pass
+
+        def _handle_cancel_command(self, phone):
+            return "All gone!"
+
+    with _with({}):
+        assert "#55" in Bot("cancelled")._handle_change_command("+61400000001")
+        assert Bot("pending")._handle_change_command("+61400000001") == "All gone!"

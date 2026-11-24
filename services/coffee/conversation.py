@@ -79,10 +79,7 @@ class ConversationMixin:
     def _sms_first_message_hint(self):
         """One-line footer on the welcome so new customers know the commands
         available — see the menu, order for friends, or cancel."""
-        return (
-            "\n\n(Tips: reply MENU to see the menu / FRIEND to add a "
-            "friend's coffee / OOPS to scrap an order)"
-        )
+        return "\n\n" + say("welcome_tips")
 
     def _handle_greeting(self, phone, message, state):
         """Handle greeting messages or help requests"""
@@ -123,9 +120,7 @@ class ConversationMixin:
                 self._set_conversation_state(
                     phone, "awaiting_coffee_type", {"name": name}
                 )
-                return (
-                    f"Welcome back, {name}! What type of coffee would you like today?"
-                )
+                return say("welcome_back_no_usual", name=name)
         else:
             # New customer. They may have crammed name + order into the
             # greeting ("Hi I'm Sarah, large flat white") — if there's a drink,
@@ -535,10 +530,7 @@ class ConversationMixin:
             self._save_customer_preferences(phone, name, od)
         except Exception as e:
             logger.error(f"pre-event preference save failed: {e}")
-            return (
-                "Sorry, we couldn't save your pre-order just now - "
-                "please try again in a minute."
-            )
+            return say("preorder_failed")
         self._set_conversation_state(phone, "completed")
         cfg = self._pre_event_settings()
         template = (cfg.get("message") or "").strip() or self.PRE_EVENT_DEFAULT_MESSAGE
@@ -692,7 +684,7 @@ class ConversationMixin:
         # Un-makeable milk → drop it and re-ask milk.
         milk_note = ""
         if od.get("milk") and not self._milk_is_makeable(od.get("milk")):
-            milk_note = f"We don't have {od.pop('milk')} at any station - "
+            milk_note = say("milk_nowhere_note", milk=od.pop("milk")) + " "
 
         state_data = {"name": name, "order_details": od}
 
@@ -772,10 +764,7 @@ class ConversationMixin:
         milk, drink we don't make), don't guess - drop back to the normal
         one-coffee flow and tell them how to do the group."""
         self._set_conversation_state(phone, "awaiting_coffee_type", {"name": name})
-        return (
-            f"I can do a group order, but {reason}. Easiest is one coffee at a "
-            f"time - what's the first one? (Then reply FRIEND to add the next.)"
-        )
+        return say("group_one_at_a_time", reason=reason)
 
     def _handle_multi_drink_order(self, phone, message, state=None):
         """Place several coffees from a single text as ONE linked group: same
@@ -858,10 +847,7 @@ class ConversationMixin:
         if self._pre_event_settings().get("enabled"):
             msg = self._pre_event_response(phone, name, resolved[0])
             if len(resolved) > 1:
-                msg += (
-                    "\n(Pre-orders save ONE coffee per phone - we kept the "
-                    "first; order the rest on the day.)"
-                )
+                msg += "\n" + say("preorder_one_only")
             return msg
 
         # Place them. The FIRST order establishes the group_id (its order
@@ -1035,11 +1021,8 @@ class ConversationMixin:
                     },
                 )
 
-                return (
-                    f"Nice to meet you, {name}! Would you like your usual "
-                    f"{size} {drink_label} with {milk}{strength_text}? "
-                    f"Reply YES or tell me what you'd like."
-                )
+                return say("named_usual_offer", name=name,
+                           usual=f"{size} {drink_label} with {milk}{strength_text}")
 
         # For new customers or those without usual orders
         self._set_conversation_state(phone, "awaiting_coffee_type", {"name": name})
@@ -1081,11 +1064,7 @@ class ConversationMixin:
             extras = []
         if extras:
             examples.append(f'"{extras[0]}"')
-        return (
-            f"Hi {name}! What can I get you?\n"
-            f"Examples: {', '.join(examples)}\n"
-            f"Reply MENU to see what's on offer."
-        )
+        return say("named_ask_drink", name=name, examples=", ".join(examples))
 
     def _has_usual_order(self, phone):
         """Check if customer has a usual order"""
@@ -1354,34 +1333,34 @@ class ConversationMixin:
                 match = _match_vocab(value, self.nlp.milks)
                 if match:
                     updated["milk"] = match
-                    return updated, f"milk → {match}"
+                    return updated, f"milk is now {match}"
                 return updated, f'sorry, "{value}" isn\'t a milk we recognise'
             if canonical_field == "size":
                 match = _match_vocab(value, self.nlp.sizes)
                 if match:
                     updated["size"] = match
-                    return updated, f"size → {match}"
+                    return updated, f"size is now {match}"
                 return updated, f'sorry, "{value}" isn\'t a size we recognise'
             if canonical_field == "sugar":
                 match = _match_vocab(value, self.nlp.sugars)
                 if match:
                     updated["sugar"] = match
-                    return updated, f"sugar → {match}"
+                    return updated, f"sugar is now {match}"
                 return updated, f'sorry, "{value}" isn\'t a sugar amount we recognise'
             if canonical_field == "strength":
                 match = _match_vocab(value, self.nlp.strengths)
                 if match:
                     updated["strength"] = match
-                    return updated, f"strength → {match}"
+                    return updated, f"strength is now {match}"
                 # Allow free-form ("2 shots") to pass through verbatim
                 updated["strength"] = value
-                return updated, f"strength → {value}"
+                return updated, f"strength is now {value}"
             if canonical_field == "type":
                 # Use full NLP parse to canonicalise the drink type
                 parsed = self.nlp.parse_order(value, apply_defaults=False)
                 if parsed.get("type"):
                     updated["type"] = parsed["type"]
-                    return updated, f"drink → {parsed['type']}"
+                    return updated, f"drink is now {parsed['type']}"
                 return updated, f'sorry, "{value}" isn\'t a drink we recognise'
 
         # Single-word form: "milk", "size", "sugar" → not enough info
@@ -1398,7 +1377,7 @@ class ConversationMixin:
             match = _match_vocab(text, vocab)
             if match:
                 updated[field] = match
-                return updated, f"{label} → {match}"
+                return updated, f"{label} is now {match}"
 
         # Couldn't interpret — let the caller fall back to legacy EDIT.
         return None
@@ -1475,17 +1454,8 @@ class ConversationMixin:
                 return say("which_tea", teas=', '.join(sorted(teas)))
             self._count_refusal("sms", order_details, reason="no_drink", item=coffee_type)
             if not teas and self._is_catering_drink(coffee_type):
-                return (
-                    f"We're coffee only - tea, juice and water are "
-                    f"available in the catering area.\n"
-                    f"From us: {available_line}.\n"
-                    f"Reply MENU for the full list."
-                )
-            return (
-                f"Sorry, we don't have {coffee_type} today. Available: "
-                f"{available_line}.\n"
-                f"Reply MENU for the full list."
-            )
+                return say("coffee_only", available=available_line)
+            return say("drink_not_today", drink=coffee_type, available=available_line)
 
         # Validate milk type if specified
         milk_type = order_details.get("milk", "")
@@ -1495,12 +1465,8 @@ class ConversationMixin:
             if not self._is_valid_milk_type(milk_type, available_milk_types):
                 self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
                 milk_words = milk_type if "milk" in milk_type.lower() else f"{milk_type} milk"
-                return (
-                    f"Sorry, we don't have {milk_words}. Available milks: "
-                    f"{', '.join(available_milk_types)}."
-                    f"{self._offmenu_note()}\n"
-                    f"Reply MENU for the full list."
-                )
+                return say("milk_not_today", milk=milk_words,
+                           milks=", ".join(available_milk_types), elsewhere=self._offmenu_note())
 
         # Validate the bean choice. The kiosk hides its Decaf toggle when
         # no decaf row is stocked and the walk-in builds its tiles from
@@ -1520,11 +1486,8 @@ class ConversationMixin:
                 for b in available_beans
             ):
                 self._count_refusal("sms", order_details, reason="no_bean", item=requested_bean)
-                return (
-                    f"Sorry, we don't have {requested_bean} today. "
-                    f"We can make it with: {', '.join(available_beans)}.\n"
-                    f"Reply MENU for the full list."
-                )
+                return say("bean_not_today", bean=requested_bean,
+                           beans=", ".join(available_beans))
 
         # Gate 2: the resolved recipe's ingredients (chocolate powder for
         # a mocha, water on a jerry-can cart, the cup itself). Milk and
@@ -1536,7 +1499,7 @@ class ConversationMixin:
         _mk_ok, _mk_msg = self.check_order_makeable(order_details)
         if not _mk_ok:
             self._count_refusal("sms", order_details, message=_mk_msg)
-            return _mk_msg + "\nReply MENU for what's available."
+            return _mk_msg + "\n" + say("see_menu")
 
         # Validate sweetener if specified
         sweetener = order_details.get("sugar", "")
@@ -1545,11 +1508,8 @@ class ConversationMixin:
             if not self._is_valid_sweetener(sweetener, available_sweeteners):
                 sweetener_names = [s[0] for s in available_sweeteners]
                 self._count_refusal("sms", order_details, reason="no_sweetener", item=sweetener)
-                return (
-                    f"Sorry, we don't have {sweetener}. Available sweeteners: "
-                    f"{', '.join(sweetener_names)}.\n"
-                    f"Reply MENU for the full list."
-                )
+                return say("sweetener_not_today", sweetener=sweetener,
+                           sweeteners=", ".join(sweetener_names))
 
         # Get customer's name from state
         name = state.get("temp_data", {}).get("name", "")
@@ -1618,10 +1578,8 @@ class ConversationMixin:
                 # fall through — do NOT return; sugar may already be known
             else:
                 self._set_conversation_state(phone, "awaiting_size", state_data)
-                return (
-                    f"Got it - {order_details['type']}{milk_phrase}. "
-                    f"What size? ({', '.join(available_sizes)})"
-                )
+                return say("got_it_ask_size", drink=order_details["type"] + milk_phrase,
+                           sizes=", ".join(available_sizes))
 
         # Sugar isn't prompted — default to no sugar (shown in the recap so
         # they can fix it) and auto-place the order (no YES step).
@@ -1677,13 +1635,11 @@ class ConversationMixin:
                 ) or ["small", "medium", "large"]
                 if len(available_sizes) == 1:
                     order_details["size"] = available_sizes[0]
-                    size_note = f"All drinks are {available_sizes[0]} today. "
+                    size_note = say("one_size_note", size=available_sizes[0]) + " "
                 else:
                     self._set_conversation_state(phone, "awaiting_size", state_data)
-                    return (
-                        f"What size {order_details.get('type', 'coffee')} would you like? "
-                        f"({', '.join(available_sizes)})"
-                    )
+                    return say("ask_size_for", drink=order_details.get("type", "coffee"),
+                               sizes=", ".join(available_sizes))
 
             # Sugar isn't prompted — default no sugar (shown in the recap) and
             # auto-place. `size_note` (one-size events) is carried as a prefix.
@@ -1716,7 +1672,7 @@ class ConversationMixin:
             state_data = {"name": name, "order_details": order_details}
             note = ""
             if requested and requested.lower() != only_size.lower():
-                note = f"We only have {only_size} cups today, so I've made it {only_size}. "
+                note = say("size_changed_note", size=only_size) + " "
             # Sugar isn't prompted — default no sugar, auto-place.
             return self._place_order(phone, name, order_details, prefix=note)
 

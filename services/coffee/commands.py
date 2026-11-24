@@ -229,11 +229,7 @@ class CommandsMixin:
         """Schedule the customer's usual for their stated arrival time."""
         prefs = self._get_preferred_order(phone)
         if not prefs:
-            return (
-                f"Got it - about {minutes} min away! Text us your order now "
-                f"(e.g. 'medium latte with full cream') and we'll get it "
-                f"underway so it's ready when you arrive."
-            )
+            return say("eta_ask_order", minutes=minutes)
         display_name = name or prefs.get("name") or "there"
         return self._create_scheduled_order(phone, display_name, prefs, minutes)
 
@@ -316,22 +312,15 @@ class CommandsMixin:
             )
             self.db.commit()
             self._set_conversation_state(phone, "completed")
-            return (
-                f"Great {name}! Your {summary} is scheduled - we'll start "
-                f"making it just before you arrive, ready about "
-                f"{arrival.strftime('%H:%M')}. Order #{order_number}. "
-                f"Reply CHANGE to fix it or OOPS to cancel."
-            )
+            return say("eta_scheduled", name=name, order=summary,
+                       time=arrival.strftime("%H:%M"), order_number=order_number)
         except Exception as e:
             logger.error(f"_create_scheduled_order failed: {e}")
             try:
                 self.db.rollback()
             except Exception:
                 pass
-            return (
-                "Sorry, we couldn't schedule that just now - text your "
-                "order when you arrive and we'll make it straight away."
-            )
+            return say("eta_failed")
 
     def promote_due_scheduled_orders(self):
         """Flip due scheduled orders to pending. Called lazily from the
@@ -523,7 +512,7 @@ class CommandsMixin:
 
             # Add linked order info if any
             if friend_orders:
-                response += "\n\nRelated orders:\n" + "\n".join(friend_orders)
+                response += "\n\n" + say("status_related", orders="\n".join(friend_orders))
 
             # Add URL for web tracking if enabled
             if self._get_setting("enable_web_tracking", "false").lower() in (
@@ -535,15 +524,13 @@ class CommandsMixin:
                     "web_tracking_url", "https://coffee.example.com/track/"
                 )
                 tracking_url = f"{base_url}?id={order_number}"
-                response += f"\n\nTrack your order here: {tracking_url}"
+                response += "\n\n" + say("track_link", link=tracking_url)
 
             return response
 
         except Exception as e:
             logger.error(f"Error processing STATUS command: {str(e)}")
-            return (
-                "Sorry, we couldn't retrieve your order status. Please try again later."
-            )
+            return say("status_failed")
 
     def _handle_change_command(self, phone):
         """CHANGE / EDIT -- swap a pending order for a different one.
@@ -586,7 +573,7 @@ class CommandsMixin:
         order_number = pending[0] if not isinstance(pending, dict) else \
             list(pending.values())[0]
         result = self._handle_cancel_command(phone)
-        if "cancelled" not in str(result).lower():
+        if not self._order_is_cancelled(order_number):
             # Cancellation did not take -- do NOT tell them to order again,
             # or they end up with two coffees.
             return result
@@ -600,10 +587,25 @@ class CommandsMixin:
         except Exception:
             pass
 
-        return (
-            f"No problem - order #{order_number} is cancelled. "
-            f"What would you like instead?"
-        )
+        return say("change_cancelled", order_number=order_number)
+
+    def _order_is_cancelled(self, order_number):
+        """Read from the order itself: the reply's words can be edited."""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT status FROM orders WHERE order_number = %s", (order_number,)
+            )
+            row = cursor.fetchone()
+            status = row.get("status") if isinstance(row, dict) else (row and row[0])
+            return status == "cancelled"
+        except Exception as e:
+            logger.error(f"CHANGE: couldn't check order {order_number}: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return False
 
     def _handle_cancel_command(self, phone):
         """Handle CANCEL command - cancel the most recent order"""
@@ -639,11 +641,8 @@ class CommandsMixin:
                 making = cursor.fetchone()
                 if making:
                     m_num, m_station = making
-                    return (
-                        f"Your order #{m_num} is already being made at "
-                        f"{station_label(self.db, m_station)} - too late to cancel by text. "
-                        f"Please see the barista if you need to change it."
-                    )
+                    return say("cancel_too_late", order_number=m_num,
+                               station=station_label(self.db, m_station))
                 # Same honesty for a READY order: "you don't have any orders"
                 # to someone whose coffee is on the shelf reads as "we lost
                 # it" (Test Bench cancel-after-ready journey).
@@ -659,11 +658,8 @@ class CommandsMixin:
                 ready = cursor.fetchone()
                 if ready:
                     r_num, r_station = ready
-                    return (
-                        f"Good news - your order #{r_num} is already made and "
-                        f"waiting for you at {station_label(self.db, r_station)}! No need to "
-                        f"cancel, just come and grab it."
-                    )
+                    return say("cancel_already_ready", order_number=r_num,
+                               station=station_label(self.db, r_station))
                 return say("nothing_to_cancel")
 
             order_id, order_number, station_id = result
@@ -806,10 +802,7 @@ class CommandsMixin:
 
         question_text = (question_text or "").strip()
         if not question_text:
-            return (
-                "Didn't catch a question. Just text it again, e.g. "
-                "'BARISTA is the milk fresh today?'"
-            )
+            return say("question_empty")
 
         try:
             cursor = self.db.cursor()
@@ -836,10 +829,7 @@ class CommandsMixin:
                 self.db.rollback()
             except Exception:
                 pass
-            return (
-                "Sorry, our system hiccuped sending your question - "
-                "try again in a moment, or ask at the counter."
-            )
+            return say("question_failed")
 
         # Push a WebSocket event so any open Barista UI lights up the
         # badge without waiting for its 15s poll cycle.
@@ -972,11 +962,7 @@ class CommandsMixin:
                 phone,
             )
 
-            return (
-                "Forgotten! Your saved name, preferences, and "
-                f"{order_count} past order(s) have been wiped. "
-                "Text us again to start fresh as a new customer."
-            )
+            return say("forgetme_done", count=order_count)
 
         except Exception as e:
             logger.error(f"FORGETME failed for {phone}: {e}")
@@ -984,43 +970,11 @@ class CommandsMixin:
                 self.db.rollback()
             except Exception:
                 pass
-            return (
-                "Sorry - couldn't fully reset your record right now. "
-                "Try again in a moment."
-            )
+            return say("forgetme_failed")
 
     def _handle_help_command(self):
-        """Handle INFO command - provide instructions (avoiding HELP as Twilio uses it for opt-out)"""
-        return (
-            "Coffee Ordering Instructions:\n"
-            "- Text your coffee order (e.g., 'large latte with oat milk')\n"
-            "- STATUS: Check your order status\n"
-            "- FRIEND: Add a coffee for a friend\n"
-            "- CHANGE: Swap your order for a different one\n"
-            "- OOPS: Cancel your pending order\n"
-            "- MENU: See available coffee options\n"
-            "- USUAL: Order your usual coffee\n"
-            "- OPTIONS: See all available commands\n"
-            "Need more help? Visit the help desk or any coffee station."
-        )
-
-    def _handle_options_command(self):
-        """Handle OPTIONS command - list all available commands"""
-        return (
-            "Available Commands:\n"
-            "Ordering:\n"
-            "- STATUS: Check order status\n"
-            "- FRIEND: Add coffee for a friend\n"
-            "- CHANGE: Swap your order\n"
-            "- OOPS: Cancel pending order\n"
-            "- MENU: See coffee options\n"
-            "- USUAL: Order your usual\n"
-            "\nPrivacy:\n"
-            "- MYDATA: View your info\n"
-            "- CHANGENAME [name]: Update name\n"
-            "- RESET: Clear preferences\n"
-            "- DELETE: Remove all data"
-        )
+        """INFO / ? - how to order (HELP is answered by the phone network)."""
+        return say("help")
 
     def _handle_options_menu_command(self):
         """MENU / OPTIONS command - return the live, current menu so the
@@ -1120,16 +1074,16 @@ class CommandsMixin:
             shown += remaining[:1]
             coffee_line_tail = ""
             if extra_count > 1:
-                coffee_line_tail = f" (+{extra_count - 1} more - just text the name)"
+                coffee_line_tail = " " + say("menu_more_drinks", count=extra_count - 1)
 
             # Build the message
-            lines = ["Menu:"]
+            lines = [say("menu_title")]
             if shown:
-                lines.append(f"Coffee: {', '.join(shown)}{coffee_line_tail}")
+                lines.append(say("menu_coffee", drinks=", ".join(shown) + coffee_line_tail))
             elif available_coffees:
-                lines.append(f"Coffee: {', '.join(sorted(available_coffees)[:6])}")
+                lines.append(say("menu_coffee", drinks=", ".join(sorted(available_coffees)[:6])))
             else:
-                lines.append("Coffee: (none in stock - check back soon)")
+                lines.append(say("menu_no_coffee"))
 
             # Split out teas as their own line.
             teas = [d for d in extra_drinks if "tea" in d.lower()]
@@ -1137,9 +1091,9 @@ class CommandsMixin:
             if teas:
                 # Drop the trailing " tea" since the line is already "Tea:"
                 teas_short = [t.lower().replace(" tea", "").strip() or t for t in teas]
-                lines.append(f"Tea: {', '.join(teas_short)}")
+                lines.append(say("menu_tea", teas=", ".join(teas_short)))
             if other_drinks:
-                lines.append(f"Other: {', '.join(other_drinks)}")
+                lines.append(say("menu_other", drinks=", ".join(other_drinks)))
 
             if available_milks:
                 # Cap at 6 for visual cleanliness; if more configured,
@@ -1149,21 +1103,18 @@ class CommandsMixin:
                 if len(milks_sorted) > 6:
                     milk_tail = f" (+{len(milks_sorted) - 6} more)"
                     milks_sorted = milks_sorted[:6]
-                lines.append(f"Milk: {', '.join(milks_sorted)}{milk_tail}")
+                lines.append(say("menu_milk", milks=", ".join(milks_sorted) + milk_tail))
             else:
-                lines.append("Milk: (none in stock)")
+                lines.append(say("menu_no_milk"))
 
             if available_sweeteners:
                 lines.append(f"{self._summarise_sweeteners(available_sweeteners)}")
 
-            lines.append(f"Size: {', '.join(sizes)}")
+            lines.append(say("menu_sizes", sizes=", ".join(sizes)))
 
             if single_station_milks:
                 lines.append("")
-                lines.append(
-                    f"{', '.join(single_station_milks)} only at certain stations - "
-                    f"we'll route automatically."
-                )
+                lines.append(say("menu_some_stations", milks=", ".join(single_station_milks)))
 
             lines.append("")
             # Build a context-aware example using a real available size+milk.
@@ -1182,24 +1133,15 @@ class CommandsMixin:
             # we then have to strip back out.
             if self._sugar_self_serve():
                 lines.append(self.SUGAR_SELF_SERVE_NOTE.strip())
-                lines.append(
-                    f"Reply with your order, e.g. '{example_size} {example_milk} latte'"
-                )
+                lines.append(say("menu_how_to_order", example=f"{example_size} {example_milk} latte"))
             else:
-                lines.append(
-                    f"Reply with your order, e.g. '{example_size} {example_milk} latte 1 sugar'"
-                )
+                lines.append(say("menu_how_to_order", example=f"{example_size} {example_milk} latte 1 sugar"))
             return "\n".join(lines)
 
         except Exception as e:
             logger.error(f"Error building dynamic menu: {str(e)}")
-            # Static fallback — only used if the helpers themselves crash.
-            return (
-                "Coffee: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
-                "Milk: Full Cream, Skim, Soy, Almond\n"
-                "Size: Medium\n\n"
-                "Reply with your choice (e.g., 'flat white with skim')"
-            )
+            # Only if the helpers themselves crash.
+            return say("menu_unavailable")
 
     def _milk_to_stations_map(self):
         """Build a {milk_name: [station_ids]} map from station_stats.
@@ -1239,59 +1181,6 @@ class CommandsMixin:
         except Exception as e:
             logger.warning(f"_milk_to_stations_map failed: {e}")
             return {}
-
-    def _handle_menu_command(self):
-        """Handle MENU command - show coffee options"""
-        try:
-            # Get available menu items from inventory
-            cursor = self.db.cursor()
-
-            # Check if inventory_items table exists
-            cursor.execute(
-                """
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'inventory_items'
-                )
-            """
-            )
-
-            has_inventory_table = cursor.fetchone()[0]
-
-            if has_inventory_table:
-                # Get available drink types based on ingredient availability
-                coffee_types = self._get_available_coffee_types()
-
-                # Use the accessor, not another private copy of the query.
-                # This one still read inventory_items directly, so it would
-                # have listed oat at an event where oat was switched off.
-                milk_types = self._get_available_milk_types() or []
-                sizes = self._get_available_sizes() or []
-
-                # Use dynamic data if available
-                if coffee_types and milk_types:
-                    size_line = (
-                        f"Size: {', '.join(sizes)}\n" if sizes else ""
-                    )
-                    return (
-                        "Coffee Menu:\n"
-                        f"Types: {', '.join(coffee_types)}\n"
-                        f"Milk: {', '.join(milk_types)}\n"
-                        f"{size_line}"
-                        "Extras: Extra Shot, Decaf, Extra Hot\n"
-                        "Simply text your order, e.g. 'cappuccino with soy milk'"
-                    )
-        except Exception as e:
-            logger.error(f"Error fetching menu items: {str(e)}")
-
-        # Fallback to static menu if database query fails
-        return (
-            "Coffee Menu:\n"
-            "Types: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
-            "Milk: Full Cream, Skim, Soy, Almond\n"
-            "Extras: Extra Shot, Decaf, Extra Hot\n"
-            "Simply text your order, e.g. 'cappuccino with soy milk'"
-        )
 
     def _is_vip_code(self, code):
         """Check if this is a valid VIP code"""
@@ -1540,16 +1429,11 @@ class CommandsMixin:
             else:
                 milk_part = f" with {milk} milk"
 
-            response = f"""Your {self.system_name} Profile:
-Name: {name}
-Favorite: {drink}{milk_part} ({size})
-Sugar: {sugar}
-Orders: {total_orders} total
-Member since: {first_order}
-
-Text RESET to clear preferences or DELETE to remove all data."""
-
-            return response
+            return say(
+                "mydata_profile", service=self.system_name, name=name,
+                usual=f"{drink}{milk_part} ({size})", sugar=sugar,
+                orders=total_orders, since=first_order,
+            )
 
         except Exception as e:
             logger.error(f"Error in MYDATA command: {str(e)}")

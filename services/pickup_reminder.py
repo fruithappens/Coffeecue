@@ -28,6 +28,8 @@ migration #7 in services/migrations.py.
 """
 from __future__ import annotations
 
+from services.sms_wording import say
+
 import json
 import logging
 from utils.station_label import station_label as _station_label
@@ -271,15 +273,12 @@ class PickupReminderService:
         try:
             name = (details.get('name') or '').strip() or 'there'
             drinks = f"{count} coffees" if count and count != 1 else "coffee"
-            verb = 'are' if count != 1 else 'is'
-            tail = 'them before they go cold' if count != 1 else 'it before it goes cold'
             station_text = (_station_label(self.db, station_id) if station_id
                             else 'the counter')
             # ASCII only (see _send_reminder).
-            body = (
-                f"Hi {name}, just a reminder - your {drinks} (Order #{group_id}) "
-                f"{verb} still waiting at {station_text}. Come grab {tail}!"
-            )
+            key = 'reminder_group' if count != 1 else 'reminder'
+            body = say(key, name=name, order=drinks, order_number=group_id,
+                       station=station_text)
             if self.messaging_service:
                 self.messaging_service.send_message(phone, body, kind='reminder')
                 logger.info(
@@ -312,11 +311,8 @@ class PickupReminderService:
             # ASCII only: the wave emoji and the em dash both force UCS-2,
             # which halves the per-segment budget from 160 to 70 and made
             # this reminder cost two segments instead of one.
-            body = (
-                f"Hi {name}, just a reminder - your {description} "
-                f"(Order #{order_number}) is still waiting at {station_text}. "
-                f"Come grab it before it goes cold!"
-            )
+            body = say('reminder', name=name, order=description,
+                       order_number=order_number, station=station_text)
             if self.messaging_service:
                 self.messaging_service.send_message(phone, body, kind='reminder')
                 logger.info(

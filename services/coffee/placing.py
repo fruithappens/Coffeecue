@@ -366,11 +366,7 @@ class PlacingMixin:
                 logger.error(
                     f"_confirm_order called with missing fields {missing_required} for {phone}: {order_details}"
                 )
-                return (
-                    "Sorry, your order is missing some details ("
-                    + ", ".join(missing_required)
-                    + "). Reply MENU to start over."
-                )
+                return say("order_incomplete", missing=", ".join(missing_required))
 
             processed_details = {
                 "name": name,
@@ -998,7 +994,7 @@ class PlacingMixin:
                         "web_tracking_url", "https://coffee.example.com/track/"
                     )
                     tracking_url = f"{base_url}?id={order_number}"
-                    confirmation_message += f"\n\nTrack your order here: {tracking_url}"
+                    confirmation_message += "\n\n" + say("track_link", link=tracking_url)
                 except Exception as url_err:
                     logger.error(f"Error adding tracking URL: {str(url_err)}")
 

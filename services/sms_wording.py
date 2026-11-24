@@ -578,6 +578,346 @@ CATALOG = {
         {"who": "', ' and their name, or nothing"},
         "They sent the VIP code before ordering.",
     ),
+    "help": (
+        "Coffee Ordering Instructions:\n- Text your coffee order (e.g., 'large latte with oat milk')\n- STATUS: Check your order status\n- FRIEND: Add a coffee for a friend\n- CHANGE: Swap your order for a different one\n- OOPS: Cancel your pending order\n- MENU: See available coffee options\n- USUAL: Order your usual coffee\n- OPTIONS: See all available commands\nNeed more help? Visit the help desk or any coffee station.",
+        {},
+        "HELP: they texted INFO or ?. (A text saying HELP is answered by the phone network, not CupQ.)",
+    ),
+    "menu_title": (
+        "Menu:",
+        {},
+        "MENU, first line.",
+    ),
+    "menu_coffee": (
+        "Coffee: {drinks}",
+        {"drinks": "coffees on today"},
+        "MENU, the coffee line.",
+    ),
+    "menu_more_drinks": (
+        "(+{count} more - just text the name)",
+        {"count": "how many more"},
+        "MENU, after the coffees when the list is shortened.",
+    ),
+    "menu_no_coffee": (
+        "Coffee: (none in stock - check back soon)",
+        {},
+        "MENU, when no coffee can be made.",
+    ),
+    "menu_tea": (
+        "Tea: {teas}",
+        {"teas": "teas on today"},
+        "MENU, the tea line (only when there are teas).",
+    ),
+    "menu_other": (
+        "Other: {drinks}",
+        {"drinks": "other drinks on today"},
+        "MENU, chai, hot chocolate and so on.",
+    ),
+    "menu_milk": (
+        "Milk: {milks}",
+        {"milks": "milks on today"},
+        "MENU, the milk line.",
+    ),
+    "menu_no_milk": (
+        "Milk: (none in stock)",
+        {},
+        "MENU, when there is no milk.",
+    ),
+    "menu_sugar": (
+        "Sugar: {sugars} (just text the number)",
+        {"sugars": "sugars on today"},
+        "MENU, the sugar line.",
+    ),
+    "menu_no_sweetener": (
+        "Sweetener: none",
+        {},
+        "MENU, when there is no sugar.",
+    ),
+    "menu_sizes": (
+        "Size: {sizes}",
+        {"sizes": "sizes on today"},
+        "MENU, the size line.",
+    ),
+    "menu_some_stations": (
+        "{milks} only at certain stations - we'll route automatically.",
+        {"milks": "milks only one station has"},
+        "MENU, when only one station has a milk.",
+    ),
+    "menu_how_to_order": (
+        "Reply with your order, e.g. '{example}'",
+        {"example": "an order that's on today"},
+        "MENU, last line.",
+    ),
+    "menu_unavailable": (
+        "Sorry, we can't show the menu right now. Just text what you'd like, e.g. 'flat white with skim'.",
+        {},
+        "MENU, if the menu can't be read.",
+    ),
+    "sugar_self_serve": (
+        "Sugar is help-yourself at the counter.",
+        {},
+        "Added when sugar is self-serve at this event.",
+    ),
+    "welcome_tips": (
+        "(Tips: reply MENU to see the menu / FRIEND to add a friend's coffee / OOPS to scrap an order)",
+        {},
+        "Under the welcome text.",
+    ),
+    "welcome_back_no_usual": (
+        "Welcome back, {name}! What type of coffee would you like today?",
+        {"name": "their name"},
+        "A returning customer with no usual order says hello.",
+    ),
+    "named_usual_offer": (
+        "Nice to meet you, {name}! Would you like your usual {usual}? Reply YES or tell me what you'd like.",
+        {"name": "their name", "usual": "their usual order"},
+        "They gave their name and we know their usual.",
+    ),
+    "named_ask_drink": (
+        "Hi {name}! What can I get you?\nExamples: {examples}\nReply MENU to see what's on offer.",
+        {"name": "their name", "examples": "orders that are on today"},
+        "They gave their name; now the drink.",
+    ),
+    "got_it_ask_size": (
+        "Got it - {drink}. What size? ({sizes})",
+        {"drink": "drink and milk", "sizes": "sizes on today"},
+        "We have the drink and need the size.",
+    ),
+    "ask_size_for": (
+        "What size {drink} would you like? ({sizes})",
+        {"drink": "drink", "sizes": "sizes on today"},
+        "They chose a milk; now the size.",
+    ),
+    "one_size_note": (
+        "All drinks are {size} today.",
+        {"size": "the only size"},
+        "Before the recap, when there is one size.",
+    ),
+    "size_changed_note": (
+        "We only have {size} cups today, so I've made it {size}.",
+        {"size": "the only size"},
+        "They asked for a size that isn't on.",
+    ),
+    "coffee_only": (
+        "We're coffee only - tea, juice and water are available in the catering area.\nFrom us: {available}.\nReply MENU for the full list.",
+        {"available": "drinks on today"},
+        "They asked for something the caterers serve.",
+    ),
+    "drink_not_today": (
+        "Sorry, we don't have {drink} today. Available: {available}.\nReply MENU for the full list.",
+        {"drink": "what they asked for", "available": "drinks on today"},
+        "They asked for a drink that isn't on.",
+    ),
+    "milk_not_today": (
+        "Sorry, we don't have {milk}. Available milks: {milks}.{elsewhere}\nReply MENU for the full list.",
+        {"milk": "what they asked for", "milks": "milks on today", "elsewhere": "where else to get it, or nothing"},
+        "They asked for a milk that isn't on.",
+    ),
+    "get_it_elsewhere": (
+        "Or grab it yourself from the {venue}.",
+        {"venue": "the venue cafe's name"},
+        "Added to a refusal when a venue cafe is set.",
+    ),
+    "bean_not_today": (
+        "Sorry, we don't have {bean} today. We can make it with: {beans}.\nReply MENU for the full list.",
+        {"bean": "what they asked for, e.g. decaf", "beans": "coffees on today"},
+        "They asked for decaf (or a bean) that isn't on.",
+    ),
+    "sweetener_not_today": (
+        "Sorry, we don't have {sweetener}. Available sweeteners: {sweeteners}.\nReply MENU for the full list.",
+        {"sweetener": "what they asked for", "sweeteners": "sweeteners on today"},
+        "They asked for a sweetener that isn't on.",
+    ),
+    "cant_make_marked": (
+        "Sorry, we can't make {drink} right now - the barista has marked {items} unavailable.",
+        {"drink": "drink", "items": "what is unavailable"},
+        "The barista has marked an ingredient off (phone and kiosk orders too).",
+    ),
+    "cant_make_run_out": (
+        "Sorry, we can't make {drink} right now - we've run out of {items}.",
+        {"drink": "drink", "items": "what has run out"},
+        "An ingredient has run out (phone and kiosk orders too).",
+    ),
+    "see_menu": (
+        "Reply MENU for what's available.",
+        {},
+        "After a refused drink.",
+    ),
+    "milk_nowhere_note": (
+        "We don't have {milk} at any station -",
+        {"milk": "what they asked for"},
+        "Before asking for another milk.",
+    ),
+    "group_one_at_a_time": (
+        "I can do a group order, but {reason}. Easiest is one coffee at a time - what's the first one? (Then reply FRIEND to add the next.)",
+        {"reason": "why, e.g. which milk is missing"},
+        "Several coffees in one text that we couldn't work out.",
+    ),
+    "preorder_failed": (
+        "Sorry, we couldn't save your pre-order just now - please try again in a minute.",
+        {},
+        "Before the event: the pre-order didn't save.",
+    ),
+    "preorder_one_only": (
+        "(Pre-orders save ONE coffee per phone - we kept the first; order the rest on the day.)",
+        {},
+        "Before the event: they pre-ordered several coffees.",
+    ),
+    "eta_ask_order": (
+        "Got it - about {minutes} min away! Text us your order now (e.g. 'medium latte with full cream') and we'll get it underway so it's ready when you arrive.",
+        {"minutes": "minutes"},
+        "They said when they'll arrive and have no usual.",
+    ),
+    "eta_scheduled": (
+        "Great {name}! Your {order} is scheduled - we'll start making it just before you arrive, ready about {time}. Order #{order_number}. Reply CHANGE to fix it or OOPS to cancel.",
+        {"name": "their name", "order": "their usual", "time": "time, e.g. 10:40", "order_number": "order number"},
+        "They said when they'll arrive; their usual is booked.",
+    ),
+    "eta_failed": (
+        "Sorry, we couldn't schedule that just now - text your order when you arrive and we'll make it straight away.",
+        {},
+        "Booking for their arrival didn't work.",
+    ),
+    "status_related": (
+        "Related orders:\n{orders}",
+        {"orders": "their friends' orders"},
+        "STATUS, when they ordered for friends.",
+    ),
+    "status_failed": (
+        "Sorry, we couldn't retrieve your order status. Please try again later.",
+        {},
+        "STATUS didn't work.",
+    ),
+    "track_link": (
+        "Track your order here: {link}",
+        {"link": "web address"},
+        "Added when order tracking links are on.",
+    ),
+    "change_cancelled": (
+        "No problem - order #{order_number} is cancelled. What would you like instead?",
+        {"order_number": "order number"},
+        "CHANGE: the old order is cancelled.",
+    ),
+    "cancel_too_late": (
+        "Your order #{order_number} is already being made at {station} - too late to cancel by text. Please see the barista if you need to change it.",
+        {"order_number": "order number", "station": "station name"},
+        "They cancel an order that's being made.",
+    ),
+    "cancel_already_ready": (
+        "Good news - your order #{order_number} is already made and waiting for you at {station}! No need to cancel, just come and grab it.",
+        {"order_number": "order number", "station": "station name"},
+        "They cancel an order that's ready.",
+    ),
+    "question_empty": (
+        "Didn't catch a question. Just text it again, e.g. 'BARISTA is the milk fresh today?'",
+        {},
+        "BARISTA with nothing to pass on.",
+    ),
+    "question_failed": (
+        "Sorry, our system hiccuped sending your question - try again in a moment, or ask at the counter.",
+        {},
+        "Their question didn't reach the baristas.",
+    ),
+    "mydata_profile": (
+        "Your {service} Profile:\nName: {name}\nFavorite: {usual}\nSugar: {sugar}\nOrders: {orders} total\nMember since: {since}\n\nText RESET to clear preferences or DELETE to remove all data.",
+        {"service": "CupQ's name", "name": "their name", "usual": "their usual order", "sugar": "their sugar", "orders": "how many orders", "since": "month and year"},
+        "MYDATA: what we hold about them.",
+    ),
+    "forgetme_done": (
+        "Forgotten! Your saved name, preferences, and {count} past order(s) have been wiped. Text us again to start fresh as a new customer.",
+        {"count": "how many orders"},
+        "FORGETME: everything wiped.",
+    ),
+    "forgetme_failed": (
+        "Sorry - couldn't fully reset your record right now. Try again in a moment.",
+        {},
+        "FORGETME didn't work.",
+    ),
+    "friend_usual_offer": (
+        "I see {friend} usually orders: {order}\nWould you like to order this again? (Reply YES or tell me what {friend} would like instead)",
+        {"friend": "friend's name", "order": "friend's last order"},
+        "FRIEND: we know what this friend has.",
+    ),
+    "friend_usual_confirm": (
+        "Great! Here's the order for {friend}: {order}\nWould you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)",
+        {"friend": "friend's name", "order": "friend's order"},
+        "FRIEND: check the friend's usual.",
+    ),
+    "friend_order_check": (
+        "For {friend}: {order}.\nReply YES to confirm, EDIT to change, or NO to cancel.",
+        {"friend": "friend's name", "order": "friend's order"},
+        "FRIEND: check the friend's order.",
+    ),
+    "order_incomplete": (
+        "Sorry, your order is missing some details ({missing}). Reply MENU to start over.",
+        {"missing": "what's missing"},
+        "An order reached us without a drink, milk or size.",
+    ),
+    "reminder": (
+        "Hi {name}, just a reminder - your {order} (Order #{order_number}) is still waiting at {station}. Come grab it before it goes cold!",
+        {"name": "their name", "order": "their order", "order_number": "order number", "station": "station name"},
+        "Pickup reminder.",
+    ),
+    "reminder_group": (
+        "Hi {name}, just a reminder - your {order} (Order #{order_number}) are still waiting at {station}. Come grab them before they go cold!",
+        {"name": "their name", "order": "e.g. 3 coffees", "order_number": "order number", "station": "station name"},
+        "Pickup reminder for a group.",
+    ),
+    "resubscribed": (
+        "You have successfully been re-subscribed to coffee order messages. What's your first name?",
+        {},
+        "They texted START.",
+    ),
+    "retry_name": (
+        "Sorry, we dropped that one. What's your first name?",
+        {},
+        "A text failed while we waited for their name.",
+    ),
+    "retry_drink": (
+        "Sorry, we dropped that one. What coffee would you like?",
+        {},
+        "A text failed while we waited for their drink.",
+    ),
+    "retry_milk": (
+        "Sorry, we dropped that one. Which milk would you like?",
+        {},
+        "A text failed while we waited for their milk.",
+    ),
+    "retry_size": (
+        "Sorry, we dropped that one. What size would you like?",
+        {},
+        "A text failed while we waited for their size.",
+    ),
+    "retry_sugar": (
+        "Sorry, we dropped that one. How many sugars?",
+        {},
+        "A text failed while we waited for their sugar.",
+    ),
+    "retry_confirm": (
+        "Sorry, we dropped that one - your order is still waiting. Reply YES to confirm it.",
+        {},
+        "A text failed while we waited for a yes.",
+    ),
+    "retry_last": (
+        "Sorry, we dropped that one. Please send your last message again and we'll pick up where you left off.",
+        {},
+        "A text failed at any other time.",
+    ),
+    "message_unreadable": (
+        "Sorry, we couldn't process your message. Please try again.",
+        {},
+        "An empty or unreadable text.",
+    ),
+    "system_down": (
+        "Sorry, our ordering system is currently unavailable. Please try again later.",
+        {},
+        "The ordering system is down.",
+    ),
+    "system_moment": (
+        "Sorry, our system is having a moment. Please try again.",
+        {},
+        "A text failed (backup text provider).",
+    ),
 }
 
 # An order's number and contents must reach the customer whatever the wording.
@@ -586,6 +926,20 @@ REQUIRED = {
     "order_placed_one_station": {"order_number"},
     "order_recap": {"placed", "order"},
     "group_placed": {"orders"},
+    "menu_coffee": {"drinks"},
+    "menu_milk": {"milks"},
+    "menu_sizes": {"sizes"},
+    "eta_scheduled": {"order_number", "time"},
+    "reminder": {"order_number", "station"},
+    "reminder_group": {"order_number", "station"},
+    "cant_make_marked": {"items"},
+    "cant_make_run_out": {"items"},
+    "milk_not_today": {"milks"},
+    "mydata_profile": {"name", "usual", "sugar", "orders", "since"},
+    "friend_usual_confirm": {"order"},
+    "friend_order_check": {"order"},
+    "track_link": {"link"},
+    "change_cancelled": {"order_number"},
 }
 
 _cache = {"at": 0.0, "value": {}}
