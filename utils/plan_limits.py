@@ -32,7 +32,11 @@ logger = logging.getLogger("expresso.plan_limits")
 # thing on the website and in this setting.
 PLAN_LIMITS = {
     "lite": {
-        "sms": 500,
+        # Lite runs on phones and the board alone: no texts at all (Steve,
+        # 24 Nov 2026). services/sms_meter.py holds every text and the
+        # ordering screens hide the text number, like the Texts off switch.
+        "texts": False,
+        "sms": 0,
         "attendees": 150,
         "stations": 1,
         "vip": False,

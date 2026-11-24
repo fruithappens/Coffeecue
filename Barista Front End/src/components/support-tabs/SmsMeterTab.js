@@ -152,7 +152,10 @@ export default function SmsMeterTab() {
 
   const { used, cap, allowance, state, totals } = m;
   const tierName = TIER_NAMES[m.plan_tier] || null;
-  const headline = m.texts_off
+  const noTexts = !!m.plan_no_texts;
+  const headline = noTexts
+    ? `The ${tierName || 'Lite'} plan has no texts - nothing is sent, customers are not asked for a mobile, and texts to the event number go unanswered.`
+    : m.texts_off
     ? 'Texts are off - nothing automatic is sent, and customers are not asked for a mobile.'
     : {
     uncapped: 'No cap set - texts are counted but never stopped.',
@@ -160,7 +163,7 @@ export default function SmsMeterTab() {
     warn: `Past ${Math.round(m.warn_at * 100)}% - "we've started your coffee" texts and reminders have stopped. Ready texts still go.`,
     capped: 'Cap reached - automatic texts have stopped. Customers see their order on the board and their phone page.',
   }[state];
-  const headlineTone = m.texts_off ? 'bg-cq-wash text-cq-ink-2'
+  const headlineTone = (noTexts || m.texts_off) ? 'bg-cq-wash text-cq-ink-2'
     : state === 'capped' ? 'bg-cq-alert-wash text-cq-alert'
     : state === 'warn' ? 'bg-cq-warn-wash text-cq-ink'
     : 'bg-cq-caramel-wash text-cq-ink-2';
@@ -198,6 +201,7 @@ export default function SmsMeterTab() {
         ) : null}
       </Panel>
 
+      {noTexts ? null : (<>
       <Panel title="Texts off">
         <div className="flex items-start gap-4 flex-wrap">
           <p className="text-sm text-cq-ink-2 max-w-[52ch] flex-1">
@@ -241,6 +245,7 @@ export default function SmsMeterTab() {
           </p>
         ) : null}
       </Panel>
+      </>)}
 
       <Panel title="What the texts were">
         {m.by_kind.length === 0 ? (

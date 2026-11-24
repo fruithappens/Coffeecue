@@ -168,6 +168,12 @@ def sms_webhook():
         if cached is not None:
             logger.info(f"Duplicate MessageSid {sid} — replaying cached reply (Twilio retry)")
             return Response(cached, mimetype='text/xml')
+    from services import sms_meter
+    if sms_meter.plan_has_no_texts():
+        # Lite plan: no texts at all, so no reply (an empty reply costs
+        # nothing) and no order taken by text.
+        logger.info("Inbound text ignored: this event's plan has no texts")
+        return Response(str(MessagingResponse()), mimetype='text/xml')
     result = _sms_webhook_inner()
     if sid:
         # The inner handler returns either a TwiML string or a Flask
@@ -597,6 +603,10 @@ def _process_inbound_via_provider(provider_name: str):
     Returns Flask response tuples.
     """
     from services.sms import get_provider
+    from services import sms_meter
+    if sms_meter.plan_has_no_texts():
+        logger.info("Inbound text ignored: this event's plan has no texts")
+        return ('', 204)
     provider = get_provider(provider_name)
     if not provider:
         logger.error(f"Unknown SMS provider in webhook: {provider_name!r}")

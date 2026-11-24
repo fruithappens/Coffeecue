@@ -271,6 +271,8 @@ def decide(kind, body=None):
     with 2 segments left would otherwise overshoot the cap.
     """
     tier = KINDS.get(kind, AT_CAP)
+    if kind != "test" and plan_has_no_texts():
+        return False, "held: this event's plan has no texts"
     if tier == NEVER:
         return True, None
     conn = None
@@ -431,6 +433,7 @@ def snapshot():
             "cap": cap,
             "cap_is_custom": cfg.get("cap") is not None,
             "texts_off": bool(cfg.get("texts_off")),
+            "plan_no_texts": plan_has_no_texts(),
             "warn_at": WARN_AT,
             "state": state,
             "used": used,
@@ -477,9 +480,32 @@ def set_texts_off(off, by=None):
         _release(conn)
 
 
+def plan_has_no_texts(db=None):
+    """True when this event's plan has no texts at all (Lite). Every text
+    is held -- replies and staff texts too -- and the screens behave as if
+    Texts off were on. Never raises: an error reads as texts allowed."""
+    conn = None
+    try:
+        from utils.plan_limits import feature_allowed
+
+        if db is not None:
+            return not feature_allowed(db, "texts")
+        conn = _conn()
+        return not feature_allowed(conn, "texts")
+    except Exception as e:
+        logger.debug("sms_meter: plan texts read failed: %s", e)
+        return False
+    finally:
+        if conn is not None:
+            _release(conn)
+
+
 def texts_off(db=None):
-    """Is the "Texts off" switch on? For the public screens. Never raises:
-    an error reads as off, so ordering keeps its text option."""
+    """Is the "Texts off" switch on (or does the plan have no texts)? For
+    the public screens. Never raises: an error reads as off, so ordering
+    keeps its text option."""
+    if plan_has_no_texts(db):
+        return True
     conn = None
     try:
         if db is not None:

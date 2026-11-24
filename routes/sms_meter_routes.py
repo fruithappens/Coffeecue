@@ -118,6 +118,17 @@ def put_texts_off():
             ),
             400,
         )
+    if data["texts_off"] is False and sms_meter.plan_has_no_texts():
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": "This event's plan (Lite) has no texts, so they can't be turned on.",
+                }
+            ),
+            409,
+        )
     try:
         sms_meter.set_texts_off(data["texts_off"], by=_who())
         return jsonify(
