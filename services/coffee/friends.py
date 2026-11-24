@@ -5,6 +5,7 @@ services/coffee_system.py (roadmap X7-11). CoffeeOrderSystem inherits
 FriendsMixin, so self.<method>() reaches them exactly as before.
 """
 import json
+from services.sms_wording import say
 from datetime import datetime, timedelta
 from services.coffee_system import (  # noqa: F401  (defined above the mixin imports)
     logger,
@@ -19,7 +20,7 @@ class FriendsMixin:
 
         # Basic validation
         if len(friend_name) < 2 or len(friend_name) > 50:
-            return "Please enter a valid name for your friend (2-50 characters)."
+            return say("friend_name_invalid")
 
         # Get data from state
         primary_name = state.get("temp_data", {}).get("primary_name", "")
@@ -97,7 +98,7 @@ class FriendsMixin:
             },
         )
 
-        return f"Thanks! What type of coffee would {friend_name} like?"
+        return say("friend_ask_drink", friend=friend_name)
 
     def _handle_awaiting_friend_suggestion_response(self, phone, message, state):
         """Handle response to friend's suggested previous order"""
@@ -169,7 +170,7 @@ class FriendsMixin:
         order_details = self.nlp.parse_order(message, apply_defaults=False)
 
         if "type" not in order_details:
-            return f"I'm not sure what coffee {friend_name} would like. Please specify a coffee type like latte, cappuccino, flat white, etc."
+            return say("friend_unsure_drink", friend=friend_name)
 
         # Black coffees don't need milk
         if self.nlp.is_black_coffee(order_details["type"]):
@@ -204,7 +205,7 @@ class FriendsMixin:
 
         if "size" not in order_details:
             self._set_conversation_state(phone, "awaiting_friend_size", shared_state)
-            return f"Got it - {order_details['type']}{milk_phrase} for {friend_name}. What size? (small, medium, large)"
+            return say("friend_got_it_ask_size", order=f"{order_details['type']}{milk_phrase}", friend=friend_name, sizes="small, medium, large")
 
         # Skip the sugar prompt to match the main order flow — default to no
         # sugar (shown in the summary; the customer can still EDIT).
@@ -259,10 +260,10 @@ class FriendsMixin:
                 },
             )
 
-            return f"What size {friend_order.get('type', 'coffee')} would {friend_name} like? (small, medium, large)"
+            return say("friend_ask_size", drink=friend_order.get('type', 'coffee'), friend=friend_name, sizes="small, medium, large")
         else:
             # If no milk type was found, prompt again
-            return f"I didn't recognize that milk type. Please choose from: full cream, skim, soy, almond, oat, lactose free, or no milk."
+            return say("friend_milk_unrecognised", milks="full cream, skim, soy, almond, oat, lactose free")
 
     def _handle_awaiting_friend_size(self, phone, message, state):
         """Handle friend's size preference during group ordering"""
@@ -315,7 +316,7 @@ class FriendsMixin:
             )
         else:
             # If no size was found, prompt again
-            return f"I didn't recognize that size. Please choose small, medium, or large for {friend_name}'s coffee."
+            return say("friend_size_unrecognised", sizes="small, medium, or large", friend=friend_name)
 
     def _handle_awaiting_friend_sugar(self, phone, message, state):
         """Handle friend's sugar preference during group ordering"""
@@ -350,7 +351,7 @@ class FriendsMixin:
             sugar = new_details.get("sugar")
 
         if not sugar:
-            return f"Sorry, I didn't catch how much sugar for {friend_name}. Reply 'none', '1', '2', '3', or 'half'."
+            return say("friend_sugar_unclear", friend=friend_name)
 
         # Update order details
         friend_order["sugar"] = sugar
@@ -413,7 +414,7 @@ class FriendsMixin:
                     f"{total_line}\nThey'll be ready together - we'll SMS you the pickup location."
                 )
             else:
-                return f"Thanks, {primary_name}! Your order has been confirmed.\nWe'll SMS you when it's ready with the pickup location."
+                return say("friend_flow_confirmed", name=primary_name)
 
         elif (
             message_upper == "FRIEND"
@@ -433,11 +434,11 @@ class FriendsMixin:
                     "station_id": station_id,
                 },
             )
-            return "Great! Let's add another coffee. What's your friend's name?"
+            return say("friend_ask_another")
 
         else:
             # Unrecognized response - prompt again
-            return "Please reply FRIEND to order for another friend, or NO to finish."
+            return say("friend_another_or_no")
 
     def _handle_awaiting_friend_confirmation(self, phone, message, state):
         """Handle friend order confirmation during group ordering"""
@@ -536,7 +537,7 @@ class FriendsMixin:
                     "station_id": station_id,
                 },
             )
-            return f"Order for {friend_name} cancelled. What's the name of another friend you'd like to order for? (or type DONE to finish)"
+            return say("friend_cancelled_next", friend=friend_name)
 
         elif message_upper == "EDIT" or message_upper == "CHANGE":
             # Allow editing the friend's order - go back to coffee type
@@ -551,7 +552,7 @@ class FriendsMixin:
                     "station_id": station_id,
                 },
             )
-            return f"Let's change {friend_name}'s order. What type of coffee would {friend_name} like?"
+            return say("friend_change", friend=friend_name)
 
         elif (
             message_upper == "FRIEND"
@@ -569,7 +570,7 @@ class FriendsMixin:
                     "station_id": station_id,
                 },
             )
-            return "Great! Let's add another coffee. What's your friend's name?"
+            return say("friend_ask_another")
 
         elif (
             message_upper == "DONE"
@@ -587,4 +588,4 @@ class FriendsMixin:
 
         else:
             # Unrecognized response - prompt again
-            return f"Please reply YES to confirm {friend_name}'s order, NO to cancel, EDIT to change it, or DONE to finish the group order."
+            return say("friend_confirm_prompt", friend=friend_name)
