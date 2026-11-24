@@ -30,6 +30,13 @@ SAMPLE = {
     "sizes": "small, medium, large",
     "available": "latte, flat white, cappuccino, long black, mocha",
     "service": "Coffee Cue",
+    "milks": "full cream, skim, oat, soy",
+    "options": "full cream, skim, oat, or 'no milk'",
+    "milk": "almond milk",
+    "teas": "earl grey, english breakfast, green, peppermint",
+    "station": "Station 1",
+    "sweetener": "honey",
+    "off_menu": "",
 }
 
 

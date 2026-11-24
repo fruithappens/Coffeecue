@@ -716,7 +716,7 @@ class ConversationMixin:
                 # behind their back (allergy risk). This case still asks.
                 self._set_conversation_state(phone, "awaiting_milk", state_data)
                 milks = self._get_available_milk_types() or ["full cream"]
-                return f"{prefix}{milk_note}What milk for your {od['type']}? ({', '.join(milks)}, or 'no milk')"
+                return f"{prefix}{milk_note}" + say("ask_milk", drink=od['type'], milks=', '.join(milks))
             # No milk mentioned at all: "flat white" means the normal one
             # (Steve, 2026-07-21) — default to the event's standard dairy
             # instead of interrogating the customer. NOT silent: the
@@ -734,7 +734,7 @@ class ConversationMixin:
                 state_data = {"name": name, "order_details": od}
             else:
                 self._set_conversation_state(phone, "awaiting_size", state_data)
-                return f"{prefix}What size {od['type']}? ({', '.join(sizes)})"
+                return f"{prefix}" + say("ask_size", drink=od['type'], sizes=', '.join(sizes))
         # Sugar: don't prompt — most customers don't take it. Default to no
         # sugar (shown in the recap so they can fix it), then auto-place.
         return self._place_order(phone, name, od, prefix=prefix)
@@ -947,7 +947,7 @@ class ConversationMixin:
         if pending_multi:
             nm = (message or "").strip()
             if len(nm) < 2 or len(nm) > 50:
-                return "Please enter a valid name (2-50 characters)."
+                return say("name_invalid")
             return self._handle_multi_drink_order(
                 phone, pending_multi, {"temp_data": {"name": nm}}
             )
@@ -981,7 +981,7 @@ class ConversationMixin:
                 )
                 return say("ask_name_after_order")
             if len(name) < 2 or len(name) > 50:
-                return "Please enter a valid name (2-50 characters)."
+                return say("name_invalid")
             return self._next_order_step(
                 phone, name, order_details, prefix=f"Thanks {name}! "
             )
@@ -1001,7 +1001,7 @@ class ConversationMixin:
                 self._set_conversation_state(phone, "awaiting_name", state.get("temp_data") or {})
                 return say("not_a_name")
         if len(name) < 2 or len(name) > 50:
-            return "Please enter a valid name (2-50 characters)."
+            return say("name_invalid")
 
         # Get customer info to check if they have a usual order
         customer = self.get_customer(phone)
@@ -1257,7 +1257,7 @@ class ConversationMixin:
         else:
             # No usual order found
             self._set_conversation_state(phone, "awaiting_coffee_type", {"name": name})
-            return f"You don't have a saved usual order yet. What type of coffee would you like, {name}?"
+            return say("no_usual_yet", name=name)
 
     def _apply_targeted_edit(self, message, order_details):
         """Parse an "edit <field> [to] <value>" message and return
@@ -1466,7 +1466,7 @@ class ConversationMixin:
             # used to say "Sorry, we don't have hot tea today" with four
             # teas on the menu.
             if teas and coffee_type.strip().lower() in ("tea", "hot tea", "a tea", "cup of tea", "a cup of tea"):
-                return f"Which tea would you like? ({', '.join(sorted(teas))})"
+                return say("which_tea", teas=', '.join(sorted(teas)))
             self._count_refusal("sms", order_details, reason="no_drink", item=coffee_type)
             if not teas and self._is_catering_drink(coffee_type):
                 return (
@@ -1648,7 +1648,7 @@ class ConversationMixin:
                 (", ".join(available) + ", or 'no milk'") if available else "'no milk'"
             )
             self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
-            return f"Sorry, we don't have {milk_type} at any station today. What milk would you like? ({opts})"
+            return say("milk_none_today", milk=milk_type, options=opts)
 
         # If milk type was provided, update order details
         if milk_type:
@@ -1685,7 +1685,7 @@ class ConversationMixin:
         else:
             # If no milk type was found, prompt again with the makeable milks.
             milks = self._get_available_milk_types() or ["full cream", "skim"]
-            return f"I didn't recognise that milk. Please choose from: {', '.join(milks)}, or 'no milk'."
+            return say("milk_unrecognised", milks=', '.join(milks))
 
     def _handle_awaiting_size(self, phone, message, state):
         """Handle size input"""
@@ -1951,11 +1951,11 @@ class ConversationMixin:
             # User wants to end the conversation
             self._set_conversation_state(phone, "completed")
             total_orders = 1  # Just this order
-            return f"Thanks, {name}! Your order has been confirmed. It will be ready for pickup at {station_label(self.db, order_details.get('station_id', 1))}."
+            return say("usual_confirmed", name=name, station=station_label(self.db, order_details.get('station_id', 1)))
 
         else:
             # Unrecognized response - prompt again
-            return "Please reply YES to confirm your order, NO to cancel, or EDIT to change it."
+            return say("confirm_yes_no_edit")
 
     def _save_customer_preferences(self, phone, name, order_details):
         """Save customer preferences for future use"""
@@ -2153,7 +2153,7 @@ class ConversationMixin:
                 available_coffee_types = self._get_available_coffee_types()
                 if not self._is_valid_coffee_type(coffee_type, available_coffee_types):
                     self._count_refusal("sms", order_details, reason="no_drink", item=coffee_type)
-                    return f"Sorry, we don't offer {coffee_type}. Available options are: {', '.join(available_coffee_types)}. Please text MENU for full options."
+                    return say("drink_not_offered", drink=coffee_type, available=', '.join(available_coffee_types))
 
             # Validate milk type
             milk_type = order_details.get("milk", "")
@@ -2164,7 +2164,7 @@ class ConversationMixin:
                 if not self._is_valid_milk_type(milk_type, available_milk_types):
                     self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
                     milk_words = milk_type if "milk" in milk_type.lower() else f"{milk_type} milk"
-                    return f"Sorry, we don't have {milk_words}. Available options are: {', '.join(available_milk_types)}.{self._offmenu_note()} Please text MENU for full options."
+                    return say("milk_not_offered", milk=milk_words, available=', '.join(available_milk_types), off_menu=self._offmenu_note())
 
             # Validate sweetener
             sweetener = order_details.get("sugar", "")
@@ -2173,7 +2173,7 @@ class ConversationMixin:
                 if not self._is_valid_sweetener(sweetener, available_sweeteners):
                     sweetener_names = [s[0] for s in available_sweeteners]
                     self._count_refusal("sms", order_details, reason="no_sweetener", item=sweetener)
-                    return f"Sorry, we don't have {sweetener}. Available options are: {', '.join(sweetener_names)}. Please text MENU for full options."
+                    return say("sweetener_not_offered", sweetener=sweetener, available=', '.join(sweetener_names))
 
         # Get customer info
         customer = self.get_customer(phone)
@@ -2194,7 +2194,7 @@ class ConversationMixin:
                 state_data = {"name": name, "order_details": order_details}
                 self._set_conversation_state(phone, "awaiting_milk", state_data)
 
-                return f"Welcome back, {name}! What type of milk would you like with your {order_details['type']}?"
+                return say("welcome_back_ask_milk", name=name, drink=order_details['type'])
             else:
                 # Get usual order suggestions
                 usual_suggestions = self._get_usual_order_suggestion(phone, name)
@@ -2213,7 +2213,7 @@ class ConversationMixin:
                     self._set_conversation_state(
                         phone, "awaiting_coffee_type", {"name": name}
                     )
-                    return f"Welcome back, {name}! What type of coffee would you like today?"
+                    return say("welcome_back_ask_drink", name=name)
 
         # New customer: we already parsed any order above. Try to pull a name
         # from the same message so "John large latte" doesn't make them start
