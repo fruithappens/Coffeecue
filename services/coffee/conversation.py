@@ -636,13 +636,7 @@ class ConversationMixin:
         # If the order couldn't be created (no stations available, etc.), pass
         # the error through without the "placed / reply CANCEL" framing and
         # leave the conversation where it is so they can retry.
-        low = order_response.lower()
-        if (
-            low.startswith("sorry")
-            or "couldn't" in low
-            or "no coffee station" in low
-            or "unavailable" in low
-        ):
+        if not self._order_was_placed(od):
             return f"{prefix}{order_response}"
         self._set_conversation_state(phone, "completed")
         # _confirm_order's message gives the order # + queue position but NOT
@@ -880,6 +874,7 @@ class ConversationMixin:
         group_id = None
         group_label = f"{name}'s group"
         station_for_group = None
+        refusal = None
         # Letter the round (336a/336b/336c): reserve ONE base up front so
         # every drink -- the first included -- is stamped with the round's
         # group_id before it is placed, and each carries its pre-assigned
@@ -905,7 +900,14 @@ class ConversationMixin:
                 od["group_position"] = _i
                 od["group_size"] = len(resolved)
             resp = self._confirm_order(phone, od, name)
-            if not isinstance(resp, str) or resp.lower().startswith("sorry"):
+            if not self._order_was_placed(od):
+                # Not the "which milk instead?" question: it is about one
+                # coffee, and the conversation below ends for the round.
+                asked_milk = (self._get_conversation_state(phone) or {}).get(
+                    "state"
+                ) == "awaiting_milk"
+                if isinstance(resp, str) and not asked_milk:
+                    refusal = resp
                 break  # placement failed (no stations etc.) — stop, keep what stuck
             num = od.get("_created_order_number")
             if station_for_group is None:
@@ -924,12 +926,18 @@ class ConversationMixin:
 
         self._set_conversation_state(phone, "completed")
         if not placed:
+            if refusal:
+                return refusal
             return (
                 "Sorry, I couldn't place that group order just now. "
                 "Please try sending one coffee at a time."
             )
 
         lines = [f"#{num}: {self.nlp.format_order_summary(od)}" for num, od in placed]
+        # Say which coffees did NOT go through; they used to just be missing
+        # from the list.
+        for od in resolved[len(placed):]:
+            lines.append(f"Not ordered: {self.nlp.format_order_summary(od)}")
         total_line = self._format_group_total([od for _, od in placed])
         return (
             f"Got it {name}! {len(placed)} coffees ordered together:\n"
@@ -1879,6 +1887,11 @@ class ConversationMixin:
         if message_upper == "YES" or message_upper == "Y":
             # Confirm the order
             order_response = self._confirm_order(phone, order_details, name)
+            if not self._order_was_placed(order_details):
+                # Refused (ordering stopped, stations closed, milk run out):
+                # no "add a friend" tip, and leave the conversation where the
+                # refusal put it so they can retry.
+                return order_response
 
             # Order is complete - end the conversation
             self._set_conversation_state(phone, "completed")

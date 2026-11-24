@@ -502,6 +502,14 @@ class FriendsMixin:
         group_orders = state.get("temp_data", {}).get("group_orders", [])
         station_id = state.get("temp_data", {}).get("station_id")
 
+        # This friend's coffee was added to group_orders before it was
+        # confirmed. Until they say YES it isn't part of the group: without
+        # this, a cancelled coffee stayed in the count and the total, and an
+        # edited one was counted twice.
+        confirmed_orders = list(group_orders)
+        if confirmed_orders and confirmed_orders[-1] == friend_order:
+            confirmed_orders.pop()
+
         if message_upper == "YES" or message_upper == "Y":
             # Stamp the shared group_id so this friend's order is linked to the
             # customer's own. Prefer the value carried in state; if it got
@@ -548,6 +556,36 @@ class FriendsMixin:
             order_response = self._confirm_order(
                 phone, friend_order, friend_name, is_friend_order=True
             )
+            if not self._order_was_placed(friend_order):
+                # Refused: don't count it or say it's in the group. Whatever
+                # they already ordered stands; stay in the group so they can
+                # add another friend or finish.
+                asked_milk = (self._get_conversation_state(phone) or {}).get(
+                    "state"
+                ) == "awaiting_milk"
+                if asked_milk:
+                    # _confirm_order asked which milk instead and parked that
+                    # under the customer's own order; keep it the friend's.
+                    friend_order = {
+                        k: v
+                        for k, v in friend_order.items()
+                        if k not in ("milk", "station_id", "stationId")
+                    }
+                self._set_conversation_state(
+                    phone,
+                    "awaiting_friend_milk" if asked_milk else "awaiting_friend_decision",
+                    {
+                        "friend_name": friend_name,
+                        "friend_order": friend_order,
+                        "primary_name": primary_name,
+                        "primary_order": primary_order,
+                        "group_orders": confirmed_orders,
+                        "station_id": station_id,
+                        "group_id": group_id,
+                        "group_label": group_label,
+                    },
+                )
+                return order_response
 
             # (A friend's preferences used to be "stored" here under the key
             # phone + "_" + name. It never worked -- the phone column holds 20
@@ -583,7 +621,7 @@ class FriendsMixin:
                 {
                     "primary_name": primary_name,
                     "primary_order": primary_order,
-                    "group_orders": group_orders,
+                    "group_orders": confirmed_orders,
                     "station_id": station_id,
                 },
             )
@@ -598,7 +636,7 @@ class FriendsMixin:
                     "primary_name": primary_name,
                     "primary_order": primary_order,
                     "friend_name": friend_name,
-                    "group_orders": group_orders,
+                    "group_orders": confirmed_orders,
                     "station_id": station_id,
                 },
             )
@@ -616,11 +654,15 @@ class FriendsMixin:
                 {
                     "primary_name": primary_name,
                     "primary_order": primary_order,
-                    "group_orders": group_orders,
+                    "group_orders": confirmed_orders,
                     "station_id": station_id,
                 },
             )
-            return say("friend_ask_another")
+            return (
+                say("friend_not_added", friend=friend_name)
+                + " "
+                + say("friend_ask_another")
+            )
 
         elif (
             message_upper == "DONE"
@@ -628,11 +670,14 @@ class FriendsMixin:
             or message_upper == "END"
         ):
             # Finish the group ordering process
-            total_orders = len(group_orders) + 1  # +1 for the primary order
+            total_orders = len(confirmed_orders) + 1  # +1 for the primary order
             self._set_conversation_state(phone, "completed")
-            total_line = self._format_group_total([primary_order] + list(group_orders))
+            not_added = say("friend_not_added", friend=friend_name)
+            if total_orders == 1:
+                return f"{not_added} " + say("friend_flow_confirmed", name=primary_name)
+            total_line = self._format_group_total([primary_order] + list(confirmed_orders))
             return (
-                f"Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed."
+                f"{not_added} Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed."
                 f"{total_line}\nThey'll be ready together - we'll SMS you the pickup location."
             )
 
