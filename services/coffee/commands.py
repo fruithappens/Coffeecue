@@ -675,7 +675,7 @@ class CommandsMixin:
 
         except Exception as e:
             logger.error(f"Error cancelling order: {str(e)}")
-            return "Sorry, we couldn't cancel your order. Please try again or contact the coffee station directly."
+            return say("cancel_failed")
 
     def _handle_barista_command(self, phone, message, state, question_text=None):
         """Customer wants to talk to a real person.
@@ -850,7 +850,7 @@ class CommandsMixin:
         # message picks up where they left off (e.g. they were
         # mid-order). The barista's reply lands as a separate SMS, no
         # state churn needed.
-        return "Thanks - passed to your barista."
+        return say("question_passed")
 
     def _handle_forgetme_command(self, phone):
         """Handle FORGETME command - wipe this phone's customer record.
@@ -1493,7 +1493,7 @@ class CommandsMixin:
 
         except Exception as e:
             logger.error(f"Error processing VIP code: {str(e)}")
-            return "Sorry, we couldn't process your VIP code. Please try again or contact the help desk."
+            return say("vip_failed")
 
     # Privacy Command Handlers
     def _handle_mydata_command(self, phone):
@@ -1502,7 +1502,7 @@ class CommandsMixin:
             customer = self.get_customer(phone)
 
             if not customer:
-                return "No data found for your phone number. Start your first order to get personalized service!"
+                return say("mydata_none")
 
             # Format the response
             name = customer.get("name", "Unknown")
@@ -1536,13 +1536,13 @@ Text RESET to clear preferences or DELETE to remove all data."""
 
         except Exception as e:
             logger.error(f"Error in MYDATA command: {str(e)}")
-            return "Sorry, couldn't retrieve your data. Please try again later."
+            return say("mydata_failed")
 
     def _handle_changename_command(self, phone, new_name):
         """Handle CHANGENAME command - update customer's name"""
         try:
             if not new_name:
-                return "Please provide a name. Example: CHANGENAME Stephen"
+                return say("changename_usage")
 
             cursor = self.db.cursor()
 
@@ -1575,12 +1575,12 @@ Text RESET to clear preferences or DELETE to remove all data."""
 
             self.db.commit()
 
-            return f"Name updated to: {new_name}\nYour next order will use this name."
+            return say("name_updated", name=new_name)
 
         except Exception as e:
             logger.error(f"Error in CHANGENAME command: {str(e)}")
             self.db.rollback()
-            return "Sorry, couldn't update your name. Please try again."
+            return say("name_update_failed")
 
     def _handle_reset_command(self, phone):
         """Handle RESET command - clear customer preferences but keep name"""
@@ -1594,7 +1594,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
             result = cursor.fetchone()
 
             if not result:
-                return "No preferences found to reset."
+                return say("prefs_none")
 
             name = result[0]
 
@@ -1613,12 +1613,12 @@ Text RESET to clear preferences or DELETE to remove all data."""
 
             self.db.commit()
 
-            return f"Preferences cleared!\nWe'll ask for your order details next time.\nYour name ({name}) is still saved."
+            return say("prefs_cleared", name=name)
 
         except Exception as e:
             logger.error(f"Error in RESET command: {str(e)}")
             self.db.rollback()
-            return "Sorry, couldn't reset your preferences. Please try again."
+            return say("prefs_reset_failed")
 
     def _handle_delete_command(self, phone, state):
         """Handle DELETE command - request to delete all customer data"""
@@ -1653,22 +1653,22 @@ Text RESET to clear preferences or DELETE to remove all data."""
                 self._set_conversation_state(phone, "completed")
 
                 if deleted_count > 0:
-                    return f"Your data has been deleted. Thanks for using {self.system_name}."
+                    return say("data_deleted", service=self.system_name)
                 else:
-                    return "No data found to delete."
+                    return say("nothing_to_delete")
 
             except Exception as e:
                 logger.error(f"Error deleting customer data: {str(e)}")
                 self.db.rollback()
-                return "Sorry, couldn't delete your data. Please contact support."
+                return say("delete_failed")
 
         elif message_upper == "NO":
             # Cancel deletion
             self._set_conversation_state(phone, "completed")
-            return "Deletion cancelled. Your data is safe. How can we help you today?"
+            return say("delete_cancelled")
 
         else:
-            return "Please reply YES to confirm deletion or NO to cancel."
+            return say("delete_yes_or_no")
 
     def _handle_friend_command(self, phone, state):
         """Handle FRIEND command - add a coffee for a friend"""
@@ -1680,7 +1680,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
             # Get customer info
             customer = self.get_customer(phone)
             if not customer or not customer.get("name"):
-                return "Please start with your own order first. Text us your coffee order to begin!"
+                return say("friend_order_first")
 
             primary_name = customer.get("name")
 
@@ -1701,7 +1701,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
             recent_order = cursor.fetchone()
 
             if not recent_order:
-                return f"Hi {primary_name}! Please place your own order first, then you can add coffees for friends."
+                return say("friend_own_order_first", name=primary_name)
 
             # Parse the recent order details
             (
@@ -1766,8 +1766,8 @@ Text RESET to clear preferences or DELETE to remove all data."""
                 },
             )
 
-            return f"Great! Let's add a coffee for your friend. What's their name?"
+            return say("friend_ask_name")
 
         except Exception as e:
             logger.error(f"Error in FRIEND command: {str(e)}")
-            return "Sorry, couldn't process your request. Please try again."
+            return say("friend_failed")

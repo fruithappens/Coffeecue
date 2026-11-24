@@ -111,6 +111,112 @@ CATALOG = {
         {},
         "They texted DELETE.",
     ),
+    # Batch 2 (24 Nov 2026): account, data and friend commands.
+    "delete_yes_or_no": (
+        "Please reply YES to confirm deletion or NO to cancel.",
+        {},
+        "We asked them to confirm DELETE and got something other than YES or NO.",
+    ),
+    "delete_cancelled": (
+        "Deletion cancelled. Your data is safe. How can we help you today?",
+        {},
+        "They answered NO to DELETE.",
+    ),
+    "data_deleted": (
+        "Your data has been deleted. Thanks for using {service}.",
+        {"service": "the name the text service goes by"},
+        "They confirmed DELETE and their details were removed.",
+    ),
+    "nothing_to_delete": (
+        "No data found to delete.",
+        {},
+        "They confirmed DELETE but we held nothing about them.",
+    ),
+    "delete_failed": (
+        "Sorry, couldn't delete your data. Please contact support.",
+        {},
+        "They confirmed DELETE and something went wrong.",
+    ),
+    "mydata_none": (
+        "No data found for your phone number. Start your first order to get personalized service!",
+        {},
+        "They texted MYDATA and we hold nothing about them.",
+    ),
+    "mydata_failed": (
+        "Sorry, couldn't retrieve your data. Please try again later.",
+        {},
+        "They texted MYDATA and something went wrong.",
+    ),
+    "changename_usage": (
+        "Please provide a name. Example: CHANGENAME Stephen",
+        {},
+        "They texted CHANGENAME without a name.",
+    ),
+    "name_updated": (
+        "Name updated to: {name}\nYour next order will use this name.",
+        {"name": "their new name"},
+        "They changed their name with CHANGENAME.",
+    ),
+    "name_update_failed": (
+        "Sorry, couldn't update your name. Please try again.",
+        {},
+        "CHANGENAME went wrong.",
+    ),
+    "prefs_none": (
+        "No preferences found to reset.",
+        {},
+        "They texted RESET with no saved usual order.",
+    ),
+    "prefs_cleared": (
+        "Preferences cleared!\nWe'll ask for your order details next time.\nYour name ({name}) is still saved.",
+        {"name": "their first name"},
+        "They texted RESET and their usual order was forgotten.",
+    ),
+    "prefs_reset_failed": (
+        "Sorry, couldn't reset your preferences. Please try again.",
+        {},
+        "RESET went wrong.",
+    ),
+    "friend_order_first": (
+        "Please start with your own order first. Text us your coffee order to begin!",
+        {},
+        "They texted FRIEND before we know who they are.",
+    ),
+    "friend_own_order_first": (
+        "Hi {name}! Please place your own order first, then you can add coffees for friends.",
+        {"name": "their first name"},
+        "They texted FRIEND without an order in the last hour.",
+    ),
+    "friend_ask_name": (
+        "Great! Let's add a coffee for your friend. What's their name?",
+        {},
+        "They texted FRIEND after ordering; we start the friend's order.",
+    ),
+    "friend_failed": (
+        "Sorry, couldn't process your request. Please try again.",
+        {},
+        "FRIEND went wrong.",
+    ),
+    "question_passed": (
+        "Thanks - passed to your barista.",
+        {},
+        "They sent a question for the barista; it's on the barista's screen.",
+    ),
+    "cancel_failed": (
+        "Sorry, we couldn't cancel your order. Please try again or contact the coffee station directly.",
+        {},
+        "They texted CANCEL and something went wrong.",
+    ),
+    "vip_failed": (
+        "Sorry, we couldn't process your VIP code. Please try again or contact the help desk.",
+        {},
+        "They sent a VIP code and something went wrong.",
+    ),
+    "order_error": (
+        "Sorry, we encountered an error processing your order. Please try again or visit the coffee station directly.",
+        {},
+        "Placing their order went wrong.",
+    ),
 }
 
 _cache = {"at": 0.0, "value": {}}

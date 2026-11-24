@@ -38,3 +38,25 @@ def test_problems_named_plainly():
 def test_every_default_is_valid():
     for key, (default, holders, _) in w.CATALOG.items():
         assert w.problems(key, default) is None, key
+
+
+def test_every_say_in_the_bot_has_a_catalogue_entry():
+    # A typo'd key would raise KeyError mid-conversation; catch it here.
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    used = set()
+    for f in [root / "services" / "coffee_system.py", *(root / "services" / "coffee").glob("*.py")]:
+        used |= set(re.findall(r"\bsay\(\s*[\"']([a-z_]+)[\"']", f.read_text()))
+    assert used, "no say() calls found"
+    assert used - set(w.CATALOG) == set()
+
+
+def test_batch_two_placeholders_fill_in():
+    with _with({}):
+        assert w.say("name_updated", name="Robin") == (
+            "Name updated to: Robin\nYour next order will use this name."
+        )
+        assert w.say("data_deleted", service="CupQ").endswith("Thanks for using CupQ.")
+        assert w.say("friend_own_order_first", name="Sam").startswith("Hi Sam! ")

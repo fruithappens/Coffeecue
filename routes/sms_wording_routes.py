@@ -29,6 +29,7 @@ SAMPLE = {
     "size": "large",
     "sizes": "small, medium, large",
     "available": "latte, flat white, cappuccino, long black, mocha",
+    "service": "Coffee Cue",
 }
 
 

@@ -14,6 +14,7 @@ The conversations are the scenario runner's plus extra ones that reach
 more of the bot's replies.
 """
 import json
+import os
 import re
 import sys
 import time
@@ -23,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from run_sms_scenarios import SmsClient, build_scenarios  # noqa: E402
 
-BASE = "http://127.0.0.1:5001"
+BASE = os.environ.get("GT_BASE", "http://127.0.0.1:5001")
 
 EXTRA = [
     ["help"],
@@ -49,6 +50,18 @@ EXTRA = [
     ["thanks"],
     ["?"],
     ["delete"],
+    # Account and friend commands (wording batch 2, 24 Nov 2026).
+    ["mydata"],
+    ["hi", "{NAME}", "latte", "oat", "large", "yes", "mydata"],
+    ["hi", "{NAME}", "CHANGENAME Robin"],
+    ["hi", "{NAME}", "reset"],
+    ["hi", "{NAME}", "latte", "oat", "large", "yes", "reset"],
+    ["hi", "{NAME}", "delete", "no"],
+    ["hi", "{NAME}", "delete", "maybe"],
+    ["hi", "{NAME}", "latte", "oat", "large", "yes", "delete", "yes"],
+    ["friend"],
+    ["hi", "{NAME}", "friend"],
+    ["hi", "{NAME}", "latte", "oat", "large", "yes", "friend"],
 ]
 
 
