@@ -23,8 +23,8 @@ const Toggle = ({ on, onChange, labels = ['Off', 'On'] }) => (
   </button>
 );
 
-export default function AdminSheet({ open, onClose, state = {}, actions = {}, unlocked = false, onUnlock, onLock, unlockedMinutes = 0 }) {
-  const [stage, setStage] = useState('pin');
+export default function AdminSheet({ open, onClose, state = {}, actions = {}, unlocked = false, adminLogin = false, onUnlock, onLock, unlockedMinutes = 0 }) {
+  const [stage, setStage] = useState(adminLogin ? 'panel' : 'pin');
   const [pinError, setPinError] = useState(false);
   const [checking, setChecking] = useState(false);
   const [version, setVersion] = useState('');
@@ -32,7 +32,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
   const [who, setWho] = useState('');
   // A correct PIN unlocks this tablet for a while (see BaristaInterface):
   // the sheet then opens straight to the panel until it is locked again.
-  useEffect(() => { if (open) { setStage(unlocked ? 'panel' : 'pin'); setPinError(false); } }, [open, unlocked]);
+  useEffect(() => { if (open) { setStage(unlocked || adminLogin ? 'panel' : 'pin'); setPinError(false); } }, [open, unlocked, adminLogin]);
   useEffect(() => {
     if (stage !== 'panel') return;
     fetch('/api/app-version').then((r) => (r.ok ? r.json() : {})).then((b) => setVersion(b.bundle || '')).catch(() => undefined);
@@ -67,7 +67,8 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
               <h2 className="text-xl font-extrabold text-cq-roast mt-0.5">{stationName || 'This tablet'}</h2>
               {who ? <div className="text-sm text-cq-ink-2 mt-1">Unlocked by <b>{who}</b></div> : null}
               {defaultPin ? <div className="text-sm text-cq-alert font-semibold mt-1">That was the default event PIN (1234). Give people their own in Runner &gt; People.</div> : null}
-              {unlocked ? <div className="text-sm text-cq-ink-3 mt-1">Unlocked for {unlockedMinutes} more min · <button type="button" onClick={() => { if (onLock) onLock(); onClose(); }} className="font-bold text-cq-caramel-deep underline underline-offset-4">Lock now</button></div> : null}
+              {adminLogin ? <div className="text-sm text-cq-ink-3 mt-1">Signed in as an admin, so no PIN. Use a barista login on a cart tablet.</div> : null}
+              {unlocked && !adminLogin ? <div className="text-sm text-cq-ink-3 mt-1">Unlocked for {unlockedMinutes} more min · <button type="button" onClick={() => { if (onLock) onLock(); onClose(); }} className="font-bold text-cq-caramel-deep underline underline-offset-4">Lock now</button></div> : null}
             </div>
             <button type="button" onClick={onClose} aria-label="Close" className="h-11 w-11 inline-flex items-center justify-center rounded-cq-md text-cq-ink-2 hover:bg-cq-wash"><X size={22} /></button>
           </div>
