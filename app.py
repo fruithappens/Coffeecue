@@ -725,6 +725,13 @@ def create_app():
         logger.info("Release freeze routes registered")
     except Exception as rf_err:
         logger.error(f"Release freeze routes failed to register: {rf_err}")
+    # The report emailed to the client after the event, and their feedback (U4-11).
+    try:
+        from routes.client_report_routes import bp as client_report_bp
+        app.register_blueprint(client_report_bp)
+        logger.info("Client report routes registered")
+    except Exception as cr_err:
+        logger.error(f"Client report routes failed to register: {cr_err}")
     # The per-event ledger: what to charge (L6-3).
     try:
         from routes.ledger_routes import bp as ledger_bp

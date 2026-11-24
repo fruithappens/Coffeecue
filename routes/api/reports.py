@@ -987,11 +987,11 @@ def print_today_report():
 def _render_event_summary_html(is_post_event: bool = False):
     """Build the event-summary HTML. Returns (html, error_or_None).
 
-    Single source of truth for both the printable route
-    (/api/reports/today/print) and the email route
-    (/api/reports/post-event/email). is_post_event flips the heading +
-    adds the share-with-client CTA.
+    For the printable page (/api/reports/today/print). The emailed report is
+    services/client_report.py. is_post_event flips the heading and adds the
+    share-with-client CTA.
     """
+    from html import escape as _h
     try:
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
@@ -1022,6 +1022,8 @@ def _render_event_summary_html(is_post_event: bool = False):
             event_name = 'CupQ'
             logo = ''
 
+        event_name = _h(str(event_name))
+
         # Build the HTML. Inline CSS so the operator can open the file
         # offline and have it still look right.
         symbol = data.get('currency_symbol', '$')
@@ -1034,13 +1036,13 @@ def _render_event_summary_html(is_post_event: bool = False):
         ) or '<tr><td colspan="4" style="text-align:center;color:#888">No orders yet</td></tr>'
 
         top_drinks_rows = ''.join(
-            f"<tr><td>{td['drink'].title()}</td><td>{td['orders']}</td></tr>"
+            f"<tr><td>{_h(str(td['drink']).title())}</td><td>{td['orders']}</td></tr>"
             for td in data.get('top_drinks', [])
         ) or '<tr><td colspan="2" style="text-align:center;color:#888">No orders yet</td></tr>'
 
         status = data.get('status_breakdown') or {}
         status_rows = ''.join(
-            f"<tr><td>{s.replace('_', ' ').title()}</td><td>{n}</td></tr>"
+            f"<tr><td>{_h(s.replace('_', ' ').title())}</td><td>{n}</td></tr>"
             for s, n in status.items()
         ) or '<tr><td colspan="2" style="text-align:center;color:#888">No orders yet</td></tr>'
 
@@ -1076,8 +1078,8 @@ def _render_event_summary_html(is_post_event: bool = False):
         issues = data.get('issues') or []
         if issues:
             _irows = ''.join(
-                f"<tr><td>{i.get('title', '')}</td>"
-                f"<td style=\"text-align:left\">{i.get('hint', '')}</td></tr>"
+                f"<tr><td>{_h(str(i.get('title', '')))}</td>"
+                f"<td style=\"text-align:left\">{_h(str(i.get('hint', '')))}</td></tr>"
                 for i in issues
             )
             issues_html = ("<h2>Issues &amp; improvements</h2>"
@@ -1092,7 +1094,7 @@ def _render_event_summary_html(is_post_event: bool = False):
         _ec = errors.get('count', 0)
         if _ec:
             _erows = ''.join(
-                f"<tr><td>{e.get('message', '')}</td><td>{e.get('count', 0)}</td></tr>"
+                f"<tr><td>{_h(str(e.get('message', '')))}</td><td>{e.get('count', 0)}</td></tr>"
                 for e in errors.get('recent', [])
             )
             errors_html = (f"<h2>App errors logged ({_ec})</h2>"
@@ -1114,7 +1116,7 @@ def _render_event_summary_html(is_post_event: bool = False):
             '</div>'
         ) if is_post_event else ''
 
-        logo_html = (f'<img src="{logo}" alt="" style="max-height:60px;margin-bottom:10px"/>'
+        logo_html = (f'<img src="{_h(str(logo))}" alt="" style="max-height:60px;margin-bottom:10px"/>'
                      if logo else '')
 
         # The body. Browser's print stylesheet handles page breaks.
@@ -1208,51 +1210,34 @@ def _render_event_summary_html(is_post_event: bool = False):
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def email_post_event_summary():
-    """Email the post-event summary to a recipient (the client).
+    """Email the event report to the client now.
 
-    Body: {"to": "client@example.com", "subject": "optional override"}
-
-    Renders the same post-event HTML the print route produces and sends
-    it via SMTP. Gated behind EMAIL_ENABLED — when SMTP isn't configured
-    the endpoint returns success:false with a clear "email not enabled"
-    message (HTTP 200, not an error) so the UI can tell the operator to
-    Cmd+P → Save as PDF instead. Never 500s on a config gap.
+    Body: {"to": "client@example.com", "from": first day, "to_day": last day,
+    "subject": optional}. No days = today. The client's version
+    (services/client_report.py), with the feedback link. With email not set
+    up, success and sent:false, so the screen can say to save the PDF.
     """
+    from routes.account_recovery_routes import _base_url
+    from routes.client_report_routes import EMAIL_RE
+    from services import client_report
+    from services.email_utils import email_enabled
+    from utils.database import close_connection, get_db_connection
+
+    body = request.get_json(silent=True) or {}
+    to = str(body.get('to') or '').strip()
+    if not EMAIL_RE.match(to):
+        return jsonify({'success': False,
+                        'error': 'A valid recipient email is required.'}), 400
+    today = _event_time.local_today(_event_timezone())
+    first = _event_time.parse_date(body.get('from')) or today
+    last = _event_time.parse_date(body.get('to_day')) or first
+    if last < first:
+        first, last = last, first
+    conn = get_db_connection()
     try:
-        body = request.get_json() or {}
-        to = (body.get('to') or '').strip()
-        if not to or '@' not in to:
-            return jsonify({'success': False,
-                            'error': 'A valid recipient email is required.'}), 400
-
-        html, err = _render_event_summary_html(is_post_event=True)
-        if err or not html:
-            return jsonify({'success': False,
-                            'error': f'Could not build summary: {err}'}), 500
-
-        # Event name for the subject line.
-        try:
-            coffee_system = current_app.config.get('coffee_system')
-            branding = _kv_get(coffee_system.db, 'branding_settings', default={}) or {}
-            event_name = (branding.get('event_name')
-                          or _kv_get(coffee_system.db, 'event_name', default='CupQ')
-                          or 'CupQ')
-        except Exception:
-            event_name = 'CupQ'
-
-        subject = (body.get('subject') or '').strip() or \
-            f"{event_name} — event summary"
-
-        from services.email_utils import send_html_email, email_enabled
-        result = send_html_email(
-            to=to,
-            subject=subject,
-            html_body=html,
-            text_fallback=(
-                f"{event_name} event summary attached as HTML. "
-                f"View in an HTML-capable mail client."
-            ),
-        )
+        result = client_report.send(
+            current_app._get_current_object(), conn, to, first.isoformat(),
+            last.isoformat(), _base_url(), (body.get('subject') or '').strip()[:150] or None)
         return jsonify({
             'success': result.ok,
             'sent': result.sent,
@@ -1261,5 +1246,9 @@ def email_post_event_summary():
             'to': to,
         })
     except Exception as e:
+        conn.rollback()
         logger.error(f"email_post_event_summary error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False,
+                        'error': 'The report could not be emailed. Please try again.'}), 500
+    finally:
+        close_connection(conn)

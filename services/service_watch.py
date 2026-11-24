@@ -283,7 +283,29 @@ class ServiceWatch:
             if last_sweep is None or time.monotonic() - last_sweep >= 3600:
                 last_sweep = time.monotonic()
                 sweep_stale_orders()
+                send_client_report(self.app)
             self._stop.wait(self.interval_s)
+
+
+def send_client_report(app):
+    """The report to the client, the morning after the event (U4-11)."""
+    conn = None
+    try:
+        conn = _connect()
+        if conn is None:
+            return False
+        from services.client_report import run_if_due
+
+        return run_if_due(app, conn)
+    except Exception as e:
+        logger.warning("[service-watch] client report failed: %s", e)
+        return False
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def sweep_stale_orders():

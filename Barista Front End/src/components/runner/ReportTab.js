@@ -63,6 +63,72 @@ const Bar = ({ label, n, max, suffix }) => (
   </div>
 );
 
+const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
+
+// The report goes to the client by itself the morning after (U4-11).
+function AfterTheEvent() {
+  const [cfg, setCfg] = useState(null);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/settings/client-report', { headers: authHeaders() });
+        const d = await r.json();
+        if (d.success) setCfg(d);
+      } catch (e) { /* the rest of the report still works */ }
+    })();
+  }, []);
+
+  if (!cfg) return null;
+  const set = (k) => (e) => { setNote(''); setCfg({ ...cfg, [k]: e.target.value }); };
+  const save = async (on) => {
+    setBusy(true); setNote('');
+    try {
+      const r = await fetch('/api/settings/client-report', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ on, email: cfg.email, from: cfg.from, to: cfg.to || cfg.from }),
+      });
+      const d = await r.json();
+      if (d.success) setCfg(d); else setNote(d.message || "Couldn't save that.");
+    } catch (e) { setNote('Could not reach the server.'); }
+    setBusy(false);
+  };
+  const input = 'border-2 border-cq-line rounded-cq-md px-3 py-2';
+  const ready = isEmail(cfg.email) && cfg.from;
+
+  return (
+    <Card title="Send it to the client by itself" Icon={Mail}>
+      <p className="text-sm text-cq-ink-3 mb-4">
+        At 9 am the day after the last event day, the client gets this report (coffees, waits, busiest
+        hour, drinks and milks) and a 3-question feedback form. Their answers land in System &gt; Enquiries.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm"><span className="block text-cq-ink-3 mb-1">Client's email</span>
+          <input type="email" value={cfg.email} onChange={set('email')} disabled={cfg.on} className={input} /></label>
+        <label className="text-sm"><span className="block text-cq-ink-3 mb-1">First event day</span>
+          <input type="date" value={cfg.from} onChange={set('from')} disabled={cfg.on} className={input} /></label>
+        <label className="text-sm"><span className="block text-cq-ink-3 mb-1">Last event day</span>
+          <input type="date" value={cfg.to} onChange={set('to')} disabled={cfg.on} className={input} /></label>
+        <button type="button" onClick={() => save(!cfg.on)} disabled={busy || (!cfg.on && !ready)}
+                className={`px-4 py-2.5 rounded-cq-md border-2 font-semibold disabled:opacity-50 ${
+                  cfg.on ? 'border-cq-line text-cq-ink-2' : 'border-cq-roast bg-cq-roast text-cq-cream'}`}>
+          {cfg.on ? (cfg.sent_at ? 'Set up another event' : 'Turn off') : 'Turn on'}
+        </button>
+      </div>
+      <p role="status" className="text-sm text-cq-ink-2 mt-3">
+        {note || (cfg.sent_at && cfg.on ? `Sent ${new Date(cfg.sent_at).toLocaleString()}.`
+          : cfg.error ? `Not sent: ${cfg.error}`
+            : cfg.on ? `On. It goes to ${cfg.email} the morning after ${fmtDay(cfg.to)}.` : '')}
+      </p>
+      {!cfg.email_enabled && (
+        <p className="text-sm text-cq-alert mt-2">Email is not set up on this server, so nothing will be sent.</p>
+      )}
+    </Card>
+  );
+}
+
 export default function ReportTab() {
   const [days, setDays] = useState([]);
   const [from, setFrom] = useState('');
@@ -70,6 +136,7 @@ export default function ReportTab() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [emailNote, setEmailNote] = useState(null);
+  const [client, setClient] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -105,12 +172,14 @@ export default function ReportTab() {
     setEmailNote(null);
     try {
       const r = await fetch('/api/reports/post-event/email', {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify({ from, to: to || from }),
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ to: client.trim(), from, to_day: to || from }),
       });
       const d = await r.json();
-      setEmailNote(d.success === false
-        ? (d.error || d.message || 'That did not send.')
-        : 'Sent.');
+      if (d.sent) setEmailNote(`Sent to ${d.to}.`);
+      else if (d.success && d.email_enabled === false) {
+        setEmailNote('Email is not set up on this server. Use Print or save as PDF.');
+      } else setEmailNote(d.error || d.message || 'That did not send.');
     } catch (e) { setEmailNote('Could not reach the server.'); }
   };
 
@@ -173,12 +242,18 @@ export default function ReportTab() {
                         hover:border-cq-caramel flex items-center gap-1.5">
             <Printer className="w-4 h-4" /> Print or save as PDF
           </button>
-          <button type="button" onClick={emailIt}
+          <label className="text-sm">
+            <span className="block text-cq-ink-3 mb-1">Email it to</span>
+            <input type="email" value={client} onChange={(e) => setClient(e.target.value)}
+                   placeholder="client@example.com"
+                   className="border-2 border-cq-line rounded-cq-md px-3 py-2" />
+          </label>
+          <button type="button" onClick={emailIt} disabled={!isEmail(client)}
                   className="px-4 py-2.5 rounded-cq-md border-2 border-cq-line text-cq-ink-2
-                             hover:border-cq-caramel flex items-center gap-1.5">
-            <Mail className="w-4 h-4" /> Email it
+                             hover:border-cq-caramel flex items-center gap-1.5 disabled:opacity-50">
+            <Mail className="w-4 h-4" /> Email it now
           </button>
-          {emailNote ? <span className="text-sm text-cq-ink-3">{emailNote}</span> : null}
+          <span role="status" className="text-sm text-cq-ink-3">{emailNote}</span>
         </div>
         {d.timezone ? (
           <p className="text-xs text-cq-ink-3 mt-3">
@@ -187,6 +262,8 @@ export default function ReportTab() {
           </p>
         ) : null}
       </section>
+
+      <AfterTheEvent />
 
       {busy && <p className="text-sm text-cq-ink-3">Reading the orders…</p>}
 

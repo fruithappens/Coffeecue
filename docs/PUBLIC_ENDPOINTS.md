@@ -29,6 +29,7 @@ Everything still answering is public by design and listed here.
 | `GET /api/orders/<n>/track`, `POST .../collected`, `.../customer-cancel` | The customer's own phone page | First name, drink, status |
 | `POST /api/integrations/eventsair/order`, `/webhook`, `/api/ea/webhook` | EventsAir calling in | Shared secret required; **refused when no secret is set** (test mode excepted) |
 | `POST /api/public/demo-request` | cupq.com.au's Book-a-demo form | Rate-limited, honeypot, CORS to cupq.com.au |
+| `GET/POST /event-feedback/<token>` | The form in the client's report email | Event name; needs the emailed token (60 days), rate-limited, honeypot |
 | `POST /api/client-errors`, `/api/client-events` | Tablets reporting crashes and usage | Write-only, truncated |
 | `POST /api/auth/login`, `/refresh`, `GET /api/auth/verify`, `/logout` | Logging in | Login throttle (#573) |
 | `GET /api/health`, `/heartbeat`, `/app-version`, `/status`, `/test`, `/auth-test` | Health checks and the post-deploy check | Up/down, version, event name, database type |
