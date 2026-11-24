@@ -8,11 +8,25 @@ import json
 import re
 from datetime import datetime, timedelta
 from services.sms_wording import say
+from utils.milk import BLACK_MILKS
 from utils.order_provenance import stamp as stamp_provenance
 from utils.station_label import station_label
 from services.coffee_system import (  # noqa: F401  (defined above the mixin imports)
     logger,
 )
+
+
+
+def _month_year(value):
+    """'Nov 2026' from a datetime or a timestamp string; else as given."""
+    if value in (None, "", "Unknown"):
+        return "Unknown"
+    if hasattr(value, "strftime"):
+        return value.strftime("%b %Y")
+    try:
+        return datetime.fromisoformat(str(value).strip()).strftime("%b %Y")
+    except ValueError:
+        return str(value)
 
 
 class CommandsMixin:
@@ -1512,20 +1526,19 @@ class CommandsMixin:
             sugar = customer.get("preferred_sugar", "Not set")
             total_orders = customer.get("total_orders", 0)
             first_order = customer.get("first_order_date", "Unknown")
+            first_order = _month_year(first_order)
 
-            # Format date nicely
-            if first_order != "Unknown":
-                try:
-                    first_order_date = datetime.strptime(
-                        str(first_order), "%Y-%m-%d %H:%M:%S"
-                    )
-                    first_order = first_order_date.strftime("%b %Y")
-                except:
-                    pass
+            milk_l = str(milk or "").strip().lower()
+            if milk_l in BLACK_MILKS or milk_l == "not set":
+                milk_part = ""
+            elif milk_l.endswith(" milk"):
+                milk_part = f" with {milk}"
+            else:
+                milk_part = f" with {milk} milk"
 
             response = f"""Your {self.system_name} Profile:
 Name: {name}
-Favorite: {drink} with {milk} milk ({size})
+Favorite: {drink}{milk_part} ({size})
 Sugar: {sugar}
 Orders: {total_orders} total
 Member since: {first_order}
