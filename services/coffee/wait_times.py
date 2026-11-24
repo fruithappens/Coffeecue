@@ -277,6 +277,31 @@ class WaitTimesMixin:
         est = (work_ahead / max(1, capacity)) + overall
         return max(1, min(int(round(est)), 60))
 
+    def _estimate_ready_minutes(self, station_id, order_number, status="pending"):
+        """Minutes until THIS order is likely ready, or None.
+
+        For the customer's phone page ("Ready about 10:42"). The estimates
+        above are for a NEW order joining the back of the queue; this one
+        is for an order already in it: the drinks ahead of it across the
+        station's lanes, plus its own make-time. An order already being
+        made needs about one drink's time. None without real or declared
+        make-times -- better no time than a made-up one.
+        """
+        per = self._get_recent_completion_avg_minutes(station_id)
+        if per is None:
+            rate = self._get_station_declared_throughput(station_id)
+            per = (60.0 / rate) if rate else None
+        if per is None:
+            return None
+        if status in ("in-progress", "in_progress"):
+            return max(1, min(int(round(per)), 15))
+        position = self._get_queue_position(station_id, order_number)
+        if not position:
+            return None
+        lanes = max(1, int(self._get_station_capacity(station_id) or 1))
+        est = ((position - 1) / lanes) * per + per
+        return max(1, min(int(round(est)), 60))
+
     def _get_station_wait_time(self, station_id):
         """Get estimated wait time for a station.
 

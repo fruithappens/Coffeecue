@@ -577,6 +577,41 @@ def _process_one(app_obj, conn, correlation_id, fixture=None, qmap_override=None
     logger.info(f"EA survey response {response_id} → order #{order_number}")
 
 
+# "Ready about 10:42" for the phone page. Every waiting phone polls every
+# few seconds, so one estimate per order is reused for 20 s.
+_READY_CACHE = {}
+_READY_TTL_S = 20
+
+
+def _ready_estimate(station_id, order_number, status):
+    """{'ready_in_min', 'ready_about'} for a waiting order, else {}.
+    Never raises: no estimate is shown rather than a broken page."""
+    if status not in ("pending", "in-progress") or not station_id:
+        return {}
+    key = (order_number, status)
+    hit = _READY_CACHE.get(key)
+    now = time.monotonic()
+    if hit and now - hit[0] < _READY_TTL_S:
+        return hit[1]
+    out = {}
+    try:
+        cs = current_app.config.get("coffee_system")
+        minutes = cs._estimate_ready_minutes(station_id, order_number, status) if cs else None
+        if minutes:
+            tz = _event_time.resolve_zone(cs._get_setting)
+            at = _event_time.local_now(tz) + timedelta(minutes=minutes)
+            out = {
+                "ready_in_min": int(minutes),
+                "ready_about": at.strftime("%I:%M").lstrip("0") + at.strftime("%p").lower(),
+            }
+    except Exception as e:
+        logger.debug(f"ready estimate skipped: {e}")
+    if len(_READY_CACHE) > 2000:
+        _READY_CACHE.clear()
+    _READY_CACHE[key] = (now, out)
+    return out
+
+
 def _station_for_order(conn, order_number):
     try:
         cur = conn.cursor()
@@ -1598,6 +1633,7 @@ def ea_me():
                                 or (f"Station {sid}" if sid else None),
                 'seconds_in_status': int(since) if since is not None else None,
             }
+            active.update(_ready_estimate(sid, num, st))
     except Exception as e:
         logger.warning(f"ea_me active-order lookup failed: {e}")
 

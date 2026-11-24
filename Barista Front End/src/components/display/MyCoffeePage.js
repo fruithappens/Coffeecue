@@ -23,6 +23,7 @@ import SponsorTicker from './SponsorTicker';
 import { recall, remember, forget } from '../../utils/deviceMemory';
 import playCupQSignature from '../../utils/cupqSignature';
 import { playPreset } from '../../services/SoundNotificationService';
+import { event as logEvent } from '../../services/logging';
 import { useSearchParams } from 'react-router-dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
@@ -132,6 +133,8 @@ const BEACON_PAD_BOTTOM = IS_EMBEDDED
 
 // Customer-facing status words live in ONE place (constants/customerStatus).
 const STATUS = CUSTOMER_STATUS;
+// Rest view: dim to a dark screen after this long without a touch.
+const RESTING_AFTER_MS = 45000;
 
 // Sentinel for "a drink that isn't on the list".
 const OTHER = '__other__';
@@ -458,6 +461,13 @@ const MyCoffeePage = () => {
   };
 
   const prevStatusRef = useRef(null);
+  // True once the page has been hidden since the status last changed.
+  const awaySinceStatusRef = useRef(false);
+  const prevSeenRef = useRef(false);
+  const [readyWhileAway, setReadyWhileAway] = useState(false);
+  // Same fact, readable in the SAME render (the log below runs before the
+  // state update lands).
+  const readyWhileAwayRef = useRef(false);
   useEffect(() => {
     const status = me?.active_order?.status;
     const num = me?.active_order?.order_number;
@@ -482,7 +492,15 @@ const MyCoffeePage = () => {
     // Only on the TRANSITION into ready, never on a poll that merely
     // finds it still ready -- otherwise it chimes every few seconds at
     // someone who already knows.
+    // Did it turn green while the phone was locked or the tab hidden?
+    // Then say so on the card: the chime may have been the first thing
+    // they noticed, and "ready 4 min ago" tells them not to dawdle.
+    const away = awaySinceStatusRef.current || (!prevSeenRef.current && !!was);
+    awaySinceStatusRef.current = document.visibilityState === 'hidden';
+    prevSeenRef.current = true;
     if (!was || was === status || status !== 'completed') return;
+    readyWhileAwayRef.current = away;
+    setReadyWhileAway(away);
     // Only if the customer asked for it. Silence is the default.
     if (soundOn) playReadyChime();
     // The buzz is NOT gated on the sound toggle: a vibration is private,
@@ -705,6 +723,7 @@ const MyCoffeePage = () => {
     const refresh = () => load(cid, { quiet: true });
     const onVisible = () => {
       setPageHidden(document.visibilityState === 'hidden');
+      if (document.visibilityState === 'hidden') awaySinceStatusRef.current = true;
       if (document.visibilityState !== 'visible') return;
       refresh();
       // iOS suspends the audio context while the page is hidden. Resume
@@ -743,6 +762,53 @@ const MyCoffeePage = () => {
     })();
     return () => { try { lock && lock.release(); } catch (e) { /* noop */ } };
   }, [me?.active_order]);
+
+  // Rest view: after RESTING_AFTER_MS with no touch while it's still being
+  // made, the page dims to a dark screen with just the number, the time
+  // and a dot in the status colour (blue, then orange). A dark screen
+  // costs an OLED phone almost nothing, so leaving it open -- the screen
+  // kept awake above -- stops being a battery worry, which is why people
+  // lock their phone. Any touch brings the full page back; READY always
+  // does, full green.
+  const [resting, setResting] = useState(false);
+  const activeStatus = me?.active_order?.status;
+  // Keyed on "still waiting", not the status itself: blue -> orange must
+  // change the dot's colour WITHOUT waking the screen, so the colour
+  // change shows at rest. Only a touch, or READY, brings it back.
+  const stillWaiting = !!activeStatus && activeStatus !== 'completed';
+  useEffect(() => {
+    if (!stillWaiting) { setResting(false); return undefined; }
+    let t = null;
+    const arm = () => {
+      setResting(false);
+      clearTimeout(t);
+      t = setTimeout(() => setResting(true), RESTING_AFTER_MS);
+    };
+    arm();
+    const evs = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    evs.forEach((e) => window.addEventListener(e, arm, { passive: true }));
+    return () => {
+      clearTimeout(t);
+      evs.forEach((e) => window.removeEventListener(e, arm));
+    };
+  }, [stillWaiting]);
+
+  // Measure what matters (Steve, 24 Nov 2026): when someone first SEES
+  // their coffee is ready, had the phone been away, and how long had it
+  // already been waiting? One event per order. Tells us after one event
+  // whether locked phones are a real problem or a rare one.
+  useEffect(() => {
+    const a = me?.active_order;
+    if (!a || a.status !== 'completed' || document.visibilityState !== 'visible') return;
+    const key = `coffee_my_seen_ready_${a.order_number}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { /* log anyway */ }
+    logEvent('BEACON_READY_SEEN', {
+      order: a.order_number,
+      ready_for_s: typeof a.seconds_in_status === 'number' ? a.seconds_in_status : null,
+      while_away: !!(readyWhileAwayRef.current || readyWhileAway),
+      sound_on: !!soundOn,
+    });
+  }, [me?.active_order?.status, me?.active_order?.order_number, pageHidden, readyWhileAway]);
 
   // Opening the editor starts from what they already chose, so changing
   // one thing does not mean re-picking everything.
@@ -1430,6 +1496,24 @@ const MyCoffeePage = () => {
            style={{ minHeight: '100dvh',
                     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: BEACON_PAD_BOTTOM }}>
+        {resting && !ready && (
+          <button type="button" onClick={() => setResting(false)}
+            aria-label="Show the full page"
+            className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white"
+            style={{ paddingBottom: BEACON_PAD_BOTTOM }}>
+            <span className={`${copy.tone} rounded-full flex items-center justify-center shadow-cq-card`}
+                  style={{ width: 'min(60vw, 16rem)', height: 'min(60vw, 16rem)' }}>
+              <span className="font-extrabold" style={{ fontSize: 'clamp(2.5rem, 13vw, 3.75rem)' }}>
+                #{active.order_number}
+              </span>
+            </span>
+            <span className="mt-6 text-2xl font-bold opacity-90">{copy.title}</span>
+            {active.ready_about && (
+              <span className="mt-2 text-xl opacity-80">Ready about {active.ready_about}</span>
+            )}
+            <span className="mt-8 text-sm opacity-50">Tap to show the full page</span>
+          </button>
+        )}
         <div className="w-full max-w-md">
           <EventHeader brand={brand} className="mb-4" />
           {surnameAsk && (
@@ -1453,10 +1537,23 @@ const MyCoffeePage = () => {
                 {ready ? 'at ' : 'being made at '}{active.station_name}
               </div>
             )}
+            {/* WHEN to look (Steve, 24 Nov 2026). A time, not a countdown:
+                people check their phones anyway, and a time means a
+                locked screen doesn't matter. Only when the server has
+                real make-times to estimate from. */}
+            {!ready && active.ready_about && (
+              <div className="mt-2 text-lg font-bold">
+                Ready about {active.ready_about}
+                {active.ready_in_min ? <span className="font-semibold opacity-90"> (~{active.ready_in_min} min)</span> : null}
+              </div>
+            )}
             {/* HOW LONG it has been sitting there. Only once ready --
                 before that it is the wait, which the page does not
                 promise, and a clock on a queue position just makes
                 people anxious. */}
+            {ready && readyWhileAway && (
+              <div className="mt-2 text-base font-bold">Went ready while your phone was locked</div>
+            )}
             {ready && waitingMinutes != null && (
               <div className="mt-1 text-sm opacity-90">
                 {waitingMinutes < 1
@@ -1509,9 +1606,11 @@ const MyCoffeePage = () => {
               const b = await r.json().catch(() => ({}));
               return b?.active_order?.order_key || '';
             }} />
-          <p className="text-center text-cq-ink-3 text-sm mt-2">
-            Keep this page open — it updates by itself.
-          </p>
+          {!ready && <p className="text-center text-cq-ink-3 text-sm mt-2">
+            {typeof navigator !== 'undefined' && navigator.wakeLock
+              ? "Leave this open - the screen stays on, dims to save battery, and turns green when it's ready."
+              : 'Keep this page open — it updates by itself.'}
+          </p>}
 
           {/* Sound, off by default, the customer's choice.
               Sits right under "keep this page open", because that is the
