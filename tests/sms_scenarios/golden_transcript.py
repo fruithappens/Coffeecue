@@ -82,6 +82,10 @@ EXTRA = [
     ["hi", "{NAME}", "latte", "friend", "Sam", "cappuccino", "oat", "gigantic"],
     ["hi", "{NAME}", "latte", "friend", "Sam", "cappuccino with oat", "large", "hmm"],
     ["hi", "{NAME}", "latte", "friend", "Sam", "cappuccino with oat", "large", "none", "yes", "maybe"],
+    # The friend's drink is checked against the event's menu (24 Nov 2026).
+    ["hi", "{NAME}", "latte", "friend", "Sam", "cappuccino with soy"],
+    ["hi", "{NAME}", "latte", "friend", "Sam", "cappuccino with goat milk"],
+    ["hi", "{NAME}", "latte", "friend", "Sam", "cappuccino", "medium"],
 ]
 
 
