@@ -732,6 +732,13 @@ def create_app():
         logger.info("Client report routes registered")
     except Exception as cr_err:
         logger.error(f"Client report routes failed to register: {cr_err}")
+    # One sales list from enquiry to paid (L6-9).
+    try:
+        from routes.sales_routes import bp as sales_bp
+        app.register_blueprint(sales_bp)
+        logger.info("Sales routes registered")
+    except Exception as sl_err:
+        logger.error(f"Sales routes failed to register: {sl_err}")
     # The per-event ledger: what to charge (L6-3).
     try:
         from routes.ledger_routes import bp as ledger_bp

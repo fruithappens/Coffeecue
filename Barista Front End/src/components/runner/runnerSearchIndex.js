@@ -89,6 +89,8 @@ export const SEARCH_INDEX = [
     words: 'diagnostics errors crashes tests problems' },
   { section: 'system', tab: 'enquiries', title: 'Enquiries', what: 'Sign-ups, demo requests and help requests.',
     words: 'enquiries sign ups signups demo requests help requests leads' },
+  { section: 'system', tab: 'sales', title: 'Sales', what: 'Every lead from enquiry to paid, with a next step.',
+    words: 'sales leads pipeline quotes invoiced paid prospects clients' },
   { section: 'system', tab: 'fleet', title: 'Fleet', what: 'Every CupQ copy running for clients.',
     words: 'fleet copies instances clients servers' },
   { section: 'eventsair', title: 'EventsAir', what: 'Attendee list, event access code, surveys, embed code for the event app.',

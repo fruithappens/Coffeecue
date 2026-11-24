@@ -864,6 +864,32 @@ def _m035_inventory_history_notes(cur):
     cur.execute("ALTER TABLE inventory_history ADD COLUMN IF NOT EXISTS created_by INTEGER")
 
 
+def _m037_sales_leads(cur):
+    """One sales list from enquiry to paid (routes/sales_routes.py, L6-9).
+    A NULL source_id (typed in by hand) is never a duplicate."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sales_leads (
+            id SERIAL PRIMARY KEY,
+            source VARCHAR(10) NOT NULL,
+            source_id INTEGER,
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            organisation VARCHAR(160),
+            name VARCHAR(120),
+            email VARCHAR(200),
+            phone VARCHAR(40),
+            event_when VARCHAR(120),
+            stage VARCHAR(12) NOT NULL DEFAULT 'enquiry',
+            value NUMERIC(10,2),
+            next_step VARCHAR(300),
+            next_date DATE,
+            notes TEXT,
+            updated_at TIMESTAMP,
+            updated_by VARCHAR(80),
+            UNIQUE (source, source_id)
+        )
+    """)
+
+
 def _m036_sms_messages_received_at(cur):
     """sms_messages tables made by an older schema have created_at but no
     received_at, which Runner > Messages' dropped-texts check reads: it
@@ -1085,6 +1111,7 @@ MIGRATIONS: list[Migration] = [
     Migration(34, 'session_revocation',       _m034_session_revocation),
     Migration(35, 'inventory_history_notes',  _m035_inventory_history_notes),
     Migration(36, 'sms_messages_received_at', _m036_sms_messages_received_at),
+    Migration(37, 'sales_leads',              _m037_sales_leads),
 ]
 
 
