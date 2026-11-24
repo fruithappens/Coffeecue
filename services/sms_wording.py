@@ -217,6 +217,81 @@ CATALOG = {
         {},
         "Placing their order went wrong.",
     ),
+    # Batch 3 (24 Nov 2026): the ordering questions and refusals.
+    "ask_milk": (
+        "What milk for your {drink}? ({milks}, or 'no milk')",
+        {"drink": "their drink", "milks": "the milks on today"},
+        "Their drink needs a milk and they named one we can't assume.",
+    ),
+    "ask_size": (
+        "What size {drink}? ({sizes})",
+        {"drink": "their drink", "sizes": "the sizes on offer"},
+        "We need the size of their drink.",
+    ),
+    "milk_unrecognised": (
+        "I didn't recognise that milk. Please choose from: {milks}, or 'no milk'.",
+        {"milks": "the milks on today"},
+        "Their answer to 'what milk?' wasn't a milk.",
+    ),
+    "milk_none_today": (
+        "Sorry, we don't have {milk} at any station today. What milk would you like? ({options})",
+        {"milk": "the milk they asked for", "options": "the milks on today, or 'no milk'"},
+        "They asked for a milk no open station has.",
+    ),
+    "milk_not_offered": (
+        "Sorry, we don't have {milk}. Available options are: {available}.{off_menu} Please text MENU for full options.",
+        {
+            "milk": "the milk they asked for",
+            "available": "the milks on the menu",
+            "off_menu": "a sentence about off-menu requests, when that's turned on",
+        },
+        "They asked for a milk that isn't on the menu.",
+    ),
+    "drink_not_offered": (
+        "Sorry, we don't offer {drink}. Available options are: {available}. Please text MENU for full options.",
+        {"drink": "what they asked for", "available": "the drinks on the menu"},
+        "Their order named a drink that isn't on the menu.",
+    ),
+    "sweetener_not_offered": (
+        "Sorry, we don't have {sweetener}. Available options are: {available}. Please text MENU for full options.",
+        {"sweetener": "the sweetener they asked for", "available": "the sweeteners on offer"},
+        "They asked for a sweetener we don't have.",
+    ),
+    "which_tea": (
+        "Which tea would you like? ({teas})",
+        {"teas": "the teas on the menu"},
+        "They asked for 'tea' without saying which.",
+    ),
+    "name_invalid": (
+        "Please enter a valid name (2-50 characters).",
+        {},
+        "The name they sent was too short or too long.",
+    ),
+    "no_usual_yet": (
+        "You don't have a saved usual order yet. What type of coffee would you like, {name}?",
+        {"name": "their first name"},
+        "They asked for their usual before ordering anything.",
+    ),
+    "welcome_back_ask_drink": (
+        "Welcome back, {name}! What type of coffee would you like today?",
+        {"name": "their first name"},
+        "A returning customer with no usual order texted.",
+    ),
+    "welcome_back_ask_milk": (
+        "Welcome back, {name}! What type of milk would you like with your {drink}?",
+        {"name": "their first name", "drink": "their drink"},
+        "A returning customer named a drink and we need the milk.",
+    ),
+    "confirm_yes_no_edit": (
+        "Please reply YES to confirm your order, NO to cancel, or EDIT to change it.",
+        {},
+        "We asked them to confirm an order and the answer wasn't YES, NO or EDIT.",
+    ),
+    "usual_confirmed": (
+        "Thanks, {name}! Your order has been confirmed. It will be ready for pickup at {station}.",
+        {"name": "their first name", "station": "where to collect it"},
+        "They confirmed their usual order.",
+    ),
 }
 
 _cache = {"at": 0.0, "value": {}}

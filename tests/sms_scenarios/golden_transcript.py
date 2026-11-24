@@ -62,6 +62,14 @@ EXTRA = [
     ["friend"],
     ["hi", "{NAME}", "friend"],
     ["hi", "{NAME}", "latte", "oat", "large", "yes", "friend"],
+    # Ordering questions and refusals (wording batch 3, 24 Nov 2026).
+    ["hi", "{NAME}", "latte with goat milk"],
+    ["hi", "{NAME}", "latte with honey"],
+    ["hi", "{NAME}", "oat latte", "purple"],
+    ["hi", "{NAME}", "flat white", "hmm"],
+    ["hi", "{NAME}", "usual"],
+    ["hi", "X"],
+    ["hi", "{NAME}", "large cappuccino with soy", "maybe"],
 ]
 
 
