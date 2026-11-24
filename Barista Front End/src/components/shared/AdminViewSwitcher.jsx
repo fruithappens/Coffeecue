@@ -19,6 +19,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Coffee, LayoutDashboard, Monitor, Shuffle, X, Smartphone } from 'lucide-react';
 import AuthService from '../../services/AuthService';
+import { hasSwitchedView, markSwitchedView } from '../../utils/switchedView';
 
 const VIEWS = [
   // THREE roles, not four interfaces. Organiser and Support became the one
@@ -40,7 +41,8 @@ const AdminViewSwitcher = ({ embedded = false }) => {
   const location = useLocation();
 
   const role = (AuthService.getCurrentUser()?.role || '').toLowerCase();
-  if (role !== 'admin') return null;
+  // Admins anywhere; on a screen's own header, also whoever came from the Runner.
+  if (role !== 'admin' && !(embedded && role !== 'barista' && hasSwitchedView())) return null;
   // Don't clutter the public/landing/login or the customer-facing display.
   // Also hidden on /barista — that screen has its own "Switch view" control in
   // the header pill row (the floating one collided with the action bar there).
@@ -86,7 +88,7 @@ const AdminViewSwitcher = ({ embedded = false }) => {
                 {v.customer ? <div className="my-1 border-t border-cq-line" /> : null}
                 <button
                   type="button"
-                  onClick={() => { setOpen(false); navigate(v.path); }}
+                  onClick={() => { setOpen(false); markSwitchedView(); navigate(v.path); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-cq-md
                               text-left font-semibold whitespace-nowrap ${
                     v.active ? 'bg-cq-caramel-wash text-cq-roast'
@@ -143,7 +145,7 @@ const AdminViewSwitcher = ({ embedded = false }) => {
               return (
                 <button
                   key={v.path}
-                  onClick={() => { setOpen(false); navigate(v.path); }}
+                  onClick={() => { setOpen(false); markSwitchedView(); navigate(v.path); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, minWidth: 150,
                     background: '#fff', color: '#3B2314',

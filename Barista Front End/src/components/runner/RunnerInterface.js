@@ -47,6 +47,7 @@ import SmsBlocklistTab from '../support-tabs/SmsBlocklistTab';
 import SmsMeterTab from '../support-tabs/SmsMeterTab';
 import PrintersTab from '../support-tabs/PrintersTab';
 import DisplaySelector from '../display/DisplaySelector';
+import { markSwitchedView } from '../../utils/switchedView';
 // Review & system
 import SystemHealthTab from '../support-tabs/SystemHealthTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
@@ -305,7 +306,7 @@ const RunnerInterface = () => {
                     Signed in as {userLabel}
                   </div>
                   {[['/barista', 'Barista'], ['/displays', 'Screens'], ['/my', 'Order as a customer']].map(([path, label]) => (
-                    <button key={path} type="button" onClick={() => { window.location.href = path; }}
+                    <button key={path} type="button" onClick={() => { markSwitchedView(); window.location.href = path; }}
                       className="block w-full text-left px-4 h-11 font-semibold hover:bg-cq-wash">{label}</button>
                   ))}
                 </div>
