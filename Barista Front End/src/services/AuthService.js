@@ -1,4 +1,5 @@
 // services/AuthService.js
+import { clearSwitchedView } from '../utils/switchedView';
 import OrderDataService from './OrderDataService';
 import roleLanding from '../utils/roleLanding';
 import ConfigService from './ConfigService';
@@ -195,6 +196,7 @@ class AuthService {
     const endingRefresh = localStorage.getItem(this.refreshKey);
 
     // Clear local storage tokens and user data
+    clearSwitchedView();
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.refreshKey);
     localStorage.removeItem(this.userKey);
@@ -643,6 +645,7 @@ class AuthService {
     localStorage.removeItem('demo_mode_enabled');
     
     // Remove dummy tokens
+    clearSwitchedView();
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem('coffee_auth_token');
     localStorage.removeItem('jwt_token');

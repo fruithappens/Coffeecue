@@ -7,11 +7,12 @@
 // "looking a bit original, was a bit wordy, and I don't even know if it gave
 // all the options and how to turn some areas on or make them look
 // different."
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Monitor, Hand, Eye, Copy, Check, QrCode, ExternalLink, Sparkles, Smartphone, Image as ImageIcon, HelpCircle, Activity, Sliders } from 'lucide-react';
 import { AreaMark, Button, Pill, useEventBrand, EventHeader } from '../../design';
 import useStations from '../../hooks/useStations';
 import AdminViewSwitcher from '../shared/AdminViewSwitcher';
+import BoardLookCard from '../runner/BoardLookCard';
 import { tell } from '../shared/ConfirmDialog';
 
 const origin = () => (typeof window !== 'undefined' ? window.location.origin : '');
@@ -75,15 +76,7 @@ const Section = ({ title, hint, children }) => (
 export default function DisplaySelector({ embedded = false }) {
   const { stations } = useStations();
   const brand = useEventBrand();
-  const [look, setLook] = useState(null);
   const [orientation, setOrientation] = useState('auto');
-
-  useEffect(() => {
-    fetch('/api/display/config')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b) => setLook((b && (b.config || b)) || null))
-      .catch(() => undefined);
-  }, []);
 
   // The board's address, built from the choices on this page rather than
   // typed by hand. `mode=viewer` drops the Order here button; the rest is
@@ -156,34 +149,16 @@ export default function DisplaySelector({ embedded = false }) {
       </Section>
 
       <Section title="How they look">
-        <div className="bg-cq-milk rounded-cq-lg shadow-cq-card border border-cq-line p-4">
-          {look ? (
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              {[
-                ['Theme', look.display_theme || 'light'],
-                ['Text size', look.display_font_size || 'large'],
-                ['Layout', look.display_mode || 'auto'],
-                ['When it overflows', look.display_overflow_mode || 'flip'],
-                ['Background', look.background_landscape || look.background_portrait ? 'an image is set' : 'none'],
-                ['Sponsors on the board', look.sponsor && look.sponsor.enabled ? 'on' : 'off'],
-              ].map(([k, v]) => (
-                <div key={k}><span className="text-cq-ink-3">{k}: </span><b className="text-cq-roast">{String(v)}</b></div>
-              ))}
-            </div>
-          ) : <p className="text-sm text-cq-ink-3">Reading the current settings…</p>}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" Icon={Sliders} onClick={() => { window.location.href = '/barista'; }}>
+        {embedded ? <BoardLookCard /> : null}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {embedded ? null : (
+            <Button size="sm" variant="secondary" Icon={Sliders} onClick={() => { window.location.href = '/run#screens'; }}>
               Change the look
             </Button>
-            <Button size="sm" variant="ghost" Icon={ImageIcon} onClick={() => { window.location.href = '/run#branding/logo'; }}>
-              Logo, colours and backgrounds
-            </Button>
-          </div>
-          <p className="text-xs text-cq-ink-3 mt-2">
-            Theme, text size, layout and what happens when there are more orders than fit live on
-            the barista screen behind the lock, under <b>Screens</b>. The logo, colours and full-screen
-            backgrounds are in Branding.
-          </p>
+          )}
+          <Button size="sm" variant="ghost" Icon={ImageIcon} onClick={() => { window.location.href = '/run#branding/logo'; }}>
+            Logo, colours and backgrounds
+          </Button>
         </div>
       </Section>
     </div>
