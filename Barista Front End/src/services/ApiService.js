@@ -6,6 +6,7 @@ import authService from './AuthService';
 import webSocketService from './WebSocketService';
 import { APP_MODES } from '../context/AppContext';
 import { persistAccessToken } from '../utils/authMirror';
+import { reportSignedOut, reportSignedIn } from '../utils/signedOut';
 
 // Import anti-flicker protection utility
 const antiFlickerProtection = {
@@ -228,6 +229,7 @@ class ApiService {
     const refreshToken = localStorage.getItem(refreshKey)
       || localStorage.getItem('refreshToken');
     if (!refreshToken) {
+      reportSignedOut();
       console.warn('No refresh token available — cannot recover from 401');
       return false;
     }
@@ -245,6 +247,8 @@ class ApiService {
         mode: 'cors',
       });
       if (!response.ok) {
+        // Refused for good. A 5xx (a deploy in progress) is not a sign-out.
+        if ([401, 403, 422].includes(response.status)) reportSignedOut();
         console.warn(`Refresh endpoint returned ${response.status} — user will need to re-login`);
         return false;
       }
@@ -259,6 +263,7 @@ class ApiService {
       if (data.expiresIn) {
         localStorage.setItem('tokenExpiry', Date.now() + (data.expiresIn * 1000));
       }
+      reportSignedIn();
       console.log('Token auto-refreshed after 401');
       return true;
     } catch (err) {
