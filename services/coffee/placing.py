@@ -597,7 +597,7 @@ class PlacingMixin:
                     logger.error(
                         f"Error rolling back after order creation failure: {str(rollback_error)}"
                     )
-                return "Sorry, we encountered an error processing your order. Please try again or visit the coffee station directly."
+                return say("order_error")
 
             # Step 2: Update customer preferences ONLY if this is NOT a friend order
             # When ordering for a friend, don't overwrite the customer's own preferences
@@ -1002,7 +1002,7 @@ class PlacingMixin:
             except Exception as rollback_error:
                 logger.error(f"Error rolling back transaction: {str(rollback_error)}")
 
-            return "Sorry, we encountered an error processing your order. Please try again or visit the coffee station directly."
+            return say("order_error")
         finally:
             # Always clean up resources
             try:
