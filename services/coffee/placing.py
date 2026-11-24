@@ -71,8 +71,20 @@ class PlacingMixin:
             except Exception:
                 pass
 
+    @staticmethod
+    def _order_was_placed(order_details):
+        """Did _confirm_order really create this order? It stamps the number
+        on the dict once the order is saved. Never judge by the reply's
+        words: they are editable (sms_wording), so 'starts with Sorry' can
+        stop being true."""
+        return bool((order_details or {}).get("_created_order_number"))
+
     def _confirm_order(self, phone, order_details, name, is_friend_order=False):
         """Confirm and process the order"""
+        # A dict carried over from an earlier order must not look placed.
+        for _k in ("_created_order_number", "_created_order_id", "_created_station_id"):
+            order_details.pop(_k, None)
+
         # Intake gate. Checked HERE rather than at the top of handle_sms so
         # that STATUS and CANCEL keep working while ordering is stopped —
         # a customer who already has a drink in the queue still needs to be

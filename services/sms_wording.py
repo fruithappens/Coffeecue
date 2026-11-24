@@ -358,6 +358,11 @@ CATALOG = {
         {"friend": "the friend's name"},
         "They asked to change a friend's coffee.",
     ),
+    "friend_not_added": (
+        "{friend}'s coffee wasn't confirmed, so it isn't in the order.",
+        {"friend": "the friend's name"},
+        "They moved on before confirming a friend's coffee; another reply follows on the same line.",
+    ),
     "friend_confirm_prompt": (
         "Please reply YES to confirm {friend}'s order, NO to cancel, EDIT to change it, or DONE to finish the group order.",
         {"friend": "the friend's name"},
