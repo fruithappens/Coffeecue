@@ -34,6 +34,7 @@ import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import OfflineDataHelper from './utils/offlineDataHelper';
 import ApiNotificationBanner from './components/shared/ApiNotificationBanner';
 import UpdateAvailable from './components/shared/UpdateAvailable';
+import SignedOutBanner from './components/shared/SignedOutBanner';
 
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface';
@@ -564,6 +565,7 @@ function App() {
               and nobody is standing at one to notice. They reload
               themselves; staff screens get asked. */}
           <UpdateAvailable />
+          <SignedOutBanner />
 
           <Routes>
             {/* Public routes */}
