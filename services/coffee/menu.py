@@ -6,6 +6,7 @@ MenuMixin, so self.<method>() reaches them exactly as before.
 """
 import json
 import re
+from services.sms_wording import say
 
 from utils.milk import BLACK_MILKS
 from services.coffee_system import (  # noqa: F401  (defined above the mixin imports)
@@ -184,14 +185,8 @@ class MenuMixin:
         opts = ", ".join(makeable) if makeable else "full cream, skim"
         who = f"{name}, " if name else ""
         if milk:
-            return (
-                f"Sorry {who}none of our stations can make {milk} right now. "
-                f"What milk would you like instead? ({opts}, or 'no milk')"
-            )
-        return (
-            f"Sorry {who}we can't make that one right now. "
-            f"What milk would you like? ({opts}, or 'no milk')"
-        )
+            return say("milk_none_can_make", who=who, milk=milk, milks=opts)
+        return say("drink_none_can_make", who=who, milks=opts)
 
     def _get_espresso_drink_menu(self):
         """Return the espresso-based drink menu from catalog_items.
@@ -440,8 +435,8 @@ class MenuMixin:
             # Keep the message warm; this is usually a sponsor/staff
             # comp and a brusque "$0.00 owed" would feel off.
             if price_value == 0.0:
-                return "\nYour drink is complimentary today. Enjoy!"
-            return f"\nTotal: {formatted}, pay at the counter when you collect."
+                return "\n" + say("price_free")
+            return "\n" + say("price_total", total=formatted)
         except Exception as e:
             logger.warning(f"_format_price_tail failed (non-fatal): {e}")
             return ""
@@ -469,9 +464,10 @@ class MenuMixin:
             if not any_priced or n == 0:
                 return ""
             symbol = pricing.get("symbol", "$")
-            return (
-                f"\nGroup total: {symbol}{total:.2f} for {n} "
-                f"coffee{'s' if n != 1 else ''}, pay at the counter on collection."
+            return "\n" + say(
+                "price_group_total",
+                total=f"{symbol}{total:.2f}",
+                count=f"{n} coffee{'s' if n != 1 else ''}",
             )
         except Exception as e:
             logger.warning(f"_format_group_total failed (non-fatal): {e}")

@@ -16,6 +16,8 @@ const SmsWordingTab = () => {
   const [draft, setDraft] = useState({});
   const [problems, setProblems] = useState({});
   const [busy, setBusy] = useState(false);
+  const [find, setFind] = useState('');
+  const [onlyMine, setOnlyMine] = useState(false);
 
   const load = async () => {
     try {
@@ -41,6 +43,12 @@ const SmsWordingTab = () => {
     } finally { setBusy(false); }
   };
 
+  // A message with a problem always shows, so Save's red ones can't be hidden.
+  const q = find.trim().toLowerCase();
+  const shown = (messages || []).filter((m) => problems[m.key] || m.problem || (
+    (!onlyMine || draft[m.key])
+    && (!q || `${m.where} ${m.default} ${draft[m.key] || ''}`.toLowerCase().includes(q))));
+
   if (!messages) return <div className="cq p-6 text-cq-ink-2">Loading…</div>;
   return (
     <div className="cq bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
@@ -50,8 +58,19 @@ const SmsWordingTab = () => {
         {' {braces} '}are filled in for each customer; keep the ones you need. The welcome, confirmation,
         started and ready texts are under Text blast.
       </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <input type="search" value={find} onChange={(e) => setFind(e.target.value)}
+          aria-label="Find a message" placeholder="Find a message, e.g. milk"
+          className="h-11 w-full sm:w-72 px-3 rounded-cq-md border-2 border-cq-line bg-white text-cq-roast text-sm" />
+        <label className="flex items-center gap-2 text-sm text-cq-ink-2">
+          <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
+          Only ones you've changed
+        </label>
+        <span className="text-xs text-cq-ink-3" role="status">{shown.length} of {messages.length}</span>
+      </div>
       <div className="mt-5 space-y-5">
-        {messages.map((m) => {
+        {shown.length === 0 && <p className="text-sm text-cq-ink-2">No messages match.</p>}
+        {shown.map((m) => {
           const val = draft[m.key] || '';
           const err = problems[m.key] || m.problem;
           return (

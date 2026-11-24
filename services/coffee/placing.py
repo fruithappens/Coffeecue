@@ -941,35 +941,33 @@ class PlacingMixin:
             if order_details.get("vip"):
                 # VIP orders jump the queue — don't quote a misleading "#N in
                 # line" position. (Hyphen, not em-dash, to stay GSM-7.)
-                position_line = (
-                    "VIP order - we'll prioritise it and text you when it's ready."
-                )
+                position_line = say("queue_vip")
             elif queue_position is not None and queue_position > 0:
                 position_line = (
-                    # Hyphen, not an em-dash: '—' isn't in GSM-7 and would push
-                    # the whole SMS to UCS-2 (70-char segments).
-                    f"You're #1 in line, starting shortly."
+                    say("queue_first")
                     if queue_position == 1
-                    else f"You're #{queue_position} in line (~{wait_time} min wait)."
+                    else say("queue_position", position=queue_position, wait=wait_time)
                 )
             else:
-                position_line = f"Estimated wait time: {wait_time} minutes."
+                position_line = say("queue_wait", wait=wait_time)
 
             # Build the confirmation message. No emoji — an emoji forces the
             # SMS into UCS-2 (70-char segments instead of 160), doubling cost.
             if milk_is_unique and unique_station_info:
                 # Show station immediately if it's the only one with this milk
-                confirmation_message = (
-                    f"Order #{order_number} confirmed. "
-                    f"{processed_details.get('milk').title()} is at {station_label(self.db, station_id)} only. "
-                    f"{position_line}"
+                confirmation_message = say(
+                    "order_placed_one_station",
+                    order_number=order_number,
+                    milk=processed_details.get("milk").title(),
+                    station=station_label(self.db, station_id),
+                    queue=position_line,
                 )
             else:
                 # Standard message - don't show station immediately. Keep it
                 # to one segment; the recap (auto-place) and the ready SMS that
                 # follows both make clear they'll be texted.
-                confirmation_message = (
-                    f"Order #{order_number} confirmed. {position_line}"
+                confirmation_message = say(
+                    "order_placed", order_number=order_number, queue=position_line
                 )
 
             # If the customer asked for a specific station but we had to
@@ -977,14 +975,16 @@ class PlacingMixin:
             # — silently routing the order elsewhere has caused confusion.
             if station_was_reassigned:
                 if reassign_reason == "capability":
-                    confirmation_message += (
-                        f"\n\nNote: {station_label(self.db, requested_station_id)} can't make this order, "
-                        f"so it was routed to {station_label(self.db, station_id)}."
+                    confirmation_message += "\n\n" + say(
+                        "moved_cant_make",
+                        asked_station=station_label(self.db, requested_station_id),
+                        station=station_label(self.db, station_id),
                     )
                 else:
-                    confirmation_message += (
-                        f"\n\nNote: {station_label(self.db, requested_station_id)} isn't available right now, "
-                        f"so your order was routed to {station_label(self.db, station_id)}."
+                    confirmation_message += "\n\n" + say(
+                        "moved_not_available",
+                        asked_station=station_label(self.db, requested_station_id),
+                        station=station_label(self.db, station_id),
                     )
 
             # Add tracking URL if enabled

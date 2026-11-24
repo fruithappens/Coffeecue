@@ -60,3 +60,17 @@ def test_batch_two_placeholders_fill_in():
         )
         assert w.say("data_deleted", service="CupQ").endswith("Thanks for using CupQ.")
         assert w.say("friend_own_order_first", name="Sam").startswith("Hi Sam! ")
+
+
+def test_an_order_confirmation_cannot_lose_its_number():
+    assert w.problems("order_placed", "Thanks!") == "must include {order_number}"
+    assert "{order}" in w.problems("order_recap", "{placed} Cheers")
+    with _with({"order_placed": "Thanks!"}):
+        assert "#7" in w.say("order_placed", order_number="7", queue="")
+
+
+def test_recap_reads_as_before():
+    with _with({}):
+        assert w.say("order_recap", placed="Order #7 confirmed.", order="latte", price="\nTotal: $5") == (
+            "Order #7 confirmed.\nThat's: latte.\nTotal: $5 Wrong? CHANGE or OOPS. Add another with FRIEND."
+        )

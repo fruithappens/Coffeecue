@@ -39,6 +39,22 @@ SAMPLE = {
     "off_menu": "",
     "friend": "Sam",
     "order": "latte with oat milk",
+    "queue": "You're #3 in line (~6 min wait).",
+    "position": "3",
+    "wait": "6",
+    "asked_station": "Station 2",
+    "placed": "Order #123 confirmed. You're #3 in line (~6 min wait).",
+    "sugar_note": "",
+    "price": "",
+    "total": "$5.50",
+    "count": "3",
+    "orders": "#12a: large latte\n#12b: flat white",
+    "who": "Alex, ",
+    "event": "Spring Conference",
+    "other": "mocha",
+    "change": "milk is now oat",
+    "waited": "4",
+    "minutes": "6",
 }
 
 
