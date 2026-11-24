@@ -27,6 +27,10 @@ export default defineRailway(() => {
     // after demo.cupq.app (which follows main) has run the same commit.
     source: github("fruithappens/Coffeecue", { branch: "live", checkSuites: false }),
     start: "python run_server.py",
+    // Traffic moves to a new deploy only once it answers, so a release
+    // never serves 502s while the app boots (seen 24 Nov 2026).
+    healthcheckPath: "/api/health",
+    healthcheckTimeout: 300,
     build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
     deploy: { restartPolicyType: "ON_FAILURE" },
     replicas: { "us-west2": 1 },
