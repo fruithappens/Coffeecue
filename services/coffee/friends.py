@@ -6,6 +6,7 @@ FriendsMixin, so self.<method>() reaches them exactly as before.
 """
 import json
 from services.sms_wording import say
+from utils.milk import BLACK_MILKS
 from datetime import datetime, timedelta
 from services.coffee_system import (  # noqa: F401  (defined above the mixin imports)
     logger,
@@ -200,12 +201,21 @@ class FriendsMixin:
             else:
                 order_details["milk"] = self._default_milk()
 
+        refusal = self._friend_menu_refusal(order_details)
+        if refusal:
+            return refusal
+
         milk = order_details["milk"]
         milk_phrase = "" if milk == "no milk" else f" with {milk} milk"
 
+        # One size on offer: use it, as the customer's own order does.
+        only = self._friend_sizes(order_details)
+        if "size" not in order_details and len(only) == 1:
+            order_details["size"] = only[0]
+
         if "size" not in order_details:
             self._set_conversation_state(phone, "awaiting_friend_size", shared_state)
-            return say("friend_got_it_ask_size", order=f"{order_details['type']}{milk_phrase}", friend=friend_name, sizes="small, medium, large")
+            return say("friend_got_it_ask_size", order=f"{order_details['type']}{milk_phrase}", friend=friend_name, sizes=", ".join(self._friend_sizes(order_details)))
 
         # Skip the sugar prompt to match the main order flow — default to no
         # sugar (shown in the summary; the customer can still EDIT).
@@ -223,6 +233,38 @@ class FriendsMixin:
             f"For {friend_name}: {order_summary}.\n"
             f"Reply YES to confirm, EDIT to change, or NO to cancel."
         )
+
+    def _friend_sizes(self, order):
+        """The sizes this event pours, for the friend's size question."""
+        return self._get_available_sizes(order.get("type")) or ["small", "medium", "large"]
+
+    def _friend_menu_refusal(self, order):
+        """Why the friend's drink can't be made here, or None.
+
+        The friend flow used to take any drink, milk or size: a friend
+        could be given soy with no soy station, or a medium at an event
+        that only pours small and large (found 24 Nov 2026). Same checks
+        and wording as the customer's own order.
+        """
+        drink = order.get("type")
+        if drink:
+            drinks = self._get_available_coffee_types()
+            if drinks and not self._is_valid_coffee_type(drink, drinks):
+                return say("drink_not_offered", drink=drink, available=", ".join(drinks))
+        milk = str(order.get("milk") or "").strip()
+        if milk and milk.lower() not in BLACK_MILKS:
+            milks = self._get_available_milk_types()
+            if milks and not (
+                self._is_valid_milk_type(milk, milks) and self._milk_is_makeable(milk)
+            ):
+                words = milk if "milk" in milk.lower() else f"{milk} milk"
+                return say("milk_not_offered", milk=words, available=", ".join(milks), off_menu="")
+        size = order.get("size")
+        if size:
+            sizes = self._get_available_sizes(drink)
+            if sizes and str(size).lower() not in [str(x).lower() for x in sizes]:
+                return say("size_not_offered", size=size, drink=drink or "coffee", sizes=", ".join(sizes))
+        return None
 
     def _handle_awaiting_friend_milk(self, phone, message, state):
         """Handle friend's milk type during group ordering"""
@@ -244,6 +286,9 @@ class FriendsMixin:
 
         # If milk type was provided, update order details
         if milk_type:
+            refusal = self._friend_menu_refusal({**friend_order, "milk": milk_type})
+            if refusal:
+                return refusal
             friend_order["milk"] = milk_type
 
             # Update state and move to size
@@ -260,10 +305,10 @@ class FriendsMixin:
                 },
             )
 
-            return say("friend_ask_size", drink=friend_order.get('type', 'coffee'), friend=friend_name, sizes="small, medium, large")
+            return say("friend_ask_size", drink=friend_order.get('type', 'coffee'), friend=friend_name, sizes=", ".join(self._friend_sizes(friend_order)))
         else:
             # If no milk type was found, prompt again
-            return say("friend_milk_unrecognised", milks="full cream, skim, soy, almond, oat, lactose free")
+            return say("friend_milk_unrecognised", milks=", ".join(self._get_available_milk_types() or ["full cream"]))
 
     def _handle_awaiting_friend_size(self, phone, message, state):
         """Handle friend's size preference during group ordering"""
@@ -291,6 +336,9 @@ class FriendsMixin:
 
         # If size was provided, update order details
         if size:
+            refusal = self._friend_menu_refusal({**friend_order, "size": size})
+            if refusal:
+                return refusal
             friend_order["size"] = size
             # Skip the sugar prompt (match the main flow): default no sugar and
             # go straight to confirmation, where the customer can EDIT.
@@ -316,7 +364,9 @@ class FriendsMixin:
             )
         else:
             # If no size was found, prompt again
-            return say("friend_size_unrecognised", sizes="small, medium, or large", friend=friend_name)
+            sizes = self._friend_sizes(friend_order)
+            either = ", ".join(sizes[:-1]) + ", or " + sizes[-1] if len(sizes) > 1 else sizes[0]
+            return say("friend_size_unrecognised", sizes=either, friend=friend_name)
 
     def _handle_awaiting_friend_sugar(self, phone, message, state):
         """Handle friend's sugar preference during group ordering"""
