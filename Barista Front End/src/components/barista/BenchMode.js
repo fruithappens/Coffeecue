@@ -17,7 +17,7 @@
 //   * Handed over without a text (the cup is already in their hand) and a
 //     catch-up for everything the screen never heard about.
 import React, { useMemo, useState } from 'react';
-import { Check, Hash, Play, RotateCcw, UserPlus, X, List, Delete, Layers, Bell } from 'lucide-react';
+import { Check, Hash, Play, RotateCcw, UserPlus, X, List, Delete, Layers, Bell, CheckSquare, Square, ListChecks } from 'lucide-react';
 import ApiService from '../../services/ApiService';
 import { showToast } from '../shared/Toast';
 import { orderNumberOf, notesOf, isDecaf, isPriority, hasPhone } from './queue/orderMeta';
@@ -106,6 +106,13 @@ export default function BenchMode({
   const [typed, setTyped] = useState('');
   const [catchUp, setCatchUp] = useState(false);
   const [rounds, setRounds] = useState(false);
+  // A batch is whatever the barista says it is: tick cups on the bench and
+  // finish them together, or tick any of the next FAIR_WINDOW waiting and
+  // start them together, different drinks and all.
+  const [ticked, setTicked] = useState(() => new Set());
+  const [pick, setPick] = useState(false);
+  const [pickSel, setPickSel] = useState(() => new Set());
+  const toggle = (setter) => (k) => setter((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   // One size on today's menu (or on every order we can see) means size is
   // clutter, not information.
@@ -167,6 +174,14 @@ export default function BenchMode({
   const startRound = (list) => act(list.map(idOf), async () => {
     for (const o of list) await onStart(o); // eslint-disable-line no-await-in-loop
   });
+  const readyMany = (list) => act(list.map(idOf), async () => {
+    for (const o of list) await onComplete(o.id || orderNumberOf(o)); // eslint-disable-line no-await-in-loop
+    setTicked(new Set());
+    showToast(`${list.length} ready: each one has been texted`, 'success');
+  });
+  const benchTicked = bench.filter((o) => ticked.has(idOf(o)));
+  const pickWindow = waiting.slice(0, FAIR_WINDOW);
+  const pickList = pickWindow.filter((o) => pickSel.has(idOf(o)));
   const handOver = (o) => act([idOf(o)], () => (statusOf(o) === 'completed' && onCollected ? onCollected(o.id || orderNumberOf(o)) : handOverQuiet(o)));
 
   // ---- catch-up --------------------------------------------------------------
@@ -203,6 +218,9 @@ export default function BenchMode({
         <button type="button" onClick={() => setPad(true)} className={`${btn} h-14 px-5 text-xl bg-cq-roast text-cq-cream`}>
           <Hash size={24} /> Number
         </button>
+        <button type="button" onClick={() => { setPickSel(new Set()); setPick(true); }} disabled={!waiting.length} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-roast`} title="Tick any of the next orders and start them as one batch">
+          <ListChecks size={22} /> Pick
+        </button>
         <button type="button" onClick={() => setRounds(true)} disabled={!groups.length} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-roast`} title="Make all of one drink together">
           <Layers size={22} /> Same drink
         </button>
@@ -227,15 +245,32 @@ export default function BenchMode({
           {waiting.length ? `Tap Next ${Math.min(BENCH, waiting.length)} to start the oldest orders.` : 'Nothing on the bench.'}
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto"><div className="grid gap-2 grid-cols-2 lg:grid-cols-3 content-start">
+        <div className="flex-1 min-h-0 overflow-y-auto">
+        {bench.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="text-sm font-bold text-cq-ink-3 mr-auto">Tick the cups that are done, or finish the whole bench</span>
+            {benchTicked.length ? (
+              <button type="button" onClick={() => readyMany(benchTicked)} className={`${btn} h-12 px-4 text-lg text-white`} style={{ background: '#16A34A' }}>
+                <Check size={20} /> Ready ticked ({benchTicked.length})
+              </button>
+            ) : null}
+            <button type="button" onClick={() => readyMany(bench)} disabled={bench.some((o) => busy[idOf(o)])} className={`${btn} h-12 px-4 text-lg bg-white border-2 border-cq-ready text-cq-ready`}>
+              <Check size={20} /> All {bench.length} ready
+            </button>
+          </div>
+        ) : null}
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-3 content-start">
           {bench.map((o) => {
             const notes = notesOf(o);
             return (
-              <div key={idOf(o)} className="bg-cq-milk rounded-cq-lg shadow-cq-card border-t-[6px] border-t-cq-caramel p-3 flex flex-col gap-1" data-testid="bench-tile">
-                <div className="flex items-start justify-between gap-2">
+              <div key={idOf(o)} className={`bg-cq-milk rounded-cq-lg shadow-cq-card border-t-[6px] border-t-cq-caramel p-3 flex flex-col gap-1 ${ticked.has(idOf(o)) ? 'ring-4 ring-cq-ready' : ''}`} data-testid="bench-tile">
+                <button type="button" onClick={() => toggle(setTicked)(idOf(o))} className="flex items-start justify-between gap-2 text-left" aria-pressed={ticked.has(idOf(o))} title="Tick to finish with others">
                   <span className="text-cq-roast"><Num n={orderNumberOf(o)} big="text-5xl" small="text-xl" /></span>
-                  {isPriority(o) ? <span className="text-xs font-extrabold bg-yellow-300 text-black rounded px-2 py-1">PRIORITY</span> : null}
-                </div>
+                  <span className="flex items-center gap-1">
+                    {isPriority(o) ? <span className="text-xs font-extrabold bg-yellow-300 text-black rounded px-2 py-1">PRIORITY</span> : null}
+                    {ticked.has(idOf(o)) ? <CheckSquare size={30} className="text-cq-ready" /> : <Square size={30} className="text-cq-line" />}
+                  </span>
+                </button>
                 <div className="text-2xl font-extrabold tracking-wide text-cq-caramel-deep" data-testid="lid-code">{lidCode(o, { showSize })}</div>
                 <div className="text-lg font-bold text-cq-ink truncate">{firstName(o) || ' '}</div>
                 {notes ? <div className="text-base font-semibold bg-cq-caramel-wash text-cq-roast rounded-cq-sm px-2 py-1">N: {notes}</div> : null}
@@ -251,7 +286,7 @@ export default function BenchMode({
 
       {/* Ready: numbers, like the shelf. Tap one when it is handed over. */}
       {showReady && ready.length ? (
-        <div className="mt-auto">
+        <div className="mt-auto pl-12">
           <div className="text-sm font-bold text-cq-ink-3 uppercase tracking-wider mb-1">Ready, waiting for pickup &middot; tap when handed over</div>
           <div className="flex flex-wrap gap-2">
             {ready.map((o) => (
@@ -298,6 +333,40 @@ export default function BenchMode({
                   {k === '<' ? <Delete size={28} /> : k}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Pick: any of the next FAIR_WINDOW, ticked, started as one batch. */}
+      {pick ? (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => setPick(false)}>
+          <div className="bg-cq-milk rounded-cq-lg p-5 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="text-2xl font-extrabold text-cq-roast mb-1">Pick a batch</div>
+            <p className="text-sm text-cq-ink-2 mb-3">Tick any of the next {pickWindow.length}, different drinks and all, and start them together.</p>
+            <div className="flex flex-col gap-1.5 max-h-[55vh] overflow-y-auto">
+              {pickWindow.map((o, i) => {
+                const on = pickSel.has(idOf(o));
+                return (
+                  <button key={idOf(o)} type="button" onClick={() => toggle(setPickSel)(idOf(o))} aria-pressed={on}
+                    className={`flex items-center gap-3 rounded-cq-md px-3 py-2 text-left border-2 ${on ? 'bg-cq-ready-wash border-cq-ready' : 'bg-white border-cq-line'}`}>
+                    {on ? <CheckSquare size={26} className="text-cq-ready shrink-0" /> : <Square size={26} className="text-cq-ink-3 shrink-0" />}
+                    <span className="text-xs font-bold text-cq-ink-3 w-6">{i + 1}</span>
+                    <span className="text-cq-roast"><Num n={orderNumberOf(o)} big="text-2xl" small="text-sm" /></span>
+                    <span className="text-lg font-extrabold text-cq-caramel-deep">{lidCode(o, { showSize })}</span>
+                    <span className="text-base font-semibold text-cq-ink-2 truncate ml-auto">{firstName(o)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Always there, so ticking never moves the list under a finger. */}
+            <div className="mt-2 h-5 text-sm font-bold text-cq-caramel-deep">{pickList.length ? `Milk to steam: ${milkTally(pickList)}` : 'Tick the cups for this batch'}</div>
+            <div className="flex gap-2 mt-3">
+              <button type="button" className={`${btn} h-12 px-4 bg-cq-wash text-cq-ink-2`} onClick={() => setPick(false)}>Cancel</button>
+              <button type="button" disabled={!pickList.length} className={`${btn} h-12 flex-1 text-lg text-white`} style={{ background: '#3B82F6' }}
+                onClick={() => { startRound(pickList); setPick(false); }}>
+                <Play size={20} /> Start these {pickList.length || ''}
+              </button>
             </div>
           </div>
         </div>
