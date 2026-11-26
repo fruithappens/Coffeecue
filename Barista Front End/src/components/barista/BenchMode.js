@@ -24,6 +24,10 @@ import { orderNumberOf, notesOf, isDecaf, isPriority, hasPhone } from './queue/o
 import { parseServerDate } from '../../utils/orderUtils';
 
 export const BENCH = 6;
+// "Start the next 5, finish those 5": the barista picks the batch size for
+// this tablet. Eight packs the tiles smaller so the whole bench still fits.
+export const BENCH_SIZES = [4, 5, 6, 8];
+const readSize = () => { try { const n = Number(localStorage.getItem('cupq_bench_size')); return BENCH_SIZES.includes(n) ? n : BENCH; } catch (e) { return BENCH; } };
 // Same-drink rounds only look this far down the waiting list, so a hot
 // chocolate run cannot jump someone who ordered twenty minutes earlier.
 export const FAIR_WINDOW = 20;
@@ -106,6 +110,8 @@ export default function BenchMode({
   const [typed, setTyped] = useState('');
   const [catchUp, setCatchUp] = useState(false);
   const [rounds, setRounds] = useState(false);
+  const [benchSize, setBenchSize] = useState(readSize);
+  const chooseSize = (n) => { setBenchSize(n); try { localStorage.setItem('cupq_bench_size', String(n)); } catch (e) { /* device pref */ } };
   // A batch is whatever the barista says it is: tick cups on the bench and
   // finish them together, or tick any of the next FAIR_WINDOW waiting and
   // start them together, different drinks and all.
@@ -139,7 +145,8 @@ export default function BenchMode({
     return true;
   }).sort((a, b) => readyAt(a) - readyAt(b)), [completedOrders, sid]);
 
-  const room = Math.max(0, BENCH - bench.length);
+  const room = Math.max(0, benchSize - bench.length);
+  const dense = benchSize > 6 || bench.length > 6;
   const nextBatch = waiting.slice(0, room);
 
   const act = async (ids, fn) => {
@@ -211,30 +218,51 @@ export default function BenchMode({
           <div className="text-3xl font-extrabold text-cq-roast tabular-nums leading-none">{waiting.length}</div>
           <div className="text-sm font-bold text-cq-ink-3 uppercase tracking-wider">waiting</div>
         </div>
+        <div className="flex items-center gap-1 bg-cq-wash rounded-cq-md p-1" title="How many to start and finish at a time">
+          <span className="text-[10px] font-bold text-cq-ink-3 px-0.5 uppercase">Batch</span>
+          {BENCH_SIZES.map((n) => (
+            <button key={n} type="button" onClick={() => chooseSize(n)} aria-pressed={benchSize === n}
+              className={`h-10 w-8 rounded-cq-sm text-lg font-extrabold ${benchSize === n ? 'bg-cq-roast text-cq-cream' : 'text-cq-roast'}`}>{n}</button>
+          ))}
+        </div>
         <button type="button" onClick={startNext} disabled={!nextBatch.length || nextBatch.some((o) => busy[idOf(o)])}
-          className={`${btn} h-14 px-6 text-xl text-white`} style={{ background: '#3B82F6' }}>
-          <Play size={24} /> {nextBatch.length ? `Next ${nextBatch.length}` : (waiting.length ? 'Bench full' : 'Nothing waiting')}
+          className={`${btn} h-14 px-5 text-xl text-white`} style={{ background: '#3B82F6' }}>
+          <Play size={24} /> {nextBatch.length ? `Next ${nextBatch.length}` : (waiting.length ? 'Full' : 'None waiting')}
         </button>
-        <button type="button" onClick={() => setPad(true)} className={`${btn} h-14 px-5 text-xl bg-cq-roast text-cq-cream`}>
+        <button type="button" onClick={() => setPad(true)} className={`${btn} h-14 px-4 text-xl bg-cq-roast text-cq-cream`}>
           <Hash size={24} /> Number
         </button>
-        <button type="button" onClick={() => { setPickSel(new Set()); setPick(true); }} disabled={!waiting.length} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-roast`} title="Tick any of the next orders and start them as one batch">
-          <ListChecks size={22} /> Pick
+        <button type="button" onClick={() => { setPickSel(new Set()); setPick(true); }} disabled={!waiting.length} className={`${btn} h-11 px-3 text-base bg-cq-wash text-cq-roast`} title="Tick any of the next orders and start them as one batch">
+          <ListChecks size={18} /> Pick
         </button>
-        <button type="button" onClick={() => setRounds(true)} disabled={!groups.length} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-roast`} title="Make all of one drink together">
-          <Layers size={22} /> Same drink
+        <button type="button" onClick={() => setRounds(true)} disabled={!groups.length} className={`${btn} h-11 px-3 text-base bg-cq-wash text-cq-roast`} title="Make all of one drink together">
+          <Layers size={18} /> Same drink
         </button>
         {onWalkIn ? (
-          <button type="button" onClick={onWalkIn} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-roast`} title="A coffee made for someone who did not order on CupQ, so it still counts">
-            <UserPlus size={22} /> Walk-up
+          <button type="button" onClick={onWalkIn} className={`${btn} h-11 px-3 text-base bg-cq-wash text-cq-roast`} title="A coffee made for someone who did not order on CupQ, so it still counts">
+            <UserPlus size={18} /> Walk-up
           </button>
         ) : null}
-        <button type="button" onClick={() => setCatchUp(true)} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-roast`}>
-          <RotateCcw size={22} /> Catch up
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-bold text-cq-ink-3 mr-auto">{bench.length > 1 ? 'Tick the cups that are done, or finish the whole bench' : ''}</span>
+        {benchTicked.length ? (
+          <button type="button" onClick={() => readyMany(benchTicked)} className={`${btn} h-11 px-4 text-lg text-white`} style={{ background: '#16A34A' }}>
+            <Check size={20} /> Ready ticked ({benchTicked.length})
+          </button>
+        ) : null}
+        {bench.length > 1 ? (
+          <button type="button" onClick={() => readyMany(bench)} disabled={bench.some((o) => busy[idOf(o)])} className={`${btn} h-11 px-4 text-lg bg-white border-2 border-cq-ready text-cq-ready`}>
+            <Check size={20} /> All {bench.length} ready
+          </button>
+        ) : null}
+        <button type="button" onClick={() => setCatchUp(true)} className={`${btn} h-11 px-3 text-base bg-cq-wash text-cq-roast`}>
+          <RotateCcw size={18} /> Catch up
         </button>
         {onList ? (
-          <button type="button" onClick={onList} className={`${btn} h-14 px-4 text-lg bg-cq-wash text-cq-ink-2`} title="Back to the full list">
-            <List size={22} /> List
+          <button type="button" onClick={onList} className={`${btn} h-11 px-3 text-base bg-cq-wash text-cq-ink-2`} title="Back to the full list">
+            <List size={18} /> List
           </button>
         ) : null}
       </div>
@@ -242,40 +270,27 @@ export default function BenchMode({
       {/* The bench: one tile per cup, oldest first, left to right. */}
       {bench.length === 0 ? (
         <div className="flex-1 grid place-items-center rounded-cq-lg border-2 border-dashed border-cq-line text-cq-ink-3 text-xl font-bold p-10 text-center">
-          {waiting.length ? `Tap Next ${Math.min(BENCH, waiting.length)} to start the oldest orders.` : 'Nothing on the bench.'}
+          {waiting.length ? `Tap Next ${Math.min(benchSize, waiting.length)} to start the oldest orders.` : 'Nothing on the bench.'}
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto">
-        {bench.length > 1 ? (
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="text-sm font-bold text-cq-ink-3 mr-auto">Tick the cups that are done, or finish the whole bench</span>
-            {benchTicked.length ? (
-              <button type="button" onClick={() => readyMany(benchTicked)} className={`${btn} h-12 px-4 text-lg text-white`} style={{ background: '#16A34A' }}>
-                <Check size={20} /> Ready ticked ({benchTicked.length})
-              </button>
-            ) : null}
-            <button type="button" onClick={() => readyMany(bench)} disabled={bench.some((o) => busy[idOf(o)])} className={`${btn} h-12 px-4 text-lg bg-white border-2 border-cq-ready text-cq-ready`}>
-              <Check size={20} /> All {bench.length} ready
-            </button>
-          </div>
-        ) : null}
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-3 content-start">
+        <div className={`grid gap-2 content-start ${dense ? 'grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3'}`}>
           {bench.map((o) => {
             const notes = notesOf(o);
             return (
-              <div key={idOf(o)} className={`bg-cq-milk rounded-cq-lg shadow-cq-card border-t-[6px] border-t-cq-caramel p-3 flex flex-col gap-1 ${ticked.has(idOf(o)) ? 'ring-4 ring-cq-ready' : ''}`} data-testid="bench-tile">
+              <div key={idOf(o)} className={`bg-cq-milk rounded-cq-lg shadow-cq-card border-t-[6px] border-t-cq-caramel ${dense ? 'p-2' : 'p-3'} flex flex-col gap-1 ${ticked.has(idOf(o)) ? 'ring-4 ring-cq-ready' : ''}`} data-testid="bench-tile">
                 <button type="button" onClick={() => toggle(setTicked)(idOf(o))} className="flex items-start justify-between gap-2 text-left" aria-pressed={ticked.has(idOf(o))} title="Tick to finish with others">
-                  <span className="text-cq-roast"><Num n={orderNumberOf(o)} big="text-5xl" small="text-xl" /></span>
+                  <span className="text-cq-roast"><Num n={orderNumberOf(o)} big={dense ? 'text-4xl' : 'text-5xl'} small={dense ? 'text-base' : 'text-xl'} /></span>
                   <span className="flex items-center gap-1">
                     {isPriority(o) ? <span className="text-xs font-extrabold bg-yellow-300 text-black rounded px-2 py-1">PRIORITY</span> : null}
                     {ticked.has(idOf(o)) ? <CheckSquare size={30} className="text-cq-ready" /> : <Square size={30} className="text-cq-line" />}
                   </span>
                 </button>
-                <div className="text-2xl font-extrabold tracking-wide text-cq-caramel-deep" data-testid="lid-code">{lidCode(o, { showSize })}</div>
-                <div className="text-lg font-bold text-cq-ink truncate">{firstName(o) || ' '}</div>
+                <div className={`${dense ? 'text-xl' : 'text-2xl'} font-extrabold tracking-wide text-cq-caramel-deep`} data-testid="lid-code">{lidCode(o, { showSize })}</div>
+                <div className={`${dense ? 'text-base' : 'text-lg'} font-bold text-cq-ink truncate`}>{firstName(o) || ' '}</div>
                 {notes ? <div className="text-base font-semibold bg-cq-caramel-wash text-cq-roast rounded-cq-sm px-2 py-1">N: {notes}</div> : null}
                 <button type="button" onClick={() => makeReady(o)} disabled={!!busy[idOf(o)]}
-                  className={`${btn} mt-auto h-14 text-2xl text-white`} style={{ background: '#16A34A' }}>
+                  className={`${btn} mt-auto ${dense ? 'h-12 text-xl' : 'h-14 text-2xl'} text-white`} style={{ background: '#16A34A' }}>
                   <Check size={28} /> Ready
                 </button>
               </div>
