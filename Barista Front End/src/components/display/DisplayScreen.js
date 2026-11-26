@@ -221,7 +221,10 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
           <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 min-w-0">
             {showCustomerName ? (
               <>
-                <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} truncate min-w-0`}>
+                {/* leading-[1.15] + py, not leading-none: truncate clips to
+                    the line box, and at leading-none it cut off the dot of
+                    a "j" and the tails of g, p and y ("jan", 26 Nov 2026). */}
+                <div className={`${fonts.num} font-extrabold leading-[1.15] py-[0.04em] tracking-tight ${theme.text} truncate min-w-0`}>
                   {formatCustomerLine(order)}
                 </div>
                 <div className={`${fonts.name} font-semibold leading-none ${theme.subtext} flex-shrink-0`}>
