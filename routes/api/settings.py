@@ -16,6 +16,7 @@ from routes.consolidated_api_routes import (  # noqa: F401
     NOTICE_LEVELS,
     NOTICE_MAX_LEN,
     _DEFAULT_TIERS,
+    _event_timezone,
     _NOTICE_COLS,
     _SMS_STARTED_POLICY_DEFAULT,
     _kv_get,
@@ -1515,3 +1516,49 @@ def notices_clear(notice_id):
     except Exception as e:
         logger.error(f"notices_clear error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
+# Pre-orders (utils/order_gate.py): "we have your order and will start
+# making it when the session finishes at 10:30". The barista closes the
+# gate with an opening time and opens it with one tap -- or by starting
+# the first coffee (routes/api/order_actions.start_order).
+# ----------------------------------------------------------------------
+@bp.route('/settings/order-gate', methods=['GET', 'PUT'])
+@jwt_required_with_demo()
+@writes_need(STAFF_ROLES)
+def order_gate_setting():
+    from utils import order_gate as _gate
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        current = _kv_get(db, _gate.ORDER_GATE_KEY, default={}) or {}
+        if request.method == 'PUT':
+            try:
+                cfg = _gate.clean_for_save(request.get_json(silent=True) or {}, current)
+            except ValueError as ve:
+                return jsonify({'success': False, 'message': str(ve)}), 400
+            _kv_put(db, _gate.ORDER_GATE_KEY, cfg, merge=False)
+            logger.info(f"order gate {'CLOSED until ' + cfg['opens_at'] if cfg['closed'] else 'OPEN'}")
+            current = cfg
+        cfg = _gate.read(current)
+        waiting = 0
+        try:
+            cur = db.cursor()
+            cur.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending'")
+            r = cur.fetchone()
+            waiting = int((r[0] if not isinstance(r, dict) else list(r.values())[0]) or 0)
+        except Exception:
+            db.rollback()
+        tz = _event_timezone()
+        v = _gate.view(cfg, _gate.now_in(tz)) or {}
+        return jsonify({'success': True, **cfg, 'waiting': waiting,
+                        'opens_label': v.get('opens_label', ''),
+                        'started': bool(v.get('started'))})
+    except Exception as e:
+        logger.error(f"order_gate_setting error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500

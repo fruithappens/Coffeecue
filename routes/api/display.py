@@ -34,6 +34,24 @@ from routes.consolidated_api_routes import (  # noqa: F401
 # SYSTEM STATUS ENDPOINTS
 # ============================================================================
 
+def _order_gate_for_display(coffee_system):
+    """{'closed', 'opens_label', 'started'} or None. Never raises: this is
+    the public board config, and it must load whatever this says."""
+    try:
+        from utils import order_gate as _gate
+        from routes.consolidated_api_routes import _event_timezone
+        cfg = _gate.read(_kv_get(coffee_system.db, _gate.ORDER_GATE_KEY, default={}))
+        v = _gate.view(cfg, _gate.now_in(_event_timezone()))
+        return {'closed': True, 'opens_label': v['opens_label'], 'started': v['started']} if v else None
+    except Exception as e:
+        logger.debug(f"order gate for display skipped: {e}")
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+        return None
+
+
 @bp.route('/status', methods=['GET'])
 def get_system_status():
     """Get overall system status and health information"""
@@ -322,6 +340,9 @@ def get_display_config():
                 # Never raises -- this endpoint is public and load-bearing.
                 "badge_scan": _badge_scan_for_display(coffee_system.db if coffee_system else None),
                 "sponsor": sponsor,
+                # Pre-orders (utils/order_gate): the board says when coffee
+                # starts while the barista is holding the queue.
+                "order_gate": _order_gate_for_display(coffee_system),
                 # Logo for the display screen header. Uploaded via the
                 # Branding panel as a data URI (clientLogo). 'logo' is the
                 # legacy key; accept either.

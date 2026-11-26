@@ -795,6 +795,8 @@ const DisplayScreen = () => {
             event_name: c.event_name || settings?.displaySettings?.eventName || '',
             sms_number: c.sms_number || '',
             sponsor: c.sponsor || prev.sponsor,
+            // Pre-orders (utils/order_gate): null when open.
+            order_gate: c.order_gate || null,
             logo: c.logo || prev.logo,
             header_color: c.header_color || prev.header_color,
             background_landscape: c.background_landscape || prev.background_landscape,
@@ -1564,6 +1566,17 @@ const DisplayScreen = () => {
            the first thing the eye lands on, which is the point: this is
            the message that changes what someone is about to order. */}
       <NoticeBanner notices={notices} big className="px-6 md:px-10 pt-3" />
+      {/* Pre-orders: the queue is being held until the session ends. */}
+      {config.order_gate?.closed && !isPickupMode && (
+        <div className="px-6 md:px-10 pt-3">
+          <div className="rounded-cq-xl bg-cq-caramel-wash border-2 border-cq-caramel px-6 py-3 text-center
+                          text-cq-roast font-extrabold text-2xl md:text-3xl">
+            {config.order_gate.started
+              ? 'Coffee starts any minute now. Order now to be first in line.'
+              : `Pre-orders open: coffee starts at ${config.order_gate.opens_label}. Order now to be first in line.`}
+          </div>
+        </div>
+      )}
 
       {/* Sponsor ticker (top) — a scrolling logo reel above the board when
           the Organiser set the position to 'top'. Hidden when disabled or

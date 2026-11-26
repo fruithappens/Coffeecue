@@ -266,6 +266,7 @@ def track_order_public(order_id):
         # see utils/order_eta.py for why it always rounds up and never
         # counts past zero.
         eta_minutes = None
+        gate = None
         try:
             ahead_details, bench = [], 0
             if status == 'pending':
@@ -308,6 +309,18 @@ def track_order_public(order_id):
                 pace = eta_seconds_per_coffee(epochs)
                 eta_minutes = eta_estimate_minutes(
                     status, ahead_details, bench, pace)
+                # Pre-orders: counted from when coffee starts, not from now
+                # (utils/order_gate). Uncapped -- the 30th pre-order is
+                # honestly "about 10:58", not "20+ min".
+                if status == 'pending':
+                    from utils import order_gate as _gate
+                    from utils.order_eta import effective_coffee_count as _eff
+                    from routes.consolidated_api_routes import _event_timezone as _etz
+                    _gcfg = _gate.read(_kv_get(db, _gate.ORDER_GATE_KEY, default={}))
+                    if _gcfg['closed']:
+                        gate = _gate.view(
+                            _gcfg, _gate.now_in(_etz()),
+                            _gate.minutes_for_position(_eff(ahead_details) + bench, pace))
         except Exception as eta_err:
             # An estimate is a nicety. Never let it take down the status
             # page a waiting customer is actually reading.
@@ -352,6 +365,7 @@ def track_order_public(order_id):
             'order_number': clean_id,
             'status': status,
             'position': position,
+            'gate': gate,
             'price': (od.get('price_formatted') or (f"${float(od.get('price')):.2f}" if od.get('price') not in (None, '') else '')) if isinstance(od, dict) else '',
             'payment_status': _pay_t,
             'payment_mode': (_pricing_t.get('mode') or 'honour') if _pricing_t.get('enabled') else 'honour',

@@ -1541,9 +1541,18 @@ const MyCoffeePage = () => {
                 people check their phones anyway, and a time means a
                 locked screen doesn't matter. Only when the server has
                 real make-times to estimate from. */}
+            {/* Pre-orders (utils/order_gate): coffee starts when the
+                session ends; the ready time counts from then. */}
+            {!ready && active.gate_opens && (
+              <div className="mt-2 text-lg leading-snug">
+                {active.gate_started
+                  ? 'Coffee is starting any minute now.'
+                  : `We start making coffees when the session ends at ${active.gate_opens}.`}
+              </div>
+            )}
             {!ready && active.ready_about && (
               <div className="mt-2 text-lg font-bold">
-                Ready about {active.ready_about}
+                {active.gate_opens ? 'Yours should be ready about ' : 'Ready about '}{active.ready_about}
                 {active.ready_in_min ? <span className="font-semibold opacity-90"> (~{active.ready_in_min} min)</span> : null}
               </div>
             )}

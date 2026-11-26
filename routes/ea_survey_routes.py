@@ -604,6 +604,20 @@ def _ready_estimate(station_id, order_number, status):
                 "ready_in_min": int(minutes),
                 "ready_about": at.strftime("%I:%M").lstrip("0") + at.strftime("%p").lower(),
             }
+        # Pre-orders (utils/order_gate): counted from when coffee starts,
+        # and no "~N min" -- that would be a countdown to a session ending,
+        # not to a coffee. Shown even without a pace to estimate from: the
+        # opening time alone is worth telling them.
+        if cs and status == "pending":
+            from utils import order_gate as _gate
+            from routes.consolidated_api_routes import _kv_get
+            tz = _event_time.resolve_zone(cs._get_setting)
+            gv = _gate.view(_gate.read(_kv_get(cs.db, _gate.ORDER_GATE_KEY, default={})),
+                            _event_time.local_now(tz), minutes)
+            if gv:
+                out = {"ready_about": gv["ready_about"],
+                       "gate_opens": gv["opens_label"],
+                       "gate_started": gv["started"]}
     except Exception as e:
         logger.debug(f"ready estimate skipped: {e}")
     if len(_READY_CACHE) > 2000:
