@@ -10,7 +10,7 @@
 //   * Only what is on the bench: at most BENCH big tiles, oldest first, in
 //     the same left-to-right order as the cups. Waiting is a number and a
 //     "Next N" button, never a list to scroll.
-//   * Each tile is what goes on the lid: the number huge, then the short
+//   * Each tile is what goes on the lid: the whole number big, then the short
 //     code (FW S X), then the name. No size when the menu has one size.
 //   * One tap: Ready (texts them, puts them on the board).
 //   * Number pad: "47?" -> that order, one button for whatever it needs.
@@ -89,16 +89,10 @@ const firstName = (o) => String(o.customerName || o.customer_name || '').split('
 const statusOf = (o) => low(o.status).replace('_', '-');
 
 // The number split so the last two digits (what the lid says) stand out.
-const Num = ({ n, big = 'text-6xl', small = 'text-2xl' }) => {
-  const s = String(n);
-  const m = s.match(/^(.*?)(\d{1,2}[a-z]?)$/i);
-  const head = m ? m[1] : '';
-  return (
-    <span className="font-extrabold tabular-nums leading-none">
-      {head ? <span className={`${small} opacity-50`}>{head}</span> : null}
-      <span className={big}>{m ? m[2] : s}</span>
-    </span>
-  );
+const Num = ({ n, big = 'text-6xl' }) => {
+  // The whole number at one size: it is what the phone shows and what the
+  // lid says (a split '11 23' read oddly).
+  return <span className={`font-extrabold tabular-nums leading-none ${big}`}>{String(n)}</span>;
 };
 
 export default function BenchMode({
