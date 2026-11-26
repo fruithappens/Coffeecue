@@ -819,7 +819,21 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // A full number, not a partial one. AU mobiles are 10 digits (04xx xxx xxx);
   // an international number typed with its country code is 10+. The old >=8
   // let a half-typed number through and enabled Continue too early (Steve).
-  const phoneValid = phoneDigits.length >= 10;
+  // ...and not one typed twice: a remembered number with the same number
+  // typed on the end ("0400...0400...") was 20 digits, too long to store,
+  // and the order failed (Peri SIG Hobart, 26 Nov 2026). 15 is E.164's max.
+  const phoneTooLong = phoneDigits.length > 15;
+  const phoneValid = phoneDigits.length >= 10 && !phoneTooLong;
+  // A number typed twice folds back to one copy as it is typed.
+  const setTypedPhone = (v) => {
+    const d = String(v || '').replace(/\D/g, '');
+    const h = d.length / 2;
+    if (d.length % 2 === 0 && h >= 8 && d.slice(0, h) === d.slice(h)) {
+      setPhone((String(v).trim().startsWith('+') ? '+' : '') + d.slice(0, h));
+    } else {
+      setPhone(v);
+    }
+  };
 
   const placeOrder = async () => {
     setSubmitting(true);
@@ -1784,7 +1798,10 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 : 'Enter your mobile so we can text you when it\u2019s ready \u2014 or skip and watch the board.'}
             </p>
             <input
-              autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
+              autoFocus value={phone} onChange={(e) => setTypedPhone(e.target.value)}
+              // A remembered number is selected on focus, so typing replaces
+              // it instead of landing on the end of it.
+              onFocus={(e) => { try { e.target.select(); } catch (err) { /* older browsers */ } }}
               inputMode="tel" placeholder="04XX XXX XXX"
               className="w-full text-3xl font-bold p-5 rounded-cq-xl border-4 border-cq-line focus:outline-none"
               style={{ borderColor: phoneValid ? headerColor : undefined }}
@@ -1814,6 +1831,11 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 }}
               />
             ) : null}
+            {phoneTooLong && (
+              <div className="mt-3 text-base font-semibold text-cq-alert">
+                That number looks too long. Check it, or clear it and type it once.
+              </div>
+            )}
             {phoneValid && (
               <button
                 onClick={() => setSmsOptIn(!smsOptIn)}

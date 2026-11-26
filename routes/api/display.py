@@ -613,6 +613,10 @@ def create_kiosk_order():
         # station is shown on the kiosk review + the order board). A number just
         # opts them into a ready-SMS. Normalise to E.164 so SMS actually sends.
         raw_phone = (data.get('phone') or data.get('phone_number') or '').strip()
+        # Typed twice, or not a number at all: fold or drop it, never fail
+        # the order over it (utils/typed_phone.py).
+        from utils.typed_phone import clean_typed_phone
+        raw_phone = clean_typed_phone(raw_phone)
 
         phone = ''
         if raw_phone:
@@ -1103,8 +1107,10 @@ def create_kiosk_order_group():
         discard_preassigned(_letters)
 
     if not placed:
+        # Say why, not just that it failed: the first drink's own reason.
+        _why = next((r for _n, r in failed if r and r != 'unavailable'), '')
         return jsonify({'success': False,
-                        'message': 'None of the drinks could be placed',
+                        'message': _why or 'None of the drinks could be placed',
                         'failed': [{'name': n, 'reason': r} for n, r in failed]}), 409
 
     # group_id is the ROUND's number: the reserved base ("336") when the
