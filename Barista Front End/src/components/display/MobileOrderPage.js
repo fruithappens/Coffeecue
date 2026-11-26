@@ -285,18 +285,10 @@ const MobileOrderPage = () => {
           <div className={`${copy.tone} text-white rounded-cq-xl p-6 text-center shadow-cq-card
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide">Your order</div>
-            {/* The ticket stub (Peri SIG, Nov 2026): the last two digits are
-                what the barista writes on the lid and calls out, so they
-                fill the screen; the rest of the number sits small. */}
-            {(() => {
-              const m = String(trackNumber || '').match(/^(.*?)(\d{1,2}[a-z]?)$/i);
-              return (
-                <div className="font-extrabold my-2 tabular-nums" data-testid="stub-number" style={{ lineHeight: 1 }}>
-                  <span style={{ fontSize: 'clamp(1.75rem, 8vw, 2.5rem)', opacity: 0.7 }}>#{m ? m[1] : ''}</span>
-                  <span style={{ fontSize: 'clamp(5rem, 32vw, 9rem)' }}>{m ? m[2] : trackNumber}</span>
-                </div>
-              );
-            })()}
+            {/* The ticket stub: the whole number, big, one size (a small
+                '#11' beside a giant '23' read oddly -- Steve, 26 Nov 2026). */}
+            <div className="font-extrabold my-2 tabular-nums" data-testid="stub-number"
+                 style={{ fontSize: 'clamp(3.5rem, 21vw, 6.5rem)', lineHeight: 1 }}>#{trackNumber}</div>
             <div className="text-2xl font-bold">{copy.title}</div>
             {ready && <div className="mt-1 text-lg font-semibold">Show this number at the cart</div>}
             {track?.status === 'pending' && track?.position > 0 && (
