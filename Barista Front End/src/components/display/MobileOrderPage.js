@@ -254,6 +254,7 @@ const MobileOrderPage = () => {
   if (trackNumber) {
     const copy = customerStatusFor(track?.status, brand.wording) || { title: 'Checking…', tone: 'bg-cq-ink-3' };
     const ready = track?.status === 'completed';
+    const gate = track?.status === 'pending' && track?.gate?.closed ? track.gate : null;
     return (
       <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
            style={{ minHeight: '100dvh',
@@ -287,14 +288,34 @@ const MobileOrderPage = () => {
             <div className="text-sm uppercase tracking-wide">Your order</div>
             <div className="font-extrabold my-2"
                  style={{ fontSize: 'clamp(2.5rem, 13vw, 3.75rem)', lineHeight: 1.05 }}>#{trackNumber}</div>
-            <div className="text-2xl font-bold">{copy.title}</div>
-            {track?.status === 'pending' && track?.position > 0 && (
+            {/* Pre-orders (utils/order_gate): "we have your order and will
+                start making it the moment the session finishes" (Steve,
+                26 Nov 2026). Replaces the live wait while the barista is
+                holding the queue. */}
+            {gate ? (
+              <>
+                <div className="text-2xl font-bold">
+                  You're in{track?.position > 0 ? `, #${track.position} in line` : ''}
+                </div>
+                <div className="mt-2 text-lg leading-snug">
+                  {gate.started
+                    ? 'Coffee is starting any minute now.'
+                    : `We start making coffees when the session ends at ${gate.opens_label}.`}
+                </div>
+                {gate.ready_about && (
+                  <div className="mt-1 text-lg font-bold">Yours should be ready about {gate.ready_about}</div>
+                )}
+              </>
+            ) : (
+              <div className="text-2xl font-bold">{copy.title}</div>
+            )}
+            {!gate && track?.status === 'pending' && track?.position > 0 && (
               <div className="mt-2 text-lg">You're #{track.position} in line</div>
             )}
             {/* The estimate. Deliberately soft wording -- the server
                 rounds up and never counts past zero, and "about" carries
                 that honesty into the sentence a person actually reads. */}
-            {!ready && track?.eta_text && (
+            {!gate && !ready && track?.eta_text && (
               <div className="mt-1 text-lg opacity-95">
                 Ready in {track.eta_text}
               </div>

@@ -12,6 +12,8 @@ from flask_jwt_extended import get_jwt_identity
 from routes.consolidated_api_routes import (  # noqa: F401
     _emit_order_status_change,
     _emit_order_updated,
+    _kv_get,
+    _kv_put,
     _notify_customer_order_ready,
     _notify_customer_order_started,
     _render_ready_message,
@@ -105,6 +107,22 @@ def start_order(order_id):
         # capabilities mean "no restriction".
         payload = request.get_json(silent=True) or {}
         claiming_station_id = payload.get('station_id') or payload.get('stationId')
+
+        # Starting a coffee opens the pre-order gate (utils/order_gate): once
+        # anything is being made, no phone should still be told to wait for
+        # the session to end. Best effort -- never stops the start itself.
+        try:
+            from utils import order_gate as _gate
+            _cfg = _gate.read(_kv_get(db, _gate.ORDER_GATE_KEY, default={}))
+            if _cfg['closed']:
+                _kv_put(db, _gate.ORDER_GATE_KEY, {**_cfg, 'closed': False}, merge=False)
+                logger.info("order gate opened by the first coffee started")
+        except Exception as _g_err:
+            logger.warning(f"order gate auto-open skipped: {_g_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
         # Fetch the row up-front: we want phone + details + created_at
         # *before* we change status, so the notification has the right

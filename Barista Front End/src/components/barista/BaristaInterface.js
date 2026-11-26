@@ -9,6 +9,7 @@ import AuthService from '../../services/AuthService';
 import { isAdminLogin } from '../../utils/switchedView';
 import printService from '../../services/PrintService';
 import BroadcastDialog from '../dialogs/BroadcastDialog';
+import { usePreOrderGate, PreOrderBanner, PreOrderDialog } from './PreOrderGate';
 import StationChooser from './StationChooser';
 import QueueHeader from './queue/QueueHeader';
 import QueueColumn from './queue/QueueColumn';
@@ -250,6 +251,10 @@ const BaristaInterface = () => {
   // (this tablet opts in), stored in localStorage per station.
   const [printers, setPrinters] = useState([]);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  // Pre-orders: hold the queue until the session ends (PreOrderGate.js).
+  const { gate: orderGate, refresh: refreshGate, save: saveGate } = usePreOrderGate();
+  const [gateDialogOpen, setGateDialogOpen] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
   const [autoPrintLabels, setAutoPrintLabelsState] = useState(false);
   // Current column view controls. Local state, not settings: these are
   // "what am I looking at right now" rather than a preference, and a
@@ -1152,6 +1157,8 @@ const BaristaInterface = () => {
 
   const startOrderWithLabel = async (order) => {
     const result = await startOrder(order);
+    // Starting a coffee opens pre-orders on the server; show it straight away.
+    if (orderGate?.closed) setTimeout(refreshGate, 600);
     // 'arrival' already printed it when the order came in; printing again
     // on Start would put two labels on one cup.
     if (autoPrintMode === 'start' && stationPrinter) {
@@ -1699,7 +1706,15 @@ const BaristaInterface = () => {
     try { const api = new (await import('../../services/ApiService')).default(); await api.put('/notifications/hold', { holding: false }); }
     finally { setHoldBusy(false); refreshHold(); }
   };
-  const refreshAll = () => { refreshStations(); refreshData(); refreshScheduleData(); };
+  const openGate = async () => {
+    setGateBusy(true);
+    try {
+      const r = await saveGate({ closed: false });
+      if (r?.success) showToast('Open: every phone is counting down now', 'success');
+    } catch (e) { showToast('Could not open pre-orders', 'error'); }
+    finally { setGateBusy(false); }
+  };
+  const refreshAll = () => { refreshStations(); refreshData(); refreshScheduleData(); refreshGate(); };
   // Name the CATEGORY so "medium" isn't mistaken for a recipe or a milk.
   const lowStockLabel = (i) => {
     const n = String(i.name || ''); const c = String(i.category || '').toLowerCase();
@@ -1717,6 +1732,9 @@ const BaristaInterface = () => {
       ? { label: `Release ${holdState.will_send > 0 ? holdState.will_send + ' ' : ''}held ${holdState.will_send === 1 ? 'text' : 'texts'}`, Icon: Send, disabled: holdBusy, onClick: releaseTexts }
       : { label: 'Hold the "ready" texts', Icon: Bell, disabled: holdBusy, onClick: holdTexts, hint: 'Finish orders without texting anyone yet' },
     holdState?.holding ? { label: 'Stop holding (no send)', Icon: Bell, disabled: holdBusy, onClick: stopHolding } : null,
+    orderGate?.closed
+      ? { label: 'Open pre-orders now', Icon: Clock, disabled: gateBusy, onClick: () => openGate() }
+      : { label: 'Take pre-orders…', Icon: Clock, onClick: () => setGateDialogOpen(true), hint: 'Coffee starts when the session ends' },
     { label: 'Tell waiting customers', Icon: MessageCircle, onClick: () => setBroadcastOpen(true), hint: 'A message to everyone watching their phone' },
     { label: 'Session so far', Icon: Clock, onClick: () => { setShowSessionReport(true); refreshSession(); } },
     { label: isRefreshing ? 'Refreshing…' : 'Refresh', Icon: RefreshCw, disabled: isRefreshing, onClick: refreshAll },
@@ -1799,6 +1817,16 @@ const BaristaInterface = () => {
       />
 
       <NoticeBanner notices={notices} className="px-4 pt-3" />
+      <PreOrderBanner gate={orderGate} busy={gateBusy} onOpen={openGate}
+        onChange={() => setGateDialogOpen(true)} />
+      {gateDialogOpen && (
+        <PreOrderDialog gate={orderGate} onClose={() => setGateDialogOpen(false)}
+          onSave={async (body) => {
+            const r = await saveGate(body);
+            if (r?.success) showToast(`Pre-orders on: coffee starts ${r.opens_label || body.opens_at}`, 'success');
+            return r;
+          }} />
+      )}
 
       {/* Three tabs: Queue, Stock, Tools. The manager tabs live behind the
           lock (station settings, screens) or in the organiser. Gone in rush
