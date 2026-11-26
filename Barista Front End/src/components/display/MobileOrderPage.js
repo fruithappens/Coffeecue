@@ -285,9 +285,20 @@ const MobileOrderPage = () => {
           <div className={`${copy.tone} text-white rounded-cq-xl p-6 text-center shadow-cq-card
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide">Your order</div>
-            <div className="font-extrabold my-2"
-                 style={{ fontSize: 'clamp(2.5rem, 13vw, 3.75rem)', lineHeight: 1.05 }}>#{trackNumber}</div>
+            {/* The ticket stub (Peri SIG, Nov 2026): the last two digits are
+                what the barista writes on the lid and calls out, so they
+                fill the screen; the rest of the number sits small. */}
+            {(() => {
+              const m = String(trackNumber || '').match(/^(.*?)(\d{1,2}[a-z]?)$/i);
+              return (
+                <div className="font-extrabold my-2 tabular-nums" data-testid="stub-number" style={{ lineHeight: 1 }}>
+                  <span style={{ fontSize: 'clamp(1.75rem, 8vw, 2.5rem)', opacity: 0.7 }}>#{m ? m[1] : ''}</span>
+                  <span style={{ fontSize: 'clamp(5rem, 32vw, 9rem)' }}>{m ? m[2] : trackNumber}</span>
+                </div>
+              );
+            })()}
             <div className="text-2xl font-bold">{copy.title}</div>
+            {ready && <div className="mt-1 text-lg font-semibold">Show this number at the cart</div>}
             {track?.status === 'pending' && track?.position > 0 && (
               <div className="mt-2 text-lg">You're #{track.position} in line</div>
             )}
@@ -377,7 +388,8 @@ const MobileOrderPage = () => {
               {track.first_name && (
                 <span className="font-semibold">{track.first_name} · </span>
               )}
-              {track.drink_full || track.drink}
+              {/* "Regular" is the one-size default: clutter, not news. */}
+              {String(track.drink_full || track.drink).replace(/^regular /i, '')}
             </div>
           )}
           {/* The sound button, which this page did not have. */}
