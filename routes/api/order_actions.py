@@ -402,7 +402,12 @@ def complete_order(order_id):
             # test_no_send (Test Bench): full transition, no real SMS — but
             # RECORD the message that would have gone out, so template
             # propagation is provable end to end without a send.
-            if not ((request.get_json(silent=True) or {}).get('test_no_send')
+            # handed_over (bench mode): the cup is already in the
+            # customer's hand -- a "your coffee is ready" text now would
+            # only confuse them. Full transition, stock and make time; no text.
+            if (request.get_json(silent=True) or {}).get('handed_over'):
+                pass
+            elif not ((request.get_json(silent=True) or {}).get('test_no_send')
                     or (request.get_json(silent=True) or {}).get('dry_run')):
                 _notify_customer_order_ready(
                     order_phone,

@@ -12,6 +12,7 @@ import BroadcastDialog from '../dialogs/BroadcastDialog';
 import StationChooser from './StationChooser';
 import QueueHeader from './queue/QueueHeader';
 import QueueColumn from './queue/QueueColumn';
+import BenchMode from './BenchMode';
 import StationPicker from './queue/StationPicker';
 import AdminSheet from './queue/AdminSheet';
 import useLanesLayout from './queue/useLanesLayout';
@@ -127,6 +128,9 @@ const BaristaInterface = () => {
   // Lanes side by side on a landscape tablet or a laptop; one column on a
   // phone or a portrait tablet (see useLanesLayout).
   const lanes = useLanesLayout();
+  // Bench view (the rush screen, BenchMode.js) -- a device choice, like lanes.
+  const [benchView, setBenchView] = useState(() => { try { return localStorage.getItem('cupq_bench_view') === '1'; } catch (e) { return false; } });
+  const chooseBenchView = (on) => { setBenchView(on); try { localStorage.setItem('cupq_bench_view', on ? '1' : '0'); } catch (e) { /* device pref */ } };
 
   // State for showing station selector dropdown
   // Phase 4 (the queue screen): which OTHER stations this tablet watches in
@@ -193,6 +197,7 @@ const BaristaInterface = () => {
     pendingOrders,
     inProgressOrders,
     completedOrders,
+    previousOrders,
     historyOrders,
     vipOrders,
     regularOrders,
@@ -1856,7 +1861,7 @@ const BaristaInterface = () => {
         )}
         
         {/* Last Updated indicator */}
-        {!loading && !error && !settings.rushMode && (
+        {!loading && !error && !settings.rushMode && !(benchView && activeTab === 'orders') && (
           <div className="text-xs text-cq-ink-3 mb-2 flex items-center">
             <Clock size={12} className="mr-1" />
             Last updated: {new Date(lastUpdated).toLocaleTimeString()}
@@ -1897,6 +1902,28 @@ const BaristaInterface = () => {
           {/* Lanes on a landscape tablet or laptop, a column elsewhere. The
               rush-mix strip (a planning aid, not for mid-rush) rides inside
               the Up next lane so it costs no screen height. */}
+          {benchView ? (
+            <BenchMode
+              pendingOrders={pendingOrders}
+              inProgressOrders={inProgressOrders}
+              completedOrders={completedOrders}
+              collectedOrders={previousOrders}
+              stationId={selectedStation}
+              showReady={!settings.skipPickedUp}
+              onStart={startOrderWithLabel}
+              onComplete={handleCompleteOrder}
+              onCollected={markOrderPickedUp}
+              onWalkIn={() => setShowWalkInDialog(true)}
+              onList={() => chooseBenchView(false)}
+              refresh={refreshData}
+            />
+          ) : (<>
+          <div className="mb-2 flex justify-end">
+            <button type="button" onClick={() => chooseBenchView(true)} data-testid="bench-view-on"
+              className="inline-flex items-center gap-2 h-11 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-bold">
+              <Coffee size={18} /> Bench view for the rush
+            </button>
+          </div>
           <QueueColumn
             rushStrip={!settings.rushMode ? (
               <RushMixStrip
@@ -1934,6 +1961,7 @@ const BaristaInterface = () => {
             stationMenu={stationMenu}
             layout={lanes ? 'lanes' : 'column'}
           />
+          </>)}
           </>
         )}
 
